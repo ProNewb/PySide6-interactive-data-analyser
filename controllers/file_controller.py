@@ -1,4 +1,5 @@
 
+from fileinput import filename
 from tkinter import dialog
 
 import pandas as pd
@@ -9,7 +10,7 @@ class FileController:
 
     def __init__(self, dataset_manager):
         self.dataset_manager = dataset_manager
-
+        
     def open_file(self):
 
         print("Open file called")
@@ -27,7 +28,8 @@ class FileController:
             print("No file selected")
             return
 
-        dialog = import_dialog.ImportDialog()
+        dialog = import_dialog.ImportDialog(filename)
+
 
         if dialog.exec():
 
@@ -35,8 +37,11 @@ class FileController:
 
             self.dataset_manager.load_csv(
                 filename,
-                header=options.header
+                options
             )
+
+            print("CSV loaded!")
+            print(self.dataset_manager.get_dataframe())
 
         print("CSV loaded!")
 

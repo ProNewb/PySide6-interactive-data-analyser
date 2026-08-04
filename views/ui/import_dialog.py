@@ -1,36 +1,53 @@
 from PySide6.QtWidgets import (
     QDialog,
+    QLabel,
+    QLineEdit,
+    QScrollArea,
     QVBoxLayout,
     QHBoxLayout,
     QPushButton,
     QRadioButton,
-    QButtonGroup
+    QButtonGroup,
+    QWidget
 )
+from views.ui.preview_table import PreviewTable
+from core.csv_reader import CSVReader
 
 
 class ImportOptions:
-    """Stores the user's import choices."""
 
     def __init__(self):
-        self.header = "infer"
+        self.header = 0
         self.manual_headers = None
         self.header_file = None
+        self.delimiter = ","
 
 
 
 class ImportDialog(QDialog):
     """Dialog for selecting CSV import options."""
 
-    def __init__(self, parent=None):
+    def __init__(self, filename, parent=None):
         super().__init__(parent)
 
-        self.setWindowTitle("Import CSV")
-        self.setMinimumWidth(350)
+        self.filename = filename
+
+        self.reader = CSVReader()
+        self.preview_table = PreviewTable()
 
         self.options = ImportOptions()
 
+
         self.build_ui()
 
+        self.manual_inputs = []
+        df = self.reader.read(
+            self.filename,
+            self.options,
+            preview=True
+        )
+        self.num_columns = len(df.columns)
+        self.update_preview()
 
     def build_ui(self):
 
@@ -55,29 +72,139 @@ class ImportDialog(QDialog):
         ):
             self.button_group.addButton(button)
             layout.addWidget(button)
+            layout.addWidget(
 
+        QLabel("Preview")
+        )
+
+        layout.addWidget(
+            self.preview_table
+        )
+
+                # Scroll area for manual header inputs
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.manual_widget = QWidget()
+        self.manual_layout = QVBoxLayout(self.manual_widget)
+        self.scroll_area.setWidget(self.manual_widget)
+        self.scroll_area.setVisible(False)  # Hidden until manual selected
+        layout.addWidget(self.scroll_area)
+
+        # Connect manual button to show inputs
+        self.manual_button.toggled.connect(self.show_manual_inputs)
+
+        # Buttons
         buttons = QHBoxLayout()
-
         import_button = QPushButton("Import")
         cancel_button = QPushButton("Cancel")
 
-        import_button.clicked.connect(self.accept)
+        import_button.clicked.connect(self.on_import)
         cancel_button.clicked.connect(self.reject)
 
         buttons.addWidget(import_button)
         buttons.addWidget(cancel_button)
-
         layout.addLayout(buttons)
-
         self.setLayout(layout)
+
+        self.auto_button.toggled.connect(
+        self.update_preview
+    )
+
+        self.header_button.toggled.connect(
+            self.update_preview
+        )
+
+        self.no_header_button.toggled.connect(
+            self.update_preview
+        )
+
+    def show_manual_inputs(self, checked):
+
+        if checked:
+
+            self.clear_manual_inputs()
+
+            for i in range(self.num_columns):
+
+                label = QLabel(f"Column {i+1}:")
+                self.scroll_area.setMinimumHeight(200)
+                edit = QLineEdit()
+
+                edit.textChanged.connect(
+                    self.update_preview
+                )
+                edit.setPlaceholderText(
+                    f"Header {i+1}"
+                )
+
+                self.manual_inputs.append(edit)
+
+                row = QHBoxLayout()
+                row.addWidget(label)
+                row.addWidget(edit)
+
+                container = QWidget()
+                container.setLayout(row)
+
+                self.manual_layout.addWidget(container)
+
+            self.scroll_area.setVisible(True)
+
+        else:
+            self.scroll_area.setVisible(False)
+
+    def on_import(self):
+
+        if self.manual_button.isChecked():
+
+            headers = [
+                edit.text().strip()
+                for edit in self.manual_inputs
+            ]
+
+            self.options.header = None
+            self.options.manual_headers = headers
+
+        elif self.header_button.isChecked():
+
+            self.options.header = 0
+
+        elif self.no_header_button.isChecked():
+
+            self.options.header = None
+
+        elif self.file_button.isChecked():
+
+            self.options.header = None
+
+        else:
+
+            self.options.header = 0
+
+        self.accept()
 
 
     def get_options(self):
+        return self.options
 
-        if self.auto_button.isChecked():
-            self.options.header = "infer"
+    def clear_manual_inputs(self):
 
-        elif self.header_button.isChecked():
+        while self.manual_layout.count():
+
+            item = self.manual_layout.takeAt(0)
+
+            widget = item.widget()
+
+            if widget:
+                widget.deleteLater()
+
+        self.manual_inputs.clear()
+
+
+
+    def update_options_from_ui(self):
+
+        if self.header_button.isChecked():
             self.options.header = 0
 
         elif self.no_header_button.isChecked():
@@ -85,10 +212,22 @@ class ImportDialog(QDialog):
 
         elif self.manual_button.isChecked():
             self.options.header = None
-            # Manual headers will come later
 
         elif self.file_button.isChecked():
             self.options.header = None
-            # Header file support later
 
-        return self.options
+        else:
+            self.options.header = 0
+
+
+    def update_preview(self):
+
+        self.update_options_from_ui()
+
+        df = self.reader.read(
+            self.filename,
+            self.options,
+            preview=True
+        )
+
+        self.preview_table.display_dataframe(df)
