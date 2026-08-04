@@ -1,4 +1,5 @@
 import pandas as pd
+from analysis.data_summary import DataSummary
 from core.csv_reader import CSVReader
 
 class DatasetManager:
@@ -8,7 +9,7 @@ class DatasetManager:
         self.reader = CSVReader()
         self.dataframe = None
         self.filename = None
-
+        self.summary = DataSummary().generate(self.dataframe)
 
     def load_csv(self, filename, options):
 

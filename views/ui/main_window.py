@@ -3,6 +3,7 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
+    QMessageBox,
     QPushButton,
     QTableWidgetItem,
     QWidget,
@@ -10,8 +11,10 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QTableWidget
 )
+from analysis.data_summary import DataSummary
 from controllers.file_controller import FileController
 from core.dataset_manager import DatasetManager
+from views.ui.statistics_widget import StatisticsWidget
 
 class MainWindow(QMainWindow):
     """Main application window."""
@@ -22,13 +25,14 @@ class MainWindow(QMainWindow):
         self.dataset_manager = DatasetManager()
 
         self.file_controller = FileController(self.dataset_manager)
+        self.stats_widget = StatisticsWidget()
         self.initialise_window()
         self.build_ui()
         self.create_menu()
         self.create_status_bar()
         #self.create_button_layout()
         #self.display_dataframe()
-
+        
 
 
 
@@ -88,7 +92,8 @@ class MainWindow(QMainWindow):
 
         load_button.clicked.connect(self.file_controller.open_file)
         load_button.clicked.connect(self.display_dataframe)
-        display_data_button.clicked.connect(self.display_dataframe)
+        display_data_button.clicked.connect(self.display_dataframe) 
+        stats_button.clicked.connect(self.show_statistics)
 
         return layout
 
@@ -133,5 +138,35 @@ class MainWindow(QMainWindow):
 
     def create_status_bar(self):
                 self.statusBar().showMessage("Ready")
+
+    def create_stats_layout(self):
+        self.stats_layout = QVBoxLayout()
+        self.stats_label = QLabel("Statistics will be displayed here.")
+        self.stats_layout.addWidget(self.stats_label)
+        self.main_layout.addLayout(self.stats_layout)
+        summary = DataSummary().generate(self.dataset_manager.get_dataframe())
+        summary_button = QPushButton("Show Summary")
+        summary_button.clicked.connect(self.show_summary)
+
+
+    def show_statistics(self):
+
+        if not self.dataset_manager.has_data():
+
+            QMessageBox.warning(
+                self,
+                "No Dataset",
+                "Please load a CSV first."
+            )
+
+            return
+
+        self.stats_widget.load_dataframe(
+            self.dataset_manager.get_dataframe()
+        )
+
+        self.stats_widget.show()
+
+
 
 

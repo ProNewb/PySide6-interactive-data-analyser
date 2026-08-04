@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (
     QDialog,
+    QFileDialog,
     QLabel,
     QLineEdit,
     QScrollArea,
@@ -8,8 +9,10 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QButtonGroup,
-    QWidget
+    QWidget,
+    QComboBox,
 )
+from core.header_reader import HeaderReader
 from views.ui.preview_table import PreviewTable
 from core.csv_reader import CSVReader
 
@@ -17,10 +20,17 @@ from core.csv_reader import CSVReader
 class ImportOptions:
 
     def __init__(self):
+
+        # Header options
         self.header = 0
         self.manual_headers = None
         self.header_file = None
+
+        # CSV formatting
         self.delimiter = ","
+
+        # Data handling
+        self.infer_types = True
 
 
 
@@ -72,8 +82,46 @@ class ImportDialog(QDialog):
         ):
             self.button_group.addButton(button)
             layout.addWidget(button)
-            layout.addWidget(
 
+
+## header
+
+        self.header_file_button = QPushButton("Browse Header File...")
+        self.header_file_button.setEnabled(False)
+        #self.update_preview()
+        layout.addWidget(self.header_file_button)
+
+        self.header_file_button.clicked.connect(
+        self.select_header_file
+    )
+                            ## delim
+
+        self.delimiter_box = QComboBox()
+
+        self.delimiter_box.addItems(
+            [
+                ",",
+                ";",
+                "\t",
+                "|"
+            ]
+        )
+
+        layout.addWidget(
+            QLabel("Delimiter")
+        )
+
+        layout.addWidget(
+            self.delimiter_box
+        )
+
+
+        layout.addWidget(
+
+
+
+
+                ## preview
         QLabel("Preview")
         )
 
@@ -118,6 +166,13 @@ class ImportDialog(QDialog):
             self.update_preview
         )
 
+        self.file_button.toggled.connect(
+            self.header_file_button.setEnabled
+        )
+
+        self.file_button.toggled.connect(
+            self.update_preview
+        )
     def show_manual_inputs(self, checked):
 
         if checked:
@@ -174,6 +229,9 @@ class ImportDialog(QDialog):
             self.options.header = None
 
         elif self.file_button.isChecked():
+            headers = HeaderReader().read_headers(
+                filename=self.options.header_file
+            )
 
             self.options.header = None
 
@@ -211,13 +269,22 @@ class ImportDialog(QDialog):
             self.options.header = None
 
         elif self.manual_button.isChecked():
-            self.options.header = None
+
+                self.options.manual_headers = [
+                    box.text()
+                    for box in self.manual_inputs
+                ]
 
         elif self.file_button.isChecked():
+            
             self.options.header = None
 
         else:
             self.options.header = 0
+
+        self.options.delimiter = (
+                self.delimiter_box.currentText()
+            )
 
 
     def update_preview(self):
@@ -231,3 +298,26 @@ class ImportDialog(QDialog):
         )
 
         self.preview_table.display_dataframe(df)
+
+
+
+
+    def select_header_file(self):
+
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Header File",
+            "",
+            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
+        )
+
+        if not filename:
+            return
+
+        headers = HeaderReader().read_headers(filename)
+
+        self.options.manual_headers = headers
+
+        
+
+        self.update_preview()
