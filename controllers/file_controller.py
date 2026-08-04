@@ -1,5 +1,9 @@
 
+from tkinter import dialog
+
 import pandas as pd
+import os
+import views.ui.import_dialog as import_dialog
 from PySide6.QtWidgets import QFileDialog
 class FileController:
 
@@ -23,7 +27,16 @@ class FileController:
             print("No file selected")
             return
 
-        self.dataset_manager.load_csv(filename)
+        dialog = import_dialog.ImportDialog()
+
+        if dialog.exec():
+
+            options = dialog.get_options()
+
+            self.dataset_manager.load_csv(
+                filename,
+                header=options.header
+            )
 
         print("CSV loaded!")
 

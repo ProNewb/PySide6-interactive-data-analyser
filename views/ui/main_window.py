@@ -1,10 +1,14 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QHBoxLayout,
     QMainWindow,
+    QPushButton,
+    QTableWidgetItem,
     QWidget,
     QLabel,
     QVBoxLayout,
+    QTableWidget
 )
 from controllers.file_controller import FileController
 from core.dataset_manager import DatasetManager
@@ -14,7 +18,7 @@ class MainWindow(QMainWindow):
 
     def __init__(self):
         super().__init__()
-        from controllers.file_controller import FileController
+
         self.dataset_manager = DatasetManager()
 
         self.file_controller = FileController(self.dataset_manager)
@@ -22,26 +26,95 @@ class MainWindow(QMainWindow):
         self.build_ui()
         self.create_menu()
         self.create_status_bar()
+        #self.create_button_layout()
+        #self.display_dataframe()
+
+
 
 
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
         self.resize(1200, 800)
 
+
+
     def build_ui(self):
-        """Construct all interface widgets."""
+        self.create_central_widget()
+        self.create_title()
+        self.create_content_area()
+    def create_central_widget(self):
 
-        central_widget = QWidget()
-        self.setCentralWidget(central_widget)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
 
-        layout = QVBoxLayout()
+        self.main_layout = QVBoxLayout()
+        self.central_widget.setLayout(self.main_layout)
+
+    def create_title(self):
 
         title = QLabel("Data Explorer")
         title.setAlignment(Qt.AlignCenter)
 
-        layout.addWidget(title)
+        self.main_layout.addWidget(title)
 
-        central_widget.setLayout(layout)
+
+    def create_content_area(self):
+
+        content_layout = QHBoxLayout()
+
+        button_panel = self.create_button_panel()
+        table = self.create_table()
+
+        content_layout.addLayout(button_panel)
+        content_layout.addWidget(table)
+
+        self.main_layout.addLayout(content_layout)
+
+
+    def create_button_panel(self):
+
+        layout = QVBoxLayout()
+
+        load_button = QPushButton("Load CSV")
+        display_data_button = QPushButton("Display Data")
+        stats_button = QPushButton("Statistics")
+        graph_button = QPushButton("Graphs")
+
+        layout.addWidget(load_button)
+        layout.addWidget(display_data_button)
+        layout.addWidget(stats_button)
+        layout.addWidget(graph_button)
+        layout.addStretch()
+
+        load_button.clicked.connect(self.file_controller.open_file)
+        load_button.clicked.connect(self.display_dataframe)
+        display_data_button.clicked.connect(self.display_dataframe)
+
+        return layout
+
+    def create_table(self):
+
+        self.table = QTableWidget()
+
+        return self.table
+
+
+    def display_dataframe(self):
+        if not self.dataset_manager.has_data():
+            print("No data loaded")
+            return
+
+        df = self.dataset_manager.get_dataframe()
+
+        self.table.setRowCount(df.shape[0])
+        self.table.setColumnCount(df.shape[1])
+        self.table.setHorizontalHeaderLabels(
+            [str(col) for col in df.columns]
+        )
+
+        for i in range(df.shape[0]):
+            for j in range(df.shape[1]):
+                self.table.setItem(i, j, QTableWidgetItem(str(df.iat[i, j])))
 
 
     def create_menu(self):
@@ -57,5 +130,8 @@ class MainWindow(QMainWindow):
         file_menu.addSeparator()
         file_menu.addAction(exit_action)
 
+
     def create_status_bar(self):
                 self.statusBar().showMessage("Ready")
+
+
