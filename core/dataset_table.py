@@ -45,3 +45,32 @@ class DataTable(QTableWidget):
                         str(dataframe.iat[row, col])
                     )
                 )
+
+    def get_selected_columns(self):
+
+        columns = set()
+
+        for item in self.selectedItems():
+            columns.add(item.column())
+
+        return list(columns)
+
+
+    def get_selected_rows(self):
+
+        rows = set()
+
+        for item in self.selectedItems():
+            rows.add(item.row())
+
+        return list(rows)
+
+
+    def get_selected_rows(self):
+
+        items = set()
+
+        for item in self.selectedItems():
+            self.itemSelectionChanged.add(item())
+
+        return list(items)
