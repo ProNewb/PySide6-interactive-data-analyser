@@ -15,7 +15,7 @@ class DataTable(QTableWidget):
 
     def __init__(self):
         super().__init__()
-
+        self.dataframe = None
         self.setSortingEnabled(True)
 
         self.setSelectionMode(
@@ -27,7 +27,11 @@ class DataTable(QTableWidget):
         )
 
 
+
     def display_dataframe(self, dataframe):
+
+        # Store pandas dataframe for analysis
+        self.dataframe = dataframe.copy()
 
         self.setRowCount(dataframe.shape[0])
         self.setColumnCount(dataframe.shape[1])
@@ -38,6 +42,7 @@ class DataTable(QTableWidget):
 
         for row in range(dataframe.shape[0]):
             for col in range(dataframe.shape[1]):
+
                 self.setItem(
                     row,
                     col,
@@ -66,11 +71,37 @@ class DataTable(QTableWidget):
         return list(rows)
 
 
-    def get_selected_rows(self):
+    def get_analysis_dataframe(self):
 
-        items = set()
+        if self.dataframe is None:
+            return None
 
-        for item in self.selectedItems():
-            self.itemSelectionChanged.add(item())
 
-        return list(items)
+
+
+        print("Stored dataframe:")
+        print(self.dataframe)
+
+        rows = self.get_selected_rows()
+        columns = self.get_selected_columns()
+
+        print("Selected rows:", rows)
+        print("Selected columns:", columns)
+
+
+        if not rows and not columns:
+            return self.dataframe
+
+
+        if rows and not columns:
+            return self.dataframe.iloc[rows, :]
+
+
+        if columns and not rows:
+            return self.dataframe.iloc[:, columns]
+
+
+        return self.dataframe.iloc[
+            rows,
+            columns
+        ]

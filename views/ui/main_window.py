@@ -42,7 +42,7 @@ class MainWindow(QMainWindow):
         
         self.initialise_window()
         self.build_ui()
-        self.analysis_controller = AnalysisController(self.dataset_manager)
+        self.analysis_controller = AnalysisController(self.dataset_manager, self.table)
         
         ## main menu
         self.controls.load_button.clicked.connect(
@@ -54,8 +54,7 @@ class MainWindow(QMainWindow):
                 self.display_dataframe
             ) 
         self.controls.stats_button.clicked.connect(
-            lambda:
-            self.analysis_controller.show_statistics(self)
+            self.show_statistics
         )
                 ## main menu load
 
@@ -145,8 +144,12 @@ class MainWindow(QMainWindow):
 
             self.table.display_dataframe(dataframe)
 
-            self.stats_widget.load_dataframe(dataframe)
+            #self.stats_widget.load_dataframe(dataframe)
 
             self.status.showMessage(
                 "Dataset loaded successfully"
             )
+
+    def show_statistics(self):
+
+        self.analysis_controller.show_statistics(self)

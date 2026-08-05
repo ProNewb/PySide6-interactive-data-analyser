@@ -8,25 +8,27 @@ from views.ui.statistics_widget import StatisticsWidget
 
 class AnalysisController:
 
-    def __init__(self, dataset_manager):
+    def __init__(self, dataset_manager, table):
 
         self.dataset_manager = dataset_manager
+        self.table = table
         self.stats_widget = StatisticsWidget()
 
 
     def show_statistics(self, parent=None):
 
-        if not self.dataset_manager.has_data():
+        dataframe = self.table.get_analysis_dataframe()
+
+        if dataframe is None:
 
             QMessageBox.warning(
                 parent,
-                "No Dataset",
-                "Please load a CSV first."
+                "No Selection",
+                "Select data first."
             )
 
             return
 
-        dataframe = self.dataset_manager.get_dataframe()
 
         self.stats_widget.load_dataframe(
             dataframe
