@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
+    QAbstractItemView,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -100,6 +101,24 @@ class MainWindow(QMainWindow):
     def create_table(self):
 
         self.table = QTableWidget()
+        self.table.setSortingEnabled(True)
+        self.table.setSelectionMode(
+            QAbstractItemView.ExtendedSelection
+        )
+        self.table.setSelectionBehavior(
+            QAbstractItemView.SelectColumns
+        )
+
+        self.table.setSelectionBehavior(
+            QAbstractItemView.SelectRows
+        )
+
+        QAbstractItemView.SelectItems
+
+        indexes = self.table.selectionModel().selectedColumns()
+
+        for index in indexes:
+            print(index.column())
 
         return self.table
 

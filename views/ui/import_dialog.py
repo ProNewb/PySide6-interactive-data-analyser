@@ -3,6 +3,7 @@ from PySide6.QtWidgets import (
     QFileDialog,
     QLabel,
     QLineEdit,
+    QMessageBox,
     QScrollArea,
     QVBoxLayout,
     QHBoxLayout,
@@ -229,11 +230,16 @@ class ImportDialog(QDialog):
             self.options.header = None
 
         elif self.file_button.isChecked():
-            headers = HeaderReader().read_headers(
-                filename=self.options.header_file
-            )
 
             self.options.header = None
+
+            if self.options.manual_headers is None:
+                QMessageBox.warning(
+                    self,
+                    "No Header File",
+                    "Please select a header file."
+                )
+                return
 
         else:
 
@@ -304,20 +310,23 @@ class ImportDialog(QDialog):
 
     def select_header_file(self):
 
+        print("Selecting header file...")
+
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Select Header File",
             "",
-            "Text Files (*.txt);;CSV Files (*.csv);;All Files (*)"
+            "Text Files (*.txt);;CSV Files (*.csv)"
         )
 
+        print(filename)
+
         if not filename:
+            print("No header file selected")
             return
 
-        headers = HeaderReader().read_headers(filename)
-
-        self.options.manual_headers = headers
-
-        
+        self.options.header_file = filename
+        self.options.manual_headers = HeaderReader().read_headers(filename)
+        print("Stored:", self.options.header_file)
 
         self.update_preview()
