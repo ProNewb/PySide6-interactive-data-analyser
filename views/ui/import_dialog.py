@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (
 from core.header_reader import HeaderReader
 from views.ui.preview_table import PreviewTable
 from core.csv_reader import CSVReader
-
+from core.dataset_table import DataTable
 
 class ImportOptions:
 
@@ -47,7 +47,7 @@ class ImportDialog(QDialog):
         self.preview_table = PreviewTable()
 
         self.options = ImportOptions()
-
+        self.datatable = DataTable()
 
         self.build_ui()
 

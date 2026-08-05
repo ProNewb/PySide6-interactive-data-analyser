@@ -16,15 +16,16 @@ from analysis.data_summary import DataSummary
 from controllers.file_controller import FileController
 from core.dataset_manager import DatasetManager
 from views.ui.statistics_widget import StatisticsWidget
-
+from core.dataset_table import DataTable
+from views.ui.control_panel import ControlPanel
 class MainWindow(QMainWindow):
     """Main application window."""
 
     def __init__(self):
         super().__init__()
-
+        self.table = DataTable()
         self.dataset_manager = DatasetManager()
-
+        #self.datatable = DataTable()
         self.file_controller = FileController(self.dataset_manager)
         self.stats_widget = StatisticsWidget()
         self.initialise_window()
@@ -33,7 +34,7 @@ class MainWindow(QMainWindow):
         self.create_status_bar()
         #self.create_button_layout()
         #self.display_dataframe()
-        
+        self.controls = ControlPanel()
 
 
 
@@ -68,11 +69,11 @@ class MainWindow(QMainWindow):
         content_layout = QHBoxLayout()
 
         button_panel = self.create_button_panel()
-        table = self.create_table()
+        #table = self.datatable.create_table()
 
         content_layout.addLayout(button_panel)
-        content_layout.addWidget(table)
-
+        #content_layout.addWidget(table)
+        content_layout.addWidget(self.table)
         self.main_layout.addLayout(content_layout)
 
 
@@ -93,52 +94,14 @@ class MainWindow(QMainWindow):
 
         load_button.clicked.connect(self.file_controller.open_file)
         load_button.clicked.connect(self.display_dataframe)
-        display_data_button.clicked.connect(self.display_dataframe) 
+        display_data_button.clicked.connect(
+                self.display_dataframe
+            ) 
         stats_button.clicked.connect(self.show_statistics)
 
         return layout
 
-    def create_table(self):
 
-        self.table = QTableWidget()
-        self.table.setSortingEnabled(True)
-        self.table.setSelectionMode(
-            QAbstractItemView.ExtendedSelection
-        )
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectColumns
-        )
-
-        self.table.setSelectionBehavior(
-            QAbstractItemView.SelectRows
-        )
-
-        QAbstractItemView.SelectItems
-
-        indexes = self.table.selectionModel().selectedColumns()
-
-        for index in indexes:
-            print(index.column())
-
-        return self.table
-
-
-    def display_dataframe(self):
-        if not self.dataset_manager.has_data():
-            print("No data loaded")
-            return
-
-        df = self.dataset_manager.get_dataframe()
-
-        self.table.setRowCount(df.shape[0])
-        self.table.setColumnCount(df.shape[1])
-        self.table.setHorizontalHeaderLabels(
-            [str(col) for col in df.columns]
-        )
-
-        for i in range(df.shape[0]):
-            for j in range(df.shape[1]):
-                self.table.setItem(i, j, QTableWidgetItem(str(df.iat[i, j])))
 
 
     def create_menu(self):
@@ -189,3 +152,16 @@ class MainWindow(QMainWindow):
 
 
 
+    def display_dataframe(self):
+
+        if not self.dataset_manager.has_data():
+            QMessageBox.warning(
+                self,
+                "No Dataset",
+                "Please load a CSV first."
+            )
+            return
+
+        df = self.dataset_manager.get_dataframe()
+
+        self.table.display_dataframe(df)
