@@ -21,12 +21,13 @@ from controllers.analysis_controller import AnalysisController
 from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
 
+from views.ui.graph_widget import GraphWidget
 from views.ui.statistics_widget import StatisticsWidget
 from views.ui.control_panel import ControlPanel
 from views.ui.main_menu import MainMenu
 from views.ui.status_bar import StatusBar
 from views.ui.selection_toolbar import SelectionToolbar
-
+from views.ui.graph_tab import GraphTab
 class MainWindow(QMainWindow):
     """Main application window."""
 
@@ -39,7 +40,7 @@ class MainWindow(QMainWindow):
         )
 
         self.main_menu = MainMenu(self)
-
+        self.graph_tab = GraphTab()
         self.controls = ControlPanel()
         self.table = DataTable()
         #self.stats_widget = StatisticsWidget()#old
@@ -145,7 +146,7 @@ class MainWindow(QMainWindow):
             dataframe = self.dataset_manager.get_dataframe()
 
             self.table.display_dataframe(dataframe)
-
+            self.graph_tab.set_dataframe(dataframe)
             #self.stats_widget.load_dataframe(dataframe)
 
             self.status.showMessage(
@@ -210,15 +211,7 @@ class MainWindow(QMainWindow):
         # GRAPH TAB
         # =========================
 
-        self.graph_page = QWidget()
-
-        graph_layout = QHBoxLayout()
-
-        self.graph_page.setLayout(
-            graph_layout
-        )
-
-
+        self.graph_page = self.graph_tab
         # =========================
         # ADD TABS
         # =========================
@@ -250,6 +243,17 @@ class MainWindow(QMainWindow):
 
         print(selected)
 
+        self.graph_tab.set_dataframe(selected)
+
     def pop_stats(self):
         dataframe = self.table.get_analysis_dataframe()
         self.stats_widget.load_dataframe(dataframe)
+
+    def update_graph_data(self):
+
+        dataframe = self.table.get_analysis_dataframe()
+
+        if dataframe is None:
+            return
+
+        self.graph_tab.set_dataframe(dataframe)
