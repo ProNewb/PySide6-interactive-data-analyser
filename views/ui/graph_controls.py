@@ -23,7 +23,7 @@ class GraphControls(QWidget):
         )
 
         self.graph_type = QComboBox()
-
+        
         self.graph_type.addItems([
             "Scatter",
             "Line",
