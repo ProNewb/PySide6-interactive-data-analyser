@@ -13,7 +13,7 @@ class AnalysisController:
         self.dataset_manager = dataset_manager
         self.table = table
         self.stats_widget = StatisticsWidget()
-
+    '''
 
     def show_statistics(self, parent=None):
 
@@ -29,6 +29,26 @@ class AnalysisController:
 
             return
 
+
+        self.stats_widget.load_dataframe(
+            dataframe
+        )
+
+        self.stats_widget.show()
+
+'''
+
+    def show_statistics(self, parent=None):
+
+        dataframe = self.table.get_analysis_dataframe()
+
+        if dataframe is None:
+            QMessageBox.warning(
+                parent,
+                "No Data",
+                "Please load a dataset first."
+            )
+            return
 
         self.stats_widget.load_dataframe(
             dataframe

@@ -10,9 +10,9 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QTableWidget
 )
-
+from PySide6.QtCore import Signal
 class DataTable(QTableWidget):
-
+    selection_changed = Signal()
     def __init__(self):
         super().__init__()
         self.dataframe = None
@@ -27,6 +27,9 @@ class DataTable(QTableWidget):
         )
 
 
+        self.itemSelectionChanged.connect(
+            self.selection_changed.emit
+        )
 
     def display_dataframe(self, dataframe):
 

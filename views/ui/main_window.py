@@ -3,10 +3,17 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
+    QPushButton,
+    QTabWidget,
+    QTextEdit,
     QWidget,
     QLabel,
     QVBoxLayout
 )
+
+from PySide6.QtGui import QIcon
+
+from PySide6.QtGui import QFont
 
 from controllers.file_controller import FileController
 from controllers.analysis_controller import AnalysisController
@@ -35,10 +42,11 @@ class MainWindow(QMainWindow):
 
         self.controls = ControlPanel()
         self.table = DataTable()
-        self.stats_widget = StatisticsWidget()
+        #self.stats_widget = StatisticsWidget()#old
         self.selection_toolbar = SelectionToolbar(
         self.table
     )
+        self.tabs = QTabWidget()
         
         self.initialise_window()
         self.build_ui()
@@ -72,8 +80,7 @@ class MainWindow(QMainWindow):
             self.status
         )
 
-
-
+        self.table.selection_changed.connect(self.update_selection)
 
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
@@ -82,9 +89,13 @@ class MainWindow(QMainWindow):
 
 
     def build_ui(self):
+
         self.create_central_widget()
         self.create_title()
         self.create_content_area()
+        
+
+
     def create_central_widget(self):
 
         self.central_widget = QWidget()
@@ -103,21 +114,12 @@ class MainWindow(QMainWindow):
 
     def create_content_area(self):
 
-        content_layout = QHBoxLayout()
-        button_panel = self.controls
-        #button_panel = self.create_button_panel()
-        #table = self.datatable.create_table()
+        self.build_tabs()
 
-        content_layout.addWidget(button_panel)
-        #content_layout.addWidget(table)
-        content_layout.addWidget(self.table)
-        self.main_layout.addLayout(content_layout)
-
-
-
-        content_layout.addWidget(
-            self.selection_toolbar
+        self.main_layout.addWidget(
+            self.tabs
         )
+            
 
 
     def display_dataframe(self):
@@ -153,3 +155,101 @@ class MainWindow(QMainWindow):
     def show_statistics(self):
 
         self.analysis_controller.show_statistics(self)
+
+
+    def build_tabs(self):
+
+        self.tabs = QTabWidget()
+
+        # =========================
+        # TABLE TAB
+        # =========================
+
+        self.table_page = QWidget()
+
+        table_layout = QHBoxLayout()
+
+        table_layout.addWidget(self.table)
+        table_layout.addWidget(self.selection_toolbar)
+
+        self.table_page.setLayout(table_layout)
+
+
+        # =========================
+        # STATISTICS TAB
+        # =========================
+
+        self.statistics_page = QWidget()
+
+        statistics_layout = QVBoxLayout()
+
+        self.stats_widget = StatisticsWidget()
+
+        self.statistics_button = QPushButton(
+            "Update Statistics"
+        )
+
+        self.statistics_button.clicked.connect(
+            self.pop_stats
+        )
+
+        statistics_layout.addWidget(
+            self.stats_widget
+        )
+
+        statistics_layout.addWidget(
+            self.statistics_button
+        )
+
+        self.statistics_page.setLayout(
+            statistics_layout
+        )
+
+
+        # =========================
+        # GRAPH TAB
+        # =========================
+
+        self.graph_page = QWidget()
+
+        graph_layout = QHBoxLayout()
+
+        self.graph_page.setLayout(
+            graph_layout
+        )
+
+
+        # =========================
+        # ADD TABS
+        # =========================
+
+        self.tabs.addTab(
+            self.table_page,
+            "Table"
+        )
+
+        self.tabs.addTab(
+            self.statistics_page,
+            "Statistics"
+        )
+
+        self.tabs.addTab(
+            self.graph_page,
+            "Graphs"
+        )
+
+    def update_selection(self):
+
+        selected = self.table.get_analysis_dataframe()
+
+        print("Selection changed")
+
+        if selected is None:
+            print("No selection")
+            return
+
+        print(selected)
+
+    def pop_stats(self):
+        dataframe = self.table.get_analysis_dataframe()
+        self.stats_widget.load_dataframe(dataframe)
