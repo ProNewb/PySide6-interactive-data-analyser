@@ -52,6 +52,21 @@ class GraphTab(QWidget):
         self.generate_button.clicked.connect(
             self.generate_graph
         )
+        self.graph_type.currentTextChanged.connect(
+        self.update_controls
+        )
+
+    def update_controls(self, graph_type):
+
+            if graph_type == "Histogram":
+
+                self.y_column.setVisible(False)
+                self.y_label.setVisible(False)
+
+            else:
+
+                self.y_column.setVisible(True)
+                self.y_label.setVisible(True)
     def build_ui(self):
 
         main_layout = QHBoxLayout()
@@ -70,16 +85,19 @@ class GraphTab(QWidget):
             self.graph_type
         )
 
+        self.x_label = QLabel("X Axis")
+
         controls.addWidget(
-            QLabel("X Axis")
+            self.x_label
         )
 
         controls.addWidget(
             self.x_column
         )
+        self.y_label = QLabel("Y Axis")
 
         controls.addWidget(
-            QLabel("Y Axis")
+            self.y_label
         )
 
         controls.addWidget(
@@ -144,17 +162,30 @@ class GraphTab(QWidget):
             return
 
         graph_type = self.graph_type.currentText()
-        x = self.x_column.currentData()
-        y = self.y_column.currentData()
         title = self.title_input.text()
 
-        figure = self.generator.create_graph(
-            self.dataframe,
-            graph_type,
-            x,
-            y,
-            title
-        )
+        x = self.x_column.currentData()
+
+        if graph_type == "Histogram":
+
+            figure = self.generator.create_graph(
+                self.dataframe,
+                graph_type,
+                x_column=x,
+                title=title
+            )
+
+        else:
+
+            y = self.y_column.currentData()
+
+            figure = self.generator.create_graph(
+                self.dataframe,
+                graph_type,
+                x_column=x,
+                y_column=y,
+                title=title
+            )
 
         self.graph_widget.display_graph(
             figure

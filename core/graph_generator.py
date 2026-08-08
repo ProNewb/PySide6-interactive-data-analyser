@@ -43,18 +43,7 @@ class GraphGenerator:
                 title
             )
 
-        raise ValueError(
-            f"Unsupported graph type: {graph_type}"
-        )
-
-
-    def create_scatter(
-        self,
-        dataframe,
-        x,
-        y,
-        title=None
-    ):
+    def create_scatter(self, dataframe, x, y, title):
 
         return px.scatter(
             dataframe,
@@ -63,14 +52,7 @@ class GraphGenerator:
             title=title
         )
 
-
-    def create_line(
-        self,
-        dataframe,
-        x,
-        y,
-        title=None
-    ):
+    def create_line(self, dataframe, x, y, title):
 
         return px.line(
             dataframe,
@@ -79,14 +61,7 @@ class GraphGenerator:
             title=title
         )
 
-
-    def create_bar(
-        self,
-        dataframe,
-        x,
-        y,
-        title=None
-    ):
+    def create_bar(self, dataframe, x, y, title):
 
         return px.bar(
             dataframe,
@@ -95,13 +70,7 @@ class GraphGenerator:
             title=title
         )
 
-
-    def create_histogram(
-        self,
-        dataframe,
-        x,
-        title=None
-    ):
+    def create_histogram(self, dataframe, x, title):
 
         return px.histogram(
             dataframe,
