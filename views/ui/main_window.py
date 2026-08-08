@@ -21,6 +21,7 @@ from controllers.analysis_controller import AnalysisController
 from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
 
+from views.ui.data_dialog import DataDialog
 from views.ui.graph_widget import GraphWidget
 from views.ui.statistics_widget import StatisticsWidget
 from views.ui.control_panel import ControlPanel
@@ -82,7 +83,9 @@ class MainWindow(QMainWindow):
         )
 
         self.table.selection_changed.connect(self.update_selection)
-
+        self.main_menu.filter_action.triggered.connect(
+            self.open_filter_dialog
+        )
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
         self.resize(1200, 800)
@@ -257,3 +260,17 @@ class MainWindow(QMainWindow):
             return
 
         self.graph_tab.set_dataframe(dataframe)
+
+    def open_filter_dialog(self):
+
+        dataframe = self.dataset_manager.get_dataframe()
+
+        if dataframe is None:
+            return
+
+        dialog = DataDialog(
+            dataframe,
+            self
+        )
+
+        dialog.exec()
