@@ -10,7 +10,13 @@ from PySide6.QtWidgets import (
 )
 
 from core.conditions import Condition
+from PySide6.QtCore import Signal
+
+
+    
 class ConditionRow(QWidget):
+
+    remove_requested = Signal(object)
 
     def __init__(self, dataframe, parent=None):
         super().__init__(parent)
@@ -63,11 +69,17 @@ class ConditionRow(QWidget):
         )
 
         self.value_input = QLineEdit()
+        self.remove_button = QPushButton("Remove")
+
+
 
         layout.addWidget(self.column_combo)
         layout.addWidget(self.operator_combo)
         layout.addWidget(self.value_input)
-
+        layout.addWidget(self.remove_button)
+        self.remove_button.clicked.connect(
+            lambda: self.remove_requested.emit(self)
+        )
     def get_condition(self):
 
         return Condition(
@@ -75,3 +87,5 @@ class ConditionRow(QWidget):
             self.operator_combo.currentData(),
             self.value_input.text()
         )
+
+    

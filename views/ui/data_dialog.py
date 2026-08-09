@@ -21,7 +21,7 @@ class DataDialog(QDialog):
 
         self.dataframe = dataframe
         self.condition_rows = []
-
+        
         self.setWindowTitle("Filter Data")
 
         layout = QVBoxLayout()
@@ -104,19 +104,6 @@ class DataDialog(QDialog):
 
         self.create_new_condition()
 
-    def create_new_condition(self):
-
-        row = ConditionRow(
-            self.dataframe
-        )
-
-        self.conditions_layout.addWidget(
-            row
-        )
-
-        self.condition_rows.append(
-            row
-        )
 
     def get_conditions(self):
 
@@ -129,3 +116,27 @@ class DataDialog(QDialog):
             conditions,
             self.logic_combo.currentData()
         )
+
+    def create_new_condition(self):
+
+        row = ConditionRow(self.dataframe)
+
+        row.remove_requested.connect(
+            self.remove_condition
+        )
+
+        self.conditions_layout.addWidget(row)
+
+        self.condition_rows.append(row)
+
+
+    def remove_condition(self, row):
+
+        if len(self.condition_rows) <= 1:
+            return
+
+        self.condition_rows.remove(row)
+
+        self.conditions_layout.removeWidget(row)
+
+        row.deleteLater()
