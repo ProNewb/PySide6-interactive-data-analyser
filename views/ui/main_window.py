@@ -18,6 +18,7 @@ from PySide6.QtGui import QFont
 from controllers.file_controller import FileController
 from controllers.analysis_controller import AnalysisController
 
+from core.data_processor import DataProcessor
 from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
 
@@ -44,6 +45,8 @@ class MainWindow(QMainWindow):
         self.graph_tab = GraphTab()
         self.controls = ControlPanel()
         self.table = DataTable()
+        #self.dataset_manager = DatasetManager()
+        self.data_processor = DataProcessor()
         #self.stats_widget = StatisticsWidget()#old
         self.selection_toolbar = SelectionToolbar(
         self.table
@@ -86,6 +89,7 @@ class MainWindow(QMainWindow):
         self.main_menu.filter_action.triggered.connect(
             self.open_filter_dialog
         )
+
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
         self.resize(1200, 800)
@@ -266,6 +270,13 @@ class MainWindow(QMainWindow):
         dataframe = self.dataset_manager.get_dataframe()
 
         if dataframe is None:
+
+            QMessageBox.warning(
+                self,
+                "No Data",
+                "Please load a dataset first."
+            )
+
             return
 
         dialog = DataDialog(
@@ -273,4 +284,33 @@ class MainWindow(QMainWindow):
             self
         )
 
-        dialog.exec()
+        if dialog.exec():
+
+            filter_data = dialog.get_filter()
+
+            filtered_dataframe = self.data_processor.filter(
+                dataframe,
+                filter_data["column"],
+                filter_data["operator"],
+                filter_data["value"]
+            )
+
+            self.dataset_manager.set_dataframe(
+                filtered_dataframe
+            )
+
+            self.refresh_views()
+
+
+    def refresh_views(self):
+
+            dataframe = self.dataset_manager.get_dataframe()
+
+            if dataframe is None:
+                return
+
+            self.table.display_dataframe(dataframe)
+
+            self.graph_tab.set_dataframe(dataframe)
+
+            self.stats_widget.load_dataframe(dataframe)

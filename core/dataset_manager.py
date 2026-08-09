@@ -29,8 +29,9 @@ class DatasetManager:
         )
 
         if options.manual_headers:
-
             self.dataframe.columns = options.manual_headers
+
+        self.original_dataframe = self.dataframe.copy()
 
     def get_dataframe(self):
         """Return the current dataframe."""
@@ -43,6 +44,6 @@ class DatasetManager:
         return self.dataframe is not None
 
     def set_dataframe(self, dataframe):
-        self.original_dataframe = dataframe.copy()
+        #self.original_dataframe = dataframe.copy()
         self.dataframe = dataframe.copy()
 

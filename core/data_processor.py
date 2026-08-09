@@ -1,28 +1,77 @@
+import pandas as pd
+
 class DataProcessor:
 
-    def filter(self, dataframe, column, operator, value):
+    def filter(
+        self,
+        dataframe,
+        column,
+        operator,
+        value
+    ):
 
-        if operator == "equals":
-            return dataframe[dataframe[column] == value]
+        series = dataframe[column]
 
-        elif operator == "not_equals":
-            return dataframe[dataframe[column] != value]
+        if operator == "Equals":
 
-        elif operator == "greater_than":
-            return dataframe[dataframe[column] > value]
-
-        elif operator == "less_than":
-            return dataframe[dataframe[column] < value]
-
-        elif operator == "contains":
             return dataframe[
-                dataframe[column].astype(str).str.contains(
+                series == self.convert_value(
+                    series,
+                    value
+                )
+            ]
+
+        elif operator == "Not equal":
+
+            return dataframe[
+                series != self.convert_value(
+                    series,
+                    value
+                )
+            ]
+
+        elif operator == "Contains":
+
+            return dataframe[
+                series.astype(str).str.contains(
                     str(value),
                     case=False,
                     na=False
                 )
             ]
 
+        elif operator == "Greater than":
+
+            return dataframe[
+                series > float(value)
+            ]
+
+        elif operator == "Less than":
+
+            return dataframe[
+                series < float(value)
+            ]
+
+        elif operator == "Greater or equal":
+
+            return dataframe[
+                series >= float(value)
+            ]
+
+        elif operator == "Less or equal":
+
+            return dataframe[
+                series <= float(value)
+            ]
+
         raise ValueError(
             f"Unsupported filter operator: {operator}"
         )
+
+    def convert_value(self, series, value):
+
+        if pd.api.types.is_numeric_dtype(series):
+
+            return float(value)
+
+        return value

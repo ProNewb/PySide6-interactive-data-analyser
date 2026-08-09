@@ -79,3 +79,12 @@ class DataDialog(QDialog):
         )
 
         self.setLayout(layout)
+        self.apply_button.clicked.connect(self.accept)
+
+    def get_filter(self):
+
+        return {
+            "column": self.column_combo.currentData(),
+            "operator": self.condition_combo.currentText(),
+            "value": self.value_input.text()
+        }

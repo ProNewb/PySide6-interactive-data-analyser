@@ -75,12 +75,10 @@ class DataTable(QTableWidget):
 
 
     def get_analysis_dataframe(self):
+        
 
         if self.dataframe is None:
             return None
-
-
-
 
         print("Stored dataframe:")
         print(self.dataframe)
