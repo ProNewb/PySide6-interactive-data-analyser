@@ -1,23 +1,33 @@
-import pandas as pd
-from analysis.data_summary import DataSummary
+from dataclasses import dataclass
+
 from core.csv_reader import CSVReader
+from analysis.data_summary import DataSummary
+
+
+@dataclass
+class DataState:
+
+    dataframe: object
+    description: str
+
 
 class DatasetManager:
-    """Stores and manages the currently loaded dataset."""
 
+    MAX_HISTORY = 5
 
-
-
-
-
-    def has_data(self):
-        return self.dataframe is not None
     def __init__(self):
+
         self.reader = CSVReader()
+
         self.dataframe = None
         self.original_dataframe = None
         self.filename = None
-        self.summary = DataSummary().generate(self.dataframe)
+
+        self.history = []
+
+    def has_data(self):
+
+        return self.dataframe is not None
 
     def load_csv(self, filename, options):
 
@@ -33,17 +43,68 @@ class DatasetManager:
 
         self.original_dataframe = self.dataframe.copy()
 
+        # A newly loaded dataset starts a new history
+        self.history.clear()
+
     def get_dataframe(self):
-        """Return the current dataframe."""
 
         return self.dataframe
 
-    def has_data(self):
-        """Return True if a dataset is loaded."""
+    def set_dataframe(
+        self,
+        dataframe,
+        description="Data changed"
+    ):
 
-        return self.dataframe is not None
+        if self.dataframe is not None:
 
-    def set_dataframe(self, dataframe):
-        #self.original_dataframe = dataframe.copy()
+            self.history.append(
+                DataState(
+                    self.dataframe.copy(),
+                    description
+                )
+            )
+
+            if len(self.history) > self.MAX_HISTORY:
+                self.history.pop(0)
+
         self.dataframe = dataframe.copy()
 
+    def can_undo(self):
+
+        return len(self.history) > 0
+
+    def undo(self):
+
+        if not self.history:
+            return None
+
+        previous_state = self.history.pop()
+
+        self.dataframe = previous_state.dataframe.copy()
+
+        return previous_state.description
+
+    def can_reset(self):
+
+        if self.original_dataframe is None:
+            return False
+
+        if self.dataframe is None:
+            return False
+
+        return not self.dataframe.equals(
+            self.original_dataframe
+        )
+
+    def reset(self):
+
+        if not self.can_reset():
+            return False
+
+        self.dataframe = self.original_dataframe.copy()
+
+        # Reset means we're back at the original state
+        self.history.clear()
+
+        return True

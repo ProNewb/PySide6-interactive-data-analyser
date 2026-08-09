@@ -89,7 +89,12 @@ class MainWindow(QMainWindow):
         self.main_menu.filter_action.triggered.connect(
             self.open_filter_dialog
         )
-
+        self.main_menu.undo_action.triggered.connect(
+            self.undo_operation
+        )
+        self.main_menu.reset_action.triggered.connect(
+            self.reset_operation
+        )
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
         self.resize(1200, 800)
@@ -150,11 +155,7 @@ class MainWindow(QMainWindow):
 
         if self.dataset_manager.has_data():
 
-            dataframe = self.dataset_manager.get_dataframe()
-
-            self.table.display_dataframe(dataframe)
-            self.graph_tab.set_dataframe(dataframe)
-            #self.stats_widget.load_dataframe(dataframe)
+            self.refresh_views()
 
             self.status.showMessage(
                 "Dataset loaded successfully"
@@ -295,22 +296,82 @@ class MainWindow(QMainWindow):
                 filter_data["value"]
             )
 
-            self.dataset_manager.set_dataframe(
-                filtered_dataframe
+            description = (
+                f"Filter {filter_data['column']} "
+                f"{filter_data['operator']} "
+                f"{filter_data['value']}"
             )
 
+            self.dataset_manager.set_dataframe(
+                filtered_dataframe,
+                description
+            )
+            print("History:", len(self.dataset_manager.history))
+            print("Can undo:", self.dataset_manager.can_undo())
             self.refresh_views()
 
 
     def refresh_views(self):
 
-            dataframe = self.dataset_manager.get_dataframe()
+        dataframe = self.dataset_manager.get_dataframe()
 
-            if dataframe is None:
-                return
+        if dataframe is None:
+            return
 
-            self.table.display_dataframe(dataframe)
+        self.table.display_dataframe(dataframe)
 
-            self.graph_tab.set_dataframe(dataframe)
+        self.graph_tab.set_dataframe(dataframe)
 
-            self.stats_widget.load_dataframe(dataframe)
+        self.stats_widget.load_dataframe(dataframe)
+
+        self.update_data_actions()
+
+
+    def undo_operation(self):
+
+        description = self.dataset_manager.undo()
+
+        if description is not None:
+
+            self.refresh_views()
+            self.update_data_actions()
+
+            self.status.showMessage(
+                f"Undid: {description}"
+            )
+
+    def reset_operation(self):
+
+        if not self.dataset_manager.can_reset():
+            return
+
+        result = QMessageBox.question(
+            self,
+            "Reset Data",
+            "Are you sure you want to reset the dataset?\n\n"
+            "All modifications will be removed.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if result == QMessageBox.Yes:
+
+            if self.dataset_manager.reset():
+
+                self.refresh_views()
+                self.update_data_actions()
+
+                self.status.showMessage(
+                    "Dataset reset to original state"
+                )
+
+
+    def update_data_actions(self):
+
+        self.main_menu.undo_action.setEnabled(
+            self.dataset_manager.can_undo()
+        )
+
+        self.main_menu.reset_action.setEnabled(
+            self.dataset_manager.can_reset()
+        )

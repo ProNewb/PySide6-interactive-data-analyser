@@ -38,3 +38,23 @@ class MainMenu:
         self.data_menu.addAction(
             self.filter_action
         )
+        self.undo_action = QAction(
+            "Undo",
+            window
+        )
+
+        self.reset_action = QAction(
+            "Reset",
+            window
+        )
+
+        self.undo_action.setEnabled(False)
+        self.reset_action.setEnabled(False)
+
+        self.data_menu.addAction(
+            self.undo_action
+        )
+
+        self.data_menu.addAction(
+            self.reset_action
+        )
