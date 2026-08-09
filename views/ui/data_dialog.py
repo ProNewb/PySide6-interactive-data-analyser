@@ -7,6 +7,11 @@ from PySide6.QtWidgets import (
     QPushButton
 )
 
+from core.condition_group import ConditionGroup
+from core.conditions import Condition
+from views.ui.condition_row import ConditionRow
+
+
 
 class DataDialog(QDialog):
 
@@ -15,61 +20,70 @@ class DataDialog(QDialog):
         super().__init__(parent)
 
         self.dataframe = dataframe
+        self.condition_rows = []
 
         self.setWindowTitle("Filter Data")
 
         layout = QVBoxLayout()
 
-        # Column
-        layout.addWidget(
-            QLabel("Column")
-        )
-
-        self.column_combo = QComboBox()
-
-        for column in dataframe.columns:
-            self.column_combo.addItem(
-                str(column),
-                userData=column
-            )
+        # --------------------------------
+        # Conditions
+        # --------------------------------
 
         layout.addWidget(
-            self.column_combo
+            QLabel("Conditions")
         )
 
-        # Condition
-        layout.addWidget(
-            QLabel("Condition")
+        self.conditions_layout = QVBoxLayout()
+
+        layout.addLayout(
+            self.conditions_layout
         )
 
-        self.condition_combo = QComboBox()
+        # --------------------------------
+        # Add condition
+        # --------------------------------
 
-        self.condition_combo.addItems([
-            "Equals",
-            "Not equal",
-            "Contains",
-            "Greater than",
-            "Less than",
-            "Greater or equal",
-            "Less or equal"
-        ])
+        self.new_condition = QPushButton(
+            "+ Add Condition"
+        )
 
         layout.addWidget(
-            self.condition_combo
+            self.new_condition
         )
 
-        # Value
+        self.new_condition.clicked.connect(
+            self.create_new_condition
+        )
+
+        # --------------------------------
+        # Logic
+        # --------------------------------
+
         layout.addWidget(
-            QLabel("Value")
+            QLabel("Match conditions using")
         )
 
-        self.value_input = QLineEdit()
+        self.logic_combo = QComboBox()
+
+        self.logic_combo.addItem(
+            "AND",
+            "AND"
+        )
+
+        self.logic_combo.addItem(
+            "OR",
+            "OR"
+        )
 
         layout.addWidget(
-            self.value_input
+            self.logic_combo
         )
 
+        # --------------------------------
         # Apply
+        # --------------------------------
+
         self.apply_button = QPushButton(
             "Apply"
         )
@@ -78,13 +92,40 @@ class DataDialog(QDialog):
             self.apply_button
         )
 
+        self.apply_button.clicked.connect(
+            self.accept
+        )
+
         self.setLayout(layout)
-        self.apply_button.clicked.connect(self.accept)
 
-    def get_filter(self):
+        # --------------------------------
+        # Create first condition
+        # --------------------------------
 
-        return {
-            "column": self.column_combo.currentData(),
-            "operator": self.condition_combo.currentText(),
-            "value": self.value_input.text()
-        }
+        self.create_new_condition()
+
+    def create_new_condition(self):
+
+        row = ConditionRow(
+            self.dataframe
+        )
+
+        self.conditions_layout.addWidget(
+            row
+        )
+
+        self.condition_rows.append(
+            row
+        )
+
+    def get_conditions(self):
+
+        conditions = [
+            row.get_condition()
+            for row in self.condition_rows
+        ]
+
+        return ConditionGroup(
+            conditions,
+            self.logic_combo.currentData()
+        )

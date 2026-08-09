@@ -11,6 +11,8 @@ from PySide6.QtWidgets import (
     QTableWidget
 )
 from PySide6.QtCore import Signal
+
+from core.dataframe_item import DataFrameItem
 class DataTable(QTableWidget):
     selection_changed = Signal()
     def __init__(self):
@@ -33,7 +35,12 @@ class DataTable(QTableWidget):
 
     def display_dataframe(self, dataframe):
 
-        # Store pandas dataframe for analysis
+        was_sorting_enabled = self.isSortingEnabled()
+
+        self.setSortingEnabled(False)
+
+        self.clearContents()
+
         self.dataframe = dataframe.copy()
 
         self.setRowCount(dataframe.shape[0])
@@ -44,15 +51,18 @@ class DataTable(QTableWidget):
         )
 
         for row in range(dataframe.shape[0]):
+
             for col in range(dataframe.shape[1]):
 
                 self.setItem(
                     row,
                     col,
-                    QTableWidgetItem(
-                        str(dataframe.iat[row, col])
+                    DataFrameItem(
+                        dataframe.iat[row, col]
                     )
                 )
+
+        self.setSortingEnabled(was_sorting_enabled)
 
     def get_selected_columns(self):
 

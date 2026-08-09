@@ -18,10 +18,13 @@ from PySide6.QtGui import QFont
 from controllers.file_controller import FileController
 from controllers.analysis_controller import AnalysisController
 
+from core.condition_group import ConditionGroup
+from core.conditions import Condition
 from core.data_processor import DataProcessor
 from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
 
+from views.ui import data_dialog
 from views.ui.data_dialog import DataDialog
 from views.ui.graph_widget import GraphWidget
 from views.ui.statistics_widget import StatisticsWidget
@@ -95,6 +98,8 @@ class MainWindow(QMainWindow):
         self.main_menu.reset_action.triggered.connect(
             self.reset_operation
         )
+
+
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
         self.resize(1200, 800)
@@ -287,29 +292,39 @@ class MainWindow(QMainWindow):
 
         if dialog.exec():
 
-            filter_data = dialog.get_filter()
+            conditions = dialog.get_conditions()
 
-            filtered_dataframe = self.data_processor.filter(
-                dataframe,
-                filter_data["column"],
-                filter_data["operator"],
-                filter_data["value"]
-            )
+            try:
 
-            description = (
-                f"Filter {filter_data['column']} "
-                f"{filter_data['operator']} "
-                f"{filter_data['value']}"
-            )
+                print("BEFORE")
+                print(dataframe.dtypes)
+
+                filtered_dataframe = self.data_processor.filter(
+                    dataframe,
+                    conditions
+                )
+
+                print("AFTER")
+                print(filtered_dataframe.dtypes)
+
+            except ValueError as error:
+
+                QMessageBox.warning(
+                    self,
+                    "Invalid Filter",
+                    str(error)
+                )
+
+                return
+
+            description = "Applied filter"
 
             self.dataset_manager.set_dataframe(
                 filtered_dataframe,
                 description
             )
-            print("History:", len(self.dataset_manager.history))
-            print("Can undo:", self.dataset_manager.can_undo())
-            self.refresh_views()
 
+            self.refresh_views()
 
     def refresh_views(self):
 
@@ -375,3 +390,4 @@ class MainWindow(QMainWindow):
         self.main_menu.reset_action.setEnabled(
             self.dataset_manager.can_reset()
         )
+
