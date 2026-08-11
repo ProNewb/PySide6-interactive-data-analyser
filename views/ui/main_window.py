@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -10,8 +11,8 @@ from PySide6.QtWidgets import (
     QLabel,
     QVBoxLayout
 )
-
-from PySide6.QtGui import QIcon
+from PySide6.QtWidgets import QSplitter
+from PySide6.QtGui import QAction, QIcon
 
 from PySide6.QtGui import QFont
 
@@ -25,7 +26,9 @@ from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
 
 from views.ui import data_dialog
+from views.ui.aggregation_dialog import AggregationDialog
 from views.ui.data_dialog import DataDialog
+from views.ui.dataset_view import DatasetView
 from views.ui.graph_widget import GraphWidget
 from views.ui.statistics_widget import StatisticsWidget
 from views.ui.control_panel import ControlPanel
@@ -37,66 +40,111 @@ class MainWindow(QMainWindow):
     """Main application window."""
 
     def __init__(self):
+
         super().__init__()
+
         self.dataset_manager = DatasetManager()
 
         self.file_controller = FileController(
             self.dataset_manager
         )
 
-        self.main_menu = MainMenu(self)
-        self.graph_tab = GraphTab()
-        self.controls = ControlPanel()
-        self.table = DataTable()
-        #self.dataset_manager = DatasetManager()
         self.data_processor = DataProcessor()
-        #self.stats_widget = StatisticsWidget()#old
-        self.selection_toolbar = SelectionToolbar(
-        self.table
-    )
+
+        self.main_menu = MainMenu(self)
+        self.controls = ControlPanel()
+
+        # ----------------------------------
+        # Dataset views
+        # ----------------------------------
+
+        self.main_view = DatasetView(
+            "Main Dataset"
+        )
+
+        self.result_view = DatasetView(
+            "Result Dataset"
+        )
+
+        # Result starts hidden
+        self.result_view.hide()
+
+        # ----------------------------------
+        # Main tabs
+        # ----------------------------------
+
         self.tabs = QTabWidget()
-        
+
+        # ----------------------------------
+        # Window
+        # ----------------------------------
+
         self.initialise_window()
         self.build_ui()
-        self.analysis_controller = AnalysisController(self.dataset_manager, self.table)
-        
-        ## main menu
+
+        self.analysis_controller = AnalysisController(
+            self.dataset_manager,
+            self.main_view.table
+        )
+
+        # ----------------------------------
+        # Signals
+        # ----------------------------------
+
         self.controls.load_button.clicked.connect(
             self.load_dataset
         )
 
-        ## show csv
         self.controls.display_data_button.clicked.connect(
-                self.display_dataframe
-            ) 
+            self.display_dataframe
+        )
+
         self.controls.stats_button.clicked.connect(
             self.show_statistics
         )
-                ## main menu load
 
         self.main_menu.open_action.triggered.connect(
             self.load_dataset
         )
-        ## exit
+
         self.main_menu.exit_action.triggered.connect(
             self.close
+        )
+
+        self.main_menu.filter_action.triggered.connect(
+            self.open_filter_dialog
+        )
+
+        self.main_menu.undo_action.triggered.connect(
+            self.undo_operation
+        )
+
+        self.main_menu.reset_action.triggered.connect(
+            self.reset_operation
+        )
+
+        self.main_menu.aggregate_action.triggered.connect(
+            self.open_aggregation_dialog
+        )
+        self.main_view.close_requested.connect(
+            self.hide_main_view
+        )
+
+        self.result_view.close_requested.connect(
+            self.hide_result_view
+        )
+        self.main_menu.main_dataset_action.triggered.connect(
+            self.toggle_main_dataset
+        )
+
+        self.main_menu.result_dataset_action.triggered.connect(
+            self.toggle_result_dataset
         )
 
         self.status = StatusBar()
 
         self.setStatusBar(
             self.status
-        )
-
-        self.table.selection_changed.connect(self.update_selection)
-        self.main_menu.filter_action.triggered.connect(
-            self.open_filter_dialog
-        )
-        self.main_menu.undo_action.triggered.connect(
-            self.undo_operation
-        )
-        self.main_menu.reset_action.triggered.connect(
-            self.reset_operation
         )
 
 
@@ -143,16 +191,23 @@ class MainWindow(QMainWindow):
     def display_dataframe(self):
 
         if not self.dataset_manager.has_data():
+
             QMessageBox.warning(
                 self,
                 "No Dataset",
                 "Please load a CSV first."
             )
+
             return
 
-        df = self.dataset_manager.get_dataframe()
+        dataframe = (
+            self.dataset_manager
+            .get_dataframe()
+        )
 
-        self.table.display_dataframe(df)
+        self.main_view.set_dataframe(
+            dataframe
+        )
 
     def load_dataset(self):
 
@@ -175,88 +230,87 @@ class MainWindow(QMainWindow):
 
         self.tabs = QTabWidget()
 
-        # =========================
-        # TABLE TAB
-        # =========================
+        # ==================================
+        # DATA TAB
+        # ==================================
 
-        self.table_page = QWidget()
+        data_page = QWidget()
 
-        table_layout = QHBoxLayout()
-
-        table_layout.addWidget(self.table)
-        table_layout.addWidget(self.selection_toolbar)
-
-        self.table_page.setLayout(table_layout)
-
-
-        # =========================
-        # STATISTICS TAB
-        # =========================
-
-        self.statistics_page = QWidget()
-
-        statistics_layout = QVBoxLayout()
-
-        self.stats_widget = StatisticsWidget()
-
-        self.statistics_button = QPushButton(
-            "Update Statistics"
+        data_layout = QVBoxLayout(
+            data_page
         )
 
-        self.statistics_button.clicked.connect(
-            self.pop_stats
+        # ----------------------------------
+        # Operation target
+        # ----------------------------------
+
+        target_layout = QHBoxLayout()
+
+        target_layout.addWidget(
+            QLabel("Operate on:")
         )
 
-        statistics_layout.addWidget(
-            self.stats_widget
+        self.target_combo = QComboBox()
+
+        self.target_combo.addItem(
+            "Main Dataset",
+            "main"
         )
 
-        statistics_layout.addWidget(
-            self.statistics_button
+        self.target_combo.addItem(
+            "Result Dataset",
+            "result"
         )
 
-        self.statistics_page.setLayout(
-            statistics_layout
+        self.target_combo.addItem(
+            "Current Selection",
+            "selection"
         )
 
+        target_layout.addWidget(
+            self.target_combo
+        )
 
-        # =========================
-        # GRAPH TAB
-        # =========================
+        target_layout.addStretch()
 
-        self.graph_page = self.graph_tab
-        # =========================
-        # ADD TABS
-        # =========================
+        data_layout.addLayout(
+            target_layout
+        )
+
+        # ----------------------------------
+        # Dataset views
+        # ----------------------------------
+
+        self.splitter = QSplitter(
+            Qt.Horizontal
+        )
+
+        self.splitter.addWidget(
+            self.main_view
+        )
+
+        self.splitter.addWidget(
+            self.result_view
+        )
+
+        self.splitter.setSizes([
+            600,
+            600
+        ])
+
+        data_layout.addWidget(
+            self.splitter
+        )
+
+        # ----------------------------------
+        # Add tab
+        # ----------------------------------
 
         self.tabs.addTab(
-            self.table_page,
-            "Table"
+            data_page,
+            "Data"
         )
 
-        self.tabs.addTab(
-            self.statistics_page,
-            "Statistics"
-        )
-
-        self.tabs.addTab(
-            self.graph_page,
-            "Graphs"
-        )
-
-    def update_selection(self):
-
-        selected = self.table.get_analysis_dataframe()
-
-        print("Selection changed")
-
-        if selected is None:
-            print("No selection")
-            return
-
-        print(selected)
-
-        self.graph_tab.set_dataframe(selected)
 
     def pop_stats(self):
         dataframe = self.table.get_analysis_dataframe()
@@ -273,16 +327,9 @@ class MainWindow(QMainWindow):
 
     def open_filter_dialog(self):
 
-        dataframe = self.dataset_manager.get_dataframe()
+        dataframe = self.get_target_dataframe()
 
         if dataframe is None:
-
-            QMessageBox.warning(
-                self,
-                "No Data",
-                "Please load a dataset first."
-            )
-
             return
 
         dialog = DataDialog(
@@ -290,57 +337,84 @@ class MainWindow(QMainWindow):
             self
         )
 
-        if dialog.exec():
+        if not dialog.exec():
+            return
 
-            conditions = dialog.get_conditions()
+        conditions = dialog.get_conditions()
 
-            try:
+        try:
 
-                print("BEFORE")
-                print(dataframe.dtypes)
-
-                filtered_dataframe = self.data_processor.filter(
+            filtered_dataframe = (
+                self.data_processor.filter(
                     dataframe,
                     conditions
                 )
+            )
 
-                print("AFTER")
-                print(filtered_dataframe.dtypes)
+        except ValueError as error:
 
-            except ValueError as error:
+            QMessageBox.warning(
+                self,
+                "Invalid Filter",
+                str(error)
+            )
 
-                QMessageBox.warning(
-                    self,
-                    "Invalid Filter",
-                    str(error)
-                )
+            return
 
-                return
+        target = self.target_combo.currentData()
 
-            description = "Applied filter"
+        if target == "result":
+
+            self.dataset_manager.set_result_dataframe(
+                filtered_dataframe
+            )
+
+        else:
 
             self.dataset_manager.set_dataframe(
                 filtered_dataframe,
-                description
+                "Applied filter"
             )
 
-            self.refresh_views()
+        self.refresh_views()
+
 
     def refresh_views(self):
 
-        dataframe = self.dataset_manager.get_dataframe()
+        dataframe = (
+            self.dataset_manager
+            .get_dataframe()
+        )
 
-        if dataframe is None:
-            return
+        result = (
+            self.dataset_manager
+            .get_result_dataframe()
+        )
 
-        self.table.display_dataframe(dataframe)
+        # Main dataset
+        if dataframe is not None:
 
-        self.graph_tab.set_dataframe(dataframe)
+            self.main_view.set_dataframe(
+                dataframe
+            )
 
-        self.stats_widget.load_dataframe(dataframe)
+        else:
 
+            self.main_view.clear()
+
+        # Result dataset
+        if result is not None:
+
+            self.result_view.set_dataframe(
+                result
+            )
+
+        else:
+
+            self.result_view.clear()
+
+        self.update_comparison_layout()
         self.update_data_actions()
-
 
     def undo_operation(self):
 
@@ -391,3 +465,178 @@ class MainWindow(QMainWindow):
             self.dataset_manager.can_reset()
         )
 
+
+    def open_aggregation_dialog(self):
+
+        dataframe = self.get_target_dataframe()
+
+        if dataframe is None:
+            return
+
+        dialog = AggregationDialog(
+            dataframe,
+            self
+        )
+
+        if not dialog.exec():
+            return
+
+        aggregation = dialog.get_aggregation()
+
+        try:
+
+            aggregated_dataframe = (
+                self.data_processor.aggregate(
+                    dataframe,
+                    aggregation
+                )
+            )
+
+        except (ValueError, KeyError) as error:
+
+            QMessageBox.warning(
+                self,
+                "Invalid Aggregation",
+                str(error)
+            )
+
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "result":
+
+            self.dataset_manager.set_result_dataframe(
+                aggregated_dataframe
+            )
+
+        else:
+
+            self.dataset_manager.set_result_dataframe(
+                aggregated_dataframe
+            )
+
+        self.refresh_views()
+
+
+
+
+    def get_target_dataframe(self):
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            return (
+                self.dataset_manager
+                .get_dataframe()
+            )
+
+        if target == "result":
+
+            dataframe = (
+                self.dataset_manager
+                .get_result_dataframe()
+            )
+
+            if dataframe is None:
+
+                QMessageBox.warning(
+                    self,
+                    "No Result",
+                    "There is no result dataset available."
+                )
+
+                return None
+
+            return dataframe
+
+        if target == "selection":
+
+            # Determine which view is currently active
+            if self.result_view.isVisible():
+                dataframe = (
+                    self.result_view
+                    .get_analysis_dataframe()
+                )
+
+            else:
+                dataframe = (
+                    self.main_view
+                    .get_analysis_dataframe()
+                )
+
+            if dataframe is None:
+                QMessageBox.warning(
+                    self,
+                    "No Selection",
+                    "No data is currently selected."
+                )
+
+                return None
+
+            return dataframe
+
+        return None
+
+    def hide_main_view(self):
+
+        self.main_menu.main_dataset_action.setChecked(
+            False
+        )
+
+        self.update_comparison_layout()
+
+    def hide_result_view(self):
+
+        self.main_menu.result_dataset_action.setChecked(
+            False
+        )
+
+        self.update_comparison_layout()
+
+    def toggle_main_dataset(self, checked):
+
+        self.main_view.setVisible(checked)
+
+        self.update_comparison_layout()
+
+
+
+    def toggle_result_dataset(self, checked):
+
+        self.result_view.setVisible(checked)
+
+        self.update_comparison_layout()
+
+    def update_comparison_layout(self):
+
+        main_available = (
+            self.dataset_manager.get_dataframe()
+            is not None
+        )
+
+        result_available = (
+            self.dataset_manager.get_result_dataframe()
+            is not None
+        )
+
+        main_checked = (
+            self.main_menu
+            .main_dataset_action
+            .isChecked()
+        )
+
+        result_checked = (
+            self.main_menu
+            .result_dataset_action
+            .isChecked()
+        )
+
+        self.main_view.setVisible(
+            main_available and main_checked
+        )
+
+        self.result_view.setVisible(
+            result_available and result_checked
+        )

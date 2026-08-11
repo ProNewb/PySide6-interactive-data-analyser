@@ -3,6 +3,10 @@ from dataclasses import dataclass
 from core.csv_reader import CSVReader
 from analysis.data_summary import DataSummary
 
+from dataclasses import dataclass
+
+from core.csv_reader import CSVReader
+
 
 @dataclass
 class DataState:
@@ -19,16 +23,20 @@ class DatasetManager:
 
         self.reader = CSVReader()
 
+        # Main dataset
         self.dataframe = None
         self.original_dataframe = None
-        self.filename = None
-
         self.history = []
 
-    def has_data(self):
+        # Result dataset
+        self.result_dataframe = None
+        self.result_history = []
 
-        return self.dataframe is not None
+        self.filename = None
 
+    # ==================================================
+    # MAIN DATASET
+    # ==================================================
     def load_csv(self, filename, options):
 
         self.filename = filename
@@ -45,6 +53,10 @@ class DatasetManager:
 
         # A newly loaded dataset starts a new history
         self.history.clear()
+        
+    def has_data(self):
+
+        return self.dataframe is not None
 
     def get_dataframe(self):
 
@@ -70,20 +82,77 @@ class DatasetManager:
 
         self.dataframe = dataframe.copy()
 
-    def can_undo(self):
+    # ==================================================
+    # RESULT DATASET
+    # ==================================================
 
-        return len(self.history) > 0
+    def has_result(self):
 
-    def undo(self):
+        return self.result_dataframe is not None
 
-        if not self.history:
+    def get_result_dataframe(self):
+
+        return self.result_dataframe
+
+    def set_result_dataframe(
+        self,
+        dataframe,
+        description="Result changed"
+    ):
+
+        if self.result_dataframe is not None:
+
+            self.result_history.append(
+                DataState(
+                    self.result_dataframe.copy(),
+                    description
+                )
+            )
+
+            if len(self.result_history) > self.MAX_HISTORY:
+                self.result_history.pop(0)
+
+        self.result_dataframe = dataframe.copy()
+
+    def clear_result(self):
+
+        self.result_dataframe = None
+        self.result_history.clear()
+
+    # ==================================================
+    # HISTORY
+    # ==================================================
+
+    def can_undo(self, target="main"):
+
+        if target == "main":
+            return len(self.history) > 0
+
+        return len(self.result_history) > 0
+
+    def undo(self, target="main"):
+
+        history = (
+            self.history
+            if target == "main"
+            else self.result_history
+        )
+
+        if not history:
             return None
 
-        previous_state = self.history.pop()
+        previous_state = history.pop()
 
-        self.dataframe = previous_state.dataframe.copy()
+        if target == "main":
+            self.dataframe = previous_state.dataframe.copy()
+        else:
+            self.result_dataframe = previous_state.dataframe.copy()
 
         return previous_state.description
+
+    # ==================================================
+    # RESET
+    # ==================================================
 
     def can_reset(self):
 
@@ -103,8 +172,6 @@ class DatasetManager:
             return False
 
         self.dataframe = self.original_dataframe.copy()
-
-        # Reset means we're back at the original state
         self.history.clear()
 
         return True

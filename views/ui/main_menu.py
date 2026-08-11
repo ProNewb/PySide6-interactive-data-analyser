@@ -28,8 +28,9 @@ class MainMenu:
         self.file_menu.addAction(
             self.exit_action
         )
-        self.data_menu = menu_bar.addMenu("Data")
 
+        self.data_menu = menu_bar.addMenu("Data")
+## filter
         self.filter_action = QAction(
             "Filter",
             window
@@ -38,11 +39,23 @@ class MainMenu:
         self.data_menu.addAction(
             self.filter_action
         )
+
+## aggregation
+        self.aggregate_action = QAction(
+            "Aggregate",
+            window
+        )
+
+        self.data_menu.addAction(
+            self.aggregate_action
+        )
+## undo
+
         self.undo_action = QAction(
             "Undo",
             window
         )
-
+## reset
         self.reset_action = QAction(
             "Reset",
             window
@@ -57,4 +70,30 @@ class MainMenu:
 
         self.data_menu.addAction(
             self.reset_action
+        )
+
+
+
+        self.view_menu = menu_bar.addMenu("View")
+
+        self.main_dataset_action = QAction(
+            "Main Dataset",
+            window
+        )
+        self.main_dataset_action.setCheckable(True)
+        self.main_dataset_action.setChecked(True)
+
+        self.result_dataset_action = QAction(
+            "Result Dataset",
+            window
+        )
+        self.result_dataset_action.setCheckable(True)
+        self.result_dataset_action.setChecked(False)
+
+        self.view_menu.addAction(
+            self.main_dataset_action
+        )
+
+        self.view_menu.addAction(
+            self.result_dataset_action
         )
