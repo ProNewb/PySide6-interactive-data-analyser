@@ -135,7 +135,9 @@ class DatasetView(QWidget):
         self.table.selection_changed.connect(
             self.update_selection
         )
-
+        self.close_button.clicked.connect(
+            self.close_requested.emit
+        )
             # ======================================
     # DATA
     # ======================================
@@ -161,11 +163,11 @@ class DatasetView(QWidget):
         self.dataframe = None
 
         self.table.clearContents()
-
         self.table.setRowCount(0)
         self.table.setColumnCount(0)
 
-
+        self.stats_widget.load_dataframe(None)
+        self.graph_tab.set_dataframe(None)
 
     def get_dataframe(self):
 
@@ -195,6 +197,3 @@ class DatasetView(QWidget):
             dataframe
         )
 
-        self.close_button.clicked.connect(
-            self.close_requested.emit
-        )

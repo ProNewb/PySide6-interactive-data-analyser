@@ -82,10 +82,6 @@ class MainWindow(QMainWindow):
         self.initialise_window()
         self.build_ui()
 
-        self.analysis_controller = AnalysisController(
-            self.dataset_manager,
-            self.main_view.table
-        )
 
         # ----------------------------------
         # Signals
@@ -93,14 +89,6 @@ class MainWindow(QMainWindow):
 
         self.controls.load_button.clicked.connect(
             self.load_dataset
-        )
-
-        self.controls.display_data_button.clicked.connect(
-            self.display_dataframe
-        )
-
-        self.controls.stats_button.clicked.connect(
-            self.show_statistics
         )
 
         self.main_menu.open_action.triggered.connect(
@@ -185,29 +173,7 @@ class MainWindow(QMainWindow):
         self.main_layout.addWidget(
             self.tabs
         )
-            
-
-
-    def display_dataframe(self):
-
-        if not self.dataset_manager.has_data():
-
-            QMessageBox.warning(
-                self,
-                "No Dataset",
-                "Please load a CSV first."
-            )
-
-            return
-
-        dataframe = (
-            self.dataset_manager
-            .get_dataframe()
-        )
-
-        self.main_view.set_dataframe(
-            dataframe
-        )
+   
 
     def load_dataset(self):
 
@@ -221,9 +187,7 @@ class MainWindow(QMainWindow):
                 "Dataset loaded successfully"
             )
 
-    def show_statistics(self):
 
-        self.analysis_controller.show_statistics(self)
 
 
     def build_tabs(self):
@@ -312,18 +276,7 @@ class MainWindow(QMainWindow):
         )
 
 
-    def pop_stats(self):
-        dataframe = self.table.get_analysis_dataframe()
-        self.stats_widget.load_dataframe(dataframe)
 
-    def update_graph_data(self):
-
-        dataframe = self.table.get_analysis_dataframe()
-
-        if dataframe is None:
-            return
-
-        self.graph_tab.set_dataframe(dataframe)
 
     def open_filter_dialog(self):
 
@@ -510,10 +463,20 @@ class MainWindow(QMainWindow):
                 aggregated_dataframe
             )
 
+            self.main_menu.result_dataset_action.setChecked(
+                True
+            )
+
+            
+
         else:
 
             self.dataset_manager.set_result_dataframe(
                 aggregated_dataframe
+            )
+
+            self.main_menu.result_dataset_action.setChecked(
+                True
             )
 
         self.refresh_views()
@@ -597,15 +560,10 @@ class MainWindow(QMainWindow):
 
     def toggle_main_dataset(self, checked):
 
-        self.main_view.setVisible(checked)
-
         self.update_comparison_layout()
 
 
-
     def toggle_result_dataset(self, checked):
-
-        self.result_view.setVisible(checked)
 
         self.update_comparison_layout()
 
@@ -622,21 +580,36 @@ class MainWindow(QMainWindow):
         )
 
         main_checked = (
-            self.main_menu
-            .main_dataset_action
-            .isChecked()
+            self.main_menu.main_dataset_action.isChecked()
         )
 
         result_checked = (
-            self.main_menu
-            .result_dataset_action
-            .isChecked()
+            self.main_menu.result_dataset_action.isChecked()
         )
 
-        self.main_view.setVisible(
-            main_available and main_checked
-        )
+        main_visible = main_available and main_checked
+        result_visible = result_available and result_checked
 
-        self.result_view.setVisible(
-            result_available and result_checked
-        )
+        self.main_view.setVisible(main_visible)
+        self.result_view.setVisible(result_visible)
+
+        if main_visible and result_visible:
+
+            self.splitter.setSizes([
+                600,
+                600
+            ])
+
+        elif main_visible:
+
+            self.splitter.setSizes([
+                1200,
+                0
+            ])
+
+        elif result_visible:
+
+            self.splitter.setSizes([
+                0,
+                1200
+            ])

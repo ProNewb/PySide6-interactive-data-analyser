@@ -6,7 +6,18 @@ from analysis.data_summary import DataSummary
 from dataclasses import dataclass
 
 from core.csv_reader import CSVReader
-
+from PySide6.QtWidgets import (
+    QComboBox,
+    QHBoxLayout,
+    QMainWindow,
+    QMessageBox,
+    QPushButton,
+    QTabWidget,
+    QTextEdit,
+    QWidget,
+    QLabel,
+    QVBoxLayout
+)
 
 @dataclass
 class DataState:
@@ -130,25 +141,29 @@ class DatasetManager:
 
         return len(self.result_history) > 0
 
-    def undo(self, target="main"):
+    def undo_operation(self):
 
-        history = (
-            self.history
-            if target == "main"
-            else self.result_history
+        target = self.target_combo.currentData()
+
+        if target == "selection":
+            QMessageBox.information(
+                self,
+                "Undo",
+                "Undo cannot be applied directly to a selection."
+            )
+            return
+
+        description = self.dataset_manager.undo(
+            target
         )
 
-        if not history:
-            return None
+        if description is not None:
 
-        previous_state = history.pop()
+            self.refresh_views()
 
-        if target == "main":
-            self.dataframe = previous_state.dataframe.copy()
-        else:
-            self.result_dataframe = previous_state.dataframe.copy()
-
-        return previous_state.description
+            self.status.showMessage(
+                f"Undid: {description}"
+            )
 
     # ==================================================
     # RESET
