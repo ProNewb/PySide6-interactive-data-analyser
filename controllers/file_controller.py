@@ -1,19 +1,21 @@
-
-from fileinput import filename
-from tkinter import dialog
-
-import pandas as pd
-import os
-import views.ui.import_dialog as import_dialog
 from PySide6.QtWidgets import QFileDialog
+
+from views.ui.import_dialog import ImportDialog
+
+
 class FileController:
+    """Handle file-related operations for the application."""
 
     def __init__(self, dataset_manager):
-        self.dataset_manager = dataset_manager
-        
-    def open_file(self):
 
-        print("Open file called")
+        self.dataset_manager = dataset_manager
+
+    # ==================================================
+    # OPEN
+    # ==================================================
+
+    def open_file(self):
+        """Open a CSV file and pass it to the dataset manager."""
 
         filename, _ = QFileDialog.getOpenFileName(
             None,
@@ -22,36 +24,37 @@ class FileController:
             "CSV Files (*.csv);;All Files (*)"
         )
 
-        print(filename)
-
+        # The user cancelled the file dialog.
         if not filename:
-            print("No file selected")
             return
 
-        dialog = import_dialog.ImportDialog(filename)
+        # Ask the user how the CSV should be imported.
+        dialog = ImportDialog(filename)
 
+        if not dialog.exec():
+            return
 
-        if dialog.exec():
+        options = dialog.get_options()
 
-            options = dialog.get_options()
+        # The DatasetManager is responsible for actually loading
+        # and storing the resulting DataFrame.
+        self.dataset_manager.load_csv(
+            filename,
+            options
+        )
 
-            self.dataset_manager.load_csv(
-                filename,
-                options
-            )
+    # ==================================================
+    # FUTURE FILE OPERATIONS
+    # ==================================================
 
-            print("CSV loaded!")
-            print(self.dataset_manager.get_dataframe())
-
-        print("CSV loaded!")
-
-        print(self.dataset_manager.get_dataframe())
-            
     def save_project(self):
+        """Save the current project state."""
         pass
 
     def export_csv(self):
+        """Export the current dataset as a CSV file."""
         pass
 
     def close_project(self):
+        """Close the current project."""
         pass

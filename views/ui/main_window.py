@@ -478,7 +478,7 @@ class MainWindow(QMainWindow):
             self.main_menu.result_dataset_action.setChecked(
                 True
             )
-
+        
         self.refresh_views()
 
 

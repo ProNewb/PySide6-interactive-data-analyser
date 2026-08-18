@@ -459,30 +459,30 @@ class GraphTab(QWidget):
     # ==================================================
 
     def set_dataframe(self, dataframe):
+        if dataframe is not None:
+            self.dataframe = dataframe.copy()
 
-        self.dataframe = dataframe.copy()
-
-        self.x_column.clear()
-        self.y_column.clear()
-        self.z_column.clear()
-        self.size_column.clear()
-        self.color_column.clear()
+            self.x_column.clear()
+            self.y_column.clear()
+            self.z_column.clear()
+            self.size_column.clear()
+            self.color_column.clear()
 
 
-        self.color_column.addItem(
-            "None",
-            userData=None
-        )
+            self.color_column.addItem(
+                "None",
+                userData=None
+            )
 
-        for column in dataframe.columns:
+            for column in dataframe.columns:
 
-            column_name = str(column)
-            self.x_column.addItem(column_name, userData=column)
-            self.y_column.addItem(column_name, userData=column)
-            self.z_column.addItem(column_name, userData=column)
-            self.size_column.addItem(column_name, userData=column)
-            self.color_column.addItem(column_name, userData=column)
-           
+                column_name = str(column)
+                self.x_column.addItem(column_name, userData=column)
+                self.y_column.addItem(column_name, userData=column)
+                self.z_column.addItem(column_name, userData=column)
+                self.size_column.addItem(column_name, userData=column)
+                self.color_column.addItem(column_name, userData=column)
+            
 
             # ==================================================
     # Generate graph

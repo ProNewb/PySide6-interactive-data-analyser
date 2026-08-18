@@ -1,33 +1,51 @@
 class DataSummary:
+    """Generate descriptive information about a DataFrame."""
 
     def generate(self, dataframe):
+        """Return a dictionary containing dataset statistics."""
 
-        summary = {}
-        if dataframe is not None:
-            summary["rows"] = len(dataframe)
-            summary["columns"] = len(dataframe.columns)
+        if dataframe is None:
+            return {}
 
-            summary["column_names"] = list(dataframe.columns)
+        return {
+            "rows": len(dataframe),
+            "columns": len(dataframe.columns),
+            "column_names": list(dataframe.columns),
 
-            summary["dtypes"] = dataframe.dtypes.to_dict()
+            "dtypes": (
+                dataframe
+                .dtypes
+                .to_dict()
+            ),
 
-            summary["missing"] = (
+            "missing": (
                 dataframe
                 .isnull()
                 .sum()
                 .to_dict()
-            )
-            summary["duplicates"] = dataframe.duplicated().sum()
+            ),
 
-            summary["memory"] = dataframe.memory_usage(
-                deep=True
-            ).sum()
+            "duplicates": (
+                dataframe
+                .duplicated()
+                .sum()
+            ),
 
-            summary["numeric"] = dataframe.select_dtypes(
+            "memory": (
+                dataframe
+                .memory_usage(deep=True)
+                .sum()
+            ),
+
+            "numeric": dataframe.select_dtypes(
                 include="number"
-            ).describe()
+            ).describe(),
 
-            summary["categorical"] = dataframe.select_dtypes(
-                exclude="number"
+            "categorical": dataframe.select_dtypes(
+                include=["object", "category"]
+            ).describe(),
+
+            "datetime": dataframe.select_dtypes(
+                include=["datetime"]
             ).describe()
-        return summary
+        }
