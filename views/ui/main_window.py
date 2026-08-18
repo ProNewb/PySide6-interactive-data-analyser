@@ -135,7 +135,7 @@ class MainWindow(QMainWindow):
             self.status
         )
 
-
+    # Display
     def initialise_window(self):
         self.setWindowTitle("Data Explorer")
         self.resize(1200, 800)
@@ -174,7 +174,7 @@ class MainWindow(QMainWindow):
             self.tabs
         )
    
-
+    # retrieve data
     def load_dataset(self):
 
         self.file_controller.open_file()
@@ -191,7 +191,7 @@ class MainWindow(QMainWindow):
 
 
     def build_tabs(self):
-
+        '''Build each container'''
         self.tabs = QTabWidget()
 
         # ==================================
@@ -333,7 +333,7 @@ class MainWindow(QMainWindow):
 
 
     def refresh_views(self):
-
+        # refresh the view after a data operation
         dataframe = (
             self.dataset_manager
             .get_dataframe()
@@ -371,12 +371,27 @@ class MainWindow(QMainWindow):
 
     def undo_operation(self):
 
-        description = self.dataset_manager.undo()
+        target = self.target_combo.currentData()
+
+        # A selection is a temporary view of data,
+        # so there is no history to undo on it.
+        if target == "selection":
+
+            QMessageBox.information(
+                self,
+                "Undo",
+                "Undo cannot be applied directly to a selection."
+            )
+
+            return
+
+        description = self.dataset_manager.undo(
+            target
+        )
 
         if description is not None:
 
             self.refresh_views()
-            self.update_data_actions()
 
             self.status.showMessage(
                 f"Undid: {description}"
@@ -409,13 +424,17 @@ class MainWindow(QMainWindow):
 
 
     def update_data_actions(self):
+        #enables the undo/reset actions when appropriate
+        target = self.target_combo.currentData()
 
         self.main_menu.undo_action.setEnabled(
-            self.dataset_manager.can_undo()
+            target != "selection"
+            and self.dataset_manager.can_undo(target)
         )
 
         self.main_menu.reset_action.setEnabled(
-            self.dataset_manager.can_reset()
+            target == "main"
+            and self.dataset_manager.can_reset()
         )
 
 
@@ -568,7 +587,7 @@ class MainWindow(QMainWindow):
         self.update_comparison_layout()
 
     def update_comparison_layout(self):
-
+        '''creates a split layout when new views are created/removed'''
         main_available = (
             self.dataset_manager.get_dataframe()
             is not None

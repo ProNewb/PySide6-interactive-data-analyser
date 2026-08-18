@@ -14,6 +14,7 @@ from views.ui.selection_toolbar import SelectionToolbar
 from PySide6.QtCore import Signal
 
 class DatasetView(QWidget):
+    '''Top level container class'''
     close_requested = Signal()
     def __init__(self, title, parent=None):
 

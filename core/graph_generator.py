@@ -2,7 +2,7 @@ import plotly.express as px
 
 
 class GraphGenerator:
-
+    '''Plotly graph generator class'''
     def create_graph(
         self,
         dataframe,

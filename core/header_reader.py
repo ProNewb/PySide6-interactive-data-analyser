@@ -1,17 +1,7 @@
 class HeaderReader:
 
     '''
-    def read_headers(self, filename):
-
-        with open(filename, "r") as file:
-
-            headers = [
-                line.strip()
-                for line in file
-                if line.strip()
-            ]
-
-        return headers
+    Class to strip headers from a file
     '''
     def read_headers(self, filename):
 

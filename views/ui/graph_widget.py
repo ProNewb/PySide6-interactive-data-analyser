@@ -3,7 +3,7 @@ from PySide6.QtWebEngineWidgets import QWebEngineView
 
 
 class GraphWidget(QWidget):
-
+    '''Class responsible for displaying the created graph'''
     def __init__(self):
 
         super().__init__()

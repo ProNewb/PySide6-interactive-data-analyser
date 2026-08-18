@@ -9,7 +9,7 @@ from PySide6.QtCore import Signal
 
 
 class AggregationRow(QWidget):
-
+    '''Class resposible for the managment of aggregation rows'''
     remove_requested = Signal(object)
 
     def __init__(self, dataframe, parent=None):
@@ -60,7 +60,7 @@ class AggregationRow(QWidget):
         layout.addWidget(self.remove_button)
 
         self.remove_button.clicked.connect(
-            lambda: self.remove_requested.emit(self)
+            lambda: self.remove_requested.emit(self) #in line function to emit remove signal on button click
         )
 
     def get_aggregation(self):

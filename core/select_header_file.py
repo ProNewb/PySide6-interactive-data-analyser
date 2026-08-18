@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QFileDialog
-
+'''Basic file operation function - defunct'''
 def select_header_file(self):
 
     filename, _ = QFileDialog.getOpenFileName(

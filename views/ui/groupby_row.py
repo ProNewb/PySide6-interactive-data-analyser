@@ -9,7 +9,7 @@ from PySide6.QtCore import Signal
 
 
 class GroupbyRow(QWidget):
-
+    '''Class responsible for creating and removing the displayable grouped row of a new df'''
     remove_requested = Signal(object)
 
     def __init__(self, dataframe, parent=None):

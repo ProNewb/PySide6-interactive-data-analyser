@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 
 class PreviewTable(QTableWidget):
-
+    '''Preview to show how the imported table will look'''
     def __init__(self, parent=None):
         super().__init__(parent)
 

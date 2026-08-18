@@ -15,7 +15,7 @@ from PySide6.QtCore import Signal
 
     
 class ConditionRow(QWidget):
-
+    '''Class responsible for managment of conditional arguments in dialog options'''
     remove_requested = Signal(object)
 
     def __init__(self, dataframe, parent=None):
@@ -24,7 +24,7 @@ class ConditionRow(QWidget):
         layout = QHBoxLayout(self)
 
         self.column_combo = QComboBox()
-
+        # convert col names to strings to allow for non alpha numerical names
         for column in dataframe.columns:
             self.column_combo.addItem(
                 str(column),
@@ -78,7 +78,7 @@ class ConditionRow(QWidget):
         layout.addWidget(self.value_input)
         layout.addWidget(self.remove_button)
         self.remove_button.clicked.connect(
-            lambda: self.remove_requested.emit(self)
+            lambda: self.remove_requested.emit(self)# inline funct
         )
     def get_condition(self):
 

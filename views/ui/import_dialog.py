@@ -19,7 +19,7 @@ from core.csv_reader import CSVReader
 from core.dataset_table import DataTable
 
 class ImportOptions:
-
+    '''class that captures user import preferences'''
     def __init__(self):
 
         # Header options
@@ -175,14 +175,14 @@ class ImportDialog(QDialog):
             self.update_preview
         )
     def show_manual_inputs(self, checked):
-
+        '''Manual inputs for column headers'''
         if checked:
 
             self.clear_manual_inputs()
 
             for i in range(self.num_columns):
 
-                label = QLabel(f"Column {i+1}:")
+                label = QLabel(f"Column {i+1}:") # insuring each column has an input
                 self.scroll_area.setMinimumHeight(200)
                 edit = QLineEdit()
 
@@ -294,7 +294,7 @@ class ImportDialog(QDialog):
 
 
     def update_preview(self):
-
+        
         self.update_options_from_ui()
 
         df = self.reader.read(

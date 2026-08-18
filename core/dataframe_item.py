@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (
 )
 
 class DataFrameItem(QTableWidgetItem):
-
+    '''Class to represent a dataframe item'''
     def __init__(self, value):
         super().__init__(str(value))
         self.value = value

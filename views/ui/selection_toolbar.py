@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 
 class SelectionToolbar(QWidget):
-
+    '''Side toolbar to enable different selection methods'''
     def __init__(self, table):
 
         super().__init__()

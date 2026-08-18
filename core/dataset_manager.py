@@ -1,32 +1,18 @@
 from dataclasses import dataclass
 
 from core.csv_reader import CSVReader
-from analysis.data_summary import DataSummary
 
-from dataclasses import dataclass
-
-from core.csv_reader import CSVReader
-from PySide6.QtWidgets import (
-    QComboBox,
-    QHBoxLayout,
-    QMainWindow,
-    QMessageBox,
-    QPushButton,
-    QTabWidget,
-    QTextEdit,
-    QWidget,
-    QLabel,
-    QVBoxLayout
-)
 
 @dataclass
 class DataState:
+    """Stores a previous dataset state for undo operations."""
 
     dataframe: object
     description: str
 
 
 class DatasetManager:
+    """Stores datasets and manages their modification history."""
 
     MAX_HISTORY = 5
 
@@ -48,7 +34,9 @@ class DatasetManager:
     # ==================================================
     # MAIN DATASET
     # ==================================================
+
     def load_csv(self, filename, options):
+        """Load a new CSV and reset dataset state."""
 
         self.filename = filename
 
@@ -62,14 +50,20 @@ class DatasetManager:
 
         self.original_dataframe = self.dataframe.copy()
 
-        # A newly loaded dataset starts a new history
+        # Loading a new dataset starts a new history.
         self.history.clear()
-        
+
+        # Results belong to the previous dataset.
+        self.result_dataframe = None
+        self.result_history.clear()
+
     def has_data(self):
+        """Return True if a main dataset is loaded."""
 
         return self.dataframe is not None
 
     def get_dataframe(self):
+        """Return the current main dataset."""
 
         return self.dataframe
 
@@ -78,6 +72,7 @@ class DatasetManager:
         dataframe,
         description="Data changed"
     ):
+        """Replace the main dataset and record its previous state."""
 
         if self.dataframe is not None:
 
@@ -98,10 +93,12 @@ class DatasetManager:
     # ==================================================
 
     def has_result(self):
+        """Return True if a result dataset exists."""
 
         return self.result_dataframe is not None
 
     def get_result_dataframe(self):
+        """Return the current result dataset."""
 
         return self.result_dataframe
 
@@ -110,6 +107,7 @@ class DatasetManager:
         dataframe,
         description="Result changed"
     ):
+        """Replace the result dataset and record its previous state."""
 
         if self.result_dataframe is not None:
 
@@ -126,6 +124,7 @@ class DatasetManager:
         self.result_dataframe = dataframe.copy()
 
     def clear_result(self):
+        """Remove the current result dataset and its history."""
 
         self.result_dataframe = None
         self.result_history.clear()
@@ -135,41 +134,49 @@ class DatasetManager:
     # ==================================================
 
     def can_undo(self, target="main"):
+        """Return whether the selected dataset has an undo state."""
 
         if target == "main":
             return len(self.history) > 0
 
-        return len(self.result_history) > 0
+        if target == "result":
+            return len(self.result_history) > 0
 
-    def undo_operation(self):
+        return False
 
-        target = self.target_combo.currentData()
+    def undo(self, target="main"):
+        """Restore the previous state of the selected dataset."""
 
-        if target == "selection":
-            QMessageBox.information(
-                self,
-                "Undo",
-                "Undo cannot be applied directly to a selection."
+        if target == "main":
+            history = self.history
+
+        elif target == "result":
+            history = self.result_history
+
+        else:
+            raise ValueError(
+                f"Invalid undo target: {target}"
             )
-            return
 
-        description = self.dataset_manager.undo(
-            target
-        )
+        if not history:
+            return None
 
-        if description is not None:
+        previous_state = history.pop()
 
-            self.refresh_views()
+        if target == "main":
+            self.dataframe = previous_state.dataframe.copy()
 
-            self.status.showMessage(
-                f"Undid: {description}"
-            )
+        else:
+            self.result_dataframe = previous_state.dataframe.copy()
+
+        return previous_state.description
 
     # ==================================================
     # RESET
     # ==================================================
 
     def can_reset(self):
+        """Return whether the main dataset differs from its original state."""
 
         if self.original_dataframe is None:
             return False
@@ -182,6 +189,7 @@ class DatasetManager:
         )
 
     def reset(self):
+        """Restore the main dataset to its original state."""
 
         if not self.can_reset():
             return False

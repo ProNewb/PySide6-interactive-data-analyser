@@ -47,7 +47,7 @@ from PySide6.QtWidgets import (
 
 
 class GraphTab(QWidget):
-
+    '''Class responsible for the Graph tab on both the main and result dataset'''
     def __init__(self):
         super().__init__()
 

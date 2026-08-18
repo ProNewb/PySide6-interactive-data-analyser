@@ -14,7 +14,7 @@ from views.ui.condition_row import ConditionRow
 
 
 class DataDialog(QDialog):
-
+    ''' Class responsible for displaying and capturing user options for aggregation and filtering'''
     def __init__(self, dataframe, parent=None):
 
         super().__init__(parent)

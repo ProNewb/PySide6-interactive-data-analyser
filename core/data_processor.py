@@ -6,7 +6,7 @@ from core.conditions import Condition
 
 
 class DataProcessor:
-
+    '''lass responsible for data operations'''
     def filter(self, dataframe, conditions):
 
         mask = conditions.evaluate(dataframe)
@@ -35,6 +35,11 @@ class DataProcessor:
             raise ValueError("At least one aggregation is required.")
 
         for column, function in aggregations:
+
+            if function not in allowed_functions:
+                raise ValueError(
+                    f"Unsupported aggregation function: {function}"
+                )
 
             if column not in aggregation_dict:
                 aggregation_dict[column] = []

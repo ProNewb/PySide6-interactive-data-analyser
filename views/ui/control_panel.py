@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
 
 
 class ControlPanel(QWidget):
-
+    '''***Main controls - old ***'''
     def __init__(self):
         super().__init__()
         ## side menu 

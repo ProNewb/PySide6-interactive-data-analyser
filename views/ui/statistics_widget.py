@@ -8,7 +8,7 @@ from analysis.data_summary import DataSummary
 from PySide6.QtGui import QFont
 
 class StatisticsWidget(QWidget):
-
+    '''Widegt responsible for displaying EDA'''
     def __init__(self):
         super().__init__()
 

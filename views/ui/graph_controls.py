@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
 
 
 class GraphControls(QWidget):
-
+    '''GUI class for graphical interface'''
     def __init__(self):
 
         super().__init__()

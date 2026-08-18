@@ -11,7 +11,7 @@ from core.aggregation import Aggregation
 
 
 class AggregationDialog(QDialog):
-
+    '''Class responsible for aggregation options'''
     def __init__(self, dataframe, parent=None):
 
         super().__init__(parent)
