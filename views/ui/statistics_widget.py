@@ -62,107 +62,105 @@ class StatisticsWidget(QWidget):
         
 
     def update_statistics(self, dataframe):
+        """Refresh statistics for the supplied DataFrame."""
+
+        self.load_dataframe(dataframe)
+
+    def load_dataframe(self, dataframe):
+
+        if dataframe is None:
+            self.clear()
+            return
+
+        summary = self.summary.generate(
+            dataframe
+        )
+
+        self.display_summary(summary)
+        self.display_columns(summary)
+        self.display_missing(summary)
+        self.display_numeric(summary)
+        self.display_correlation(summary)
+
+    def display_summary(self, summary):
+
+        output = [
+            f"Rows: {summary['rows']}",
+            f"Columns: {summary['columns']}",
+            f"Duplicates: {summary['duplicates']}",
+            f"Missing values: {summary['missing_total']}",
+            f"Memory: {summary['memory']:,} bytes"
+        ]
+
+        self.summary_page.setPlainText(
+            "\n".join(output)
+        )
         
-        if dataframe is not None:
-            self.load_dataframe(dataframe)
-        else:
-            self.text.setPlainText("No data loaded.")
+    def display_columns(self, summary):
 
-    def load_dataframe(self, df):
-        if df is not None:
-        
-            summary = {}
+        output = []
 
-            summary["rows"] = len(df)
+        for column, dtype in summary["dtypes"].items():
 
-            summary["columns"] = len(df.columns)
-
-            summary["column_names"] = list(df.columns)
-
-            summary["dtypes"] = df.dtypes
-
-            summary["missing"] = df.isnull().sum()
-
-            summary["duplicates"] = df.duplicated().sum()
-
-            summary["memory"] = df.memory_usage(deep=True).sum()
-
-            summary["numeric"] = df.describe()
-
-
-            categorical = df.select_dtypes(
-                include=["string", "object"]
+            output.append(
+                f"{str(column):20} {dtype}"
             )
 
-            if not categorical.empty:
-                summary["categorical"] = categorical.describe()
-            else:
-                summary["categorical"] = None
+        self.columns_page.setPlainText(
+            "\n".join(output)
+        )
 
-            if summary["categorical"] is None:
-                self.columns_page.setPlainText(
-                    "No categorical columns."
-                )
-            else:
-                self.columns_page.setPlainText(
-                    summary["categorical"].to_string()
-                )
+    def display_missing(self, summary):
 
-            #summary["correlations"] = df.corr(numeric_only=True)
+        output = []
 
-            numeric = df.select_dtypes(include="number")
+        for column, count in summary["missing"].items():
 
-            if len(numeric.columns) >= 2:
-                summary["correlations"] = numeric.corr()
-            else:
-                summary["correlations"] = None
-
-            summary_output = []
-
-            summary_output.append(f"Rows: {summary['rows']}")
-            summary_output.append(f"Columns: {summary['columns']}")
-            summary_output.append(f"Duplicates: {summary['duplicates']}")
-            summary_output.append(f"Memory: {summary['memory']:,} bytes")
-
-            self.summary_page.setPlainText(
-                "\n".join(summary_output)
+            output.append(
+                f"{str(column):20} {count}"
             )
 
+        self.missing_page.setPlainText(
+            "\n".join(output)
+        )
 
-            column_output = []
+    def display_numeric(self, summary):
 
-            for column, dtype in summary["dtypes"].items():
-                column_output.append(
-                    f"{column:20} {dtype}"
-                )
+        numeric = summary["numeric"]
 
-            self.columns_page.setPlainText(
-                "\n".join(column_output)
-            )
-
-            missing_output = []
-
-            for column, value in summary["missing"].items():
-                missing_output.append(
-                    f"{column:20} {value}"
-                )
-
-            self.missing_page.setPlainText(
-                "\n".join(missing_output)
-            )
+        if numeric is None:
 
             self.numeric_page.setPlainText(
-                summary["numeric"].to_string()
+                "No numeric columns."
             )
 
-            if summary["correlations"] is None:
+        else:
 
-                self.correlation_page.setPlainText(
-                    "Need at least two numeric columns."
-                )
+            self.numeric_page.setPlainText(
+                numeric.to_string()
+            )
 
-            else:
+    def display_correlation(self, summary):
 
-                self.correlation_page.setPlainText(
-                    summary["correlations"].to_string()
-                )
+        correlation = summary["correlations"]
+
+        if correlation is None:
+
+            self.correlation_page.setPlainText(
+                "Need at least two numeric columns."
+            )
+
+        else:
+
+            self.correlation_page.setPlainText(
+                correlation.to_string()
+            )
+
+    def clear(self):
+        """Clear all displayed statistics."""
+
+        self.summary_page.clear()
+        self.columns_page.clear()
+        self.missing_page.clear()
+        self.numeric_page.clear()
+        self.correlation_page.clear()

@@ -9,7 +9,10 @@ from PySide6.QtWidgets import (
 
 from core.condition_group import ConditionGroup
 from core.conditions import Condition
+from core.dataset_table import DataTable
 from views.ui.condition_row import ConditionRow
+from views.ui.import_dialog import ImportOptions
+from views.ui.preview_table import PreviewTable
 
 
 
@@ -21,7 +24,10 @@ class DataDialog(QDialog):
 
         self.dataframe = dataframe
         self.condition_rows = []
-        
+        self.preview_table = PreviewTable()
+
+        self.options = ImportOptions()
+        self.datatable = DataTable()
         self.setWindowTitle("Filter Data")
 
         layout = QVBoxLayout()

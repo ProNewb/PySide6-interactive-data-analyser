@@ -11,6 +11,7 @@ class MainMenu:
 
         self.file_menu = window.menuBar().addMenu("File")
         menu_bar = window.menuBar().addMenu("Data")
+
         self.open_action = QAction(
             "Open",
             window
@@ -72,7 +73,7 @@ class MainMenu:
             self.reset_action
         )
 
-
+    # view menu
 
         self.view_menu = menu_bar.addMenu("View")
 
@@ -96,4 +97,15 @@ class MainMenu:
 
         self.view_menu.addAction(
             self.result_dataset_action
+        )
+
+        # Clean menu
+        self.clean_menu = window.menuBar().addMenu("Clean")
+        self.clean_action = QAction(
+            "Clean",
+            window
+        )
+
+        self.clean_menu.addAction(
+            self.clean_action
         )

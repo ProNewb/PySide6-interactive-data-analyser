@@ -27,6 +27,7 @@ from core.dataset_table import DataTable
 
 from views.ui import data_dialog
 from views.ui.aggregation_dialog import AggregationDialog
+from views.ui.cleaning_dialog import CleaningDialog
 from views.ui.data_dialog import DataDialog
 from views.ui.dataset_view import DatasetView
 from views.ui.graph_widget import GraphWidget
@@ -128,7 +129,9 @@ class MainWindow(QMainWindow):
         self.main_menu.result_dataset_action.triggered.connect(
             self.toggle_result_dataset
         )
-
+        self.main_menu.clean_action.triggered.connect(
+            self.open_cleaning_dialog
+        )
         self.status = StatusBar()
 
         self.setStatusBar(
@@ -632,3 +635,28 @@ class MainWindow(QMainWindow):
                 0,
                 1200
             ])
+
+    def open_cleaning_dialog(self):
+
+        dataframe = self.get_target_dataframe()
+
+        if dataframe is None:
+            return
+
+        dialog = CleaningDialog(
+            dataframe,
+            self
+        )
+
+        if dialog.exec():
+
+            cleaned = dialog.get_result()
+
+            self.dataset_manager.set_dataframe(
+                cleaned,
+                "Clean data"
+            )
+
+            self.refresh_views()
+
+                
