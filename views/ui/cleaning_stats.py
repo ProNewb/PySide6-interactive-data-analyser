@@ -20,13 +20,13 @@ class CleaningStats(QWidget):
 
         self.rows_label = QLabel()
         self.columns_label = QLabel()
-        self.missing_label = QLabel()
-        self.duplicate_label = QLabel()
+        self.current_label = QLabel()
+        self.result_label = QLabel()
 
         layout.addWidget(self.rows_label)
         layout.addWidget(self.columns_label)
-        layout.addWidget(self.missing_label)
-        layout.addWidget(self.duplicate_label)
+        layout.addWidget(self.current_label)
+        layout.addWidget(self.result_label)
 
         self.clear()
 
@@ -47,13 +47,12 @@ class CleaningStats(QWidget):
             f"Columns: {summary['columns']}"
         )
 
-        self.missing_label.setText(
-            f"Missing values: {summary['missing_total']}"
+        self.current_label.setText(
+            f"Current: {summary['missing_total']} missing, "
+            f"{summary['duplicates']} duplicates"
         )
 
-        self.duplicate_label.setText(
-            f"Duplicate rows: {summary['duplicates']}"
-        )
+        self.result_label.setText("Result: -")
 
     def update_missing(self, dataframe, columns=None):
         """Display missing-value statistics for selected columns."""
@@ -67,26 +66,7 @@ class CleaningStats(QWidget):
         if columns is None:
             columns = list(dataframe.columns)
 
-        missing = sum(
-            summary["missing"].get(column, 0)
-            for column in columns
-        )
-
-        self.rows_label.setText(
-            f"Rows: {summary['rows']}"
-        )
-
-        self.columns_label.setText(
-            f"Columns selected: {len(columns)}"
-        )
-
-        self.missing_label.setText(
-            f"Missing values in selection: {missing}"
-        )
-
-        self.duplicate_label.setText(
-            f"Duplicate rows: {summary['duplicates']}"
-        )
+        self.update_comparison(dataframe, None, columns, "missing")
 
     def update_duplicates(self, dataframe, columns=None):
         """Display duplicate statistics for selected columns."""
@@ -95,27 +75,39 @@ class CleaningStats(QWidget):
             self.clear()
             return
 
-        if columns:
-            duplicate_count = dataframe.duplicated(
-                subset=columns
-            ).sum()
+        self.update_comparison(dataframe, None, columns, "duplicates")
+
+    def update_comparison(self, current, result, columns, operation):
+        """Show before/after stats for the selected columns."""
+        if current is None:
+            self.clear()
+            return
+
+        selected = list(columns or current.columns)
+        result_frame = result if result is not None else current
+
+        if operation == "duplicates":
+            current_value = int(current.duplicated(subset=selected).sum())
+            result_value = int(result_frame.duplicated(subset=selected).sum())
+            label = "duplicates"
         else:
-            duplicate_count = dataframe.duplicated().sum()
+            current_value = int(current[selected].isna().sum().sum())
+            result_value = int(result_frame[selected].isna().sum().sum())
+            label = "missing values"
 
         self.rows_label.setText(
-            f"Rows: {len(dataframe)}"
+            f"Rows: {len(current)} -> {len(result_frame)}"
         )
-
         self.columns_label.setText(
-            f"Columns selected: {len(columns or dataframe.columns)}"
+            f"Selected columns: {len(selected)}"
         )
-
-        self.missing_label.setText(
-            f"Missing values: {dataframe.isna().sum().sum()}"
+        self.current_label.setText(
+            f"Current {label}: {current_value}"
         )
-
-        self.duplicate_label.setText(
-            f"Duplicates: {duplicate_count}"
+        self.result_label.setText(
+            f"Result {label}: {result_value}"
+            if result is not None
+            else f"Result {label}: -"
         )
 
     def clear(self):
@@ -123,5 +115,5 @@ class CleaningStats(QWidget):
 
         self.rows_label.setText("Rows: -")
         self.columns_label.setText("Columns: -")
-        self.missing_label.setText("Missing values: -")
-        self.duplicate_label.setText("Duplicates: -")
+        self.current_label.setText("Current: -")
+        self.result_label.setText("Result: -")

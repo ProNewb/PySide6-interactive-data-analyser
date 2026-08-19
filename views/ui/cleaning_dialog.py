@@ -4,8 +4,6 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QMessageBox,
-    QRadioButton,
-    QScrollArea,
     QVBoxLayout,
     QLabel,
     QComboBox,
@@ -109,6 +107,10 @@ class CleaningDialog(QDialog):
             self.preview_table
         )
 
+        layout.addWidget(
+            self.cleaning_stats
+        )
+
         # ----------------------------------
         # Buttons
         # ----------------------------------
@@ -186,12 +188,16 @@ class CleaningDialog(QDialog):
 
         try:
 
-            self.cleaning_result = (
-                self.cleaner.clean_missing(
+            if isinstance(operation, MissingValueOptions):
+                self.cleaning_result = self.cleaner.clean_missing(
                     self.dataframe,
                     operation
                 )
-            )
+            else:
+                self.cleaning_result = self.cleaner.remove_duplicates(
+                    self.dataframe,
+                    operation
+                )
 
         except ValueError as error:
 
@@ -206,6 +212,8 @@ class CleaningDialog(QDialog):
         self.preview_table.display_dataframe(
             self.cleaning_result
         )
+
+        self.update_cleaning_statistics()
 
         self.preview_table.display_dataframe(
             self.cleaning_result
@@ -244,7 +252,10 @@ class CleaningDialog(QDialog):
             cb = QCheckBox(str(col), self)
             self.checkbox_group.addButton(cb)
             self.operation_layout.addWidget(cb)  
-            self.dupe_cols.append(cb)
+            self.dupe_cols.append((col, cb))
+            cb.stateChanged.connect(
+                self.update_cleaning_statistics
+            )
             
     def col_sel(self):
         # -------------------------------
@@ -280,6 +291,9 @@ class CleaningDialog(QDialog):
         self.operation_layout.addWidget(
             self.missing_column_combo
         )
+        self.missing_column_combo.currentIndexChanged.connect(
+            self.update_cleaning_statistics
+        )
     def action(self):
         # -------------------------------
         # Action
@@ -303,6 +317,9 @@ class CleaningDialog(QDialog):
 
         self.operation_layout.addWidget(
             self.missing_action_combo
+        )
+        self.missing_action_combo.currentIndexChanged.connect(
+            self.update_cleaning_statistics
         )
     def fill(self):
         # -------------------------------
@@ -360,6 +377,9 @@ class CleaningDialog(QDialog):
 
         self.fill_method_combo.currentIndexChanged.connect(
             self.update_fill_controls
+        )
+        self.fill_method_combo.currentIndexChanged.connect(
+            self.update_cleaning_statistics
         )
 
         self.missing_action_combo.currentIndexChanged.connect(
@@ -422,6 +442,15 @@ class CleaningDialog(QDialog):
             self.cleaning_objective_box
             .currentData()
         )
+
+        if operation == "duplicates":
+            columns = [
+                column
+                for column, checkbox in self.dupe_cols
+                if checkbox.isChecked()
+            ]
+
+            return DuplicateOptions(columns=columns)
 
         if operation == "missing":
 
@@ -496,22 +525,37 @@ class CleaningDialog(QDialog):
 
     def update_cleaning_statistics(self):
 
-        columns = self.column_selector.get_selected_columns()
-
         operation = (
             self.cleaning_objective_box.currentData()
         )
 
         if operation == "missing":
-
-            self.cleaning_stats.update_missing(
+            columns = self.column_selector.get_selected_columns()
+            selected_operation = self.get_operation()
+            result = self.cleaner.clean_missing(
                 self.dataframe,
-                columns
+                selected_operation
+            )
+            self.cleaning_stats.update_comparison(
+                self.dataframe,
+                result,
+                columns,
+                "missing"
             )
 
         elif operation == "duplicates":
-
-            self.cleaning_stats.update_duplicates(
+            columns = [
+                column
+                for column, checkbox in self.dupe_cols
+                if checkbox.isChecked()
+            ] or list(self.dataframe.columns)
+            result = self.cleaner.remove_duplicates(
                 self.dataframe,
-                columns
+                DuplicateOptions(columns=columns)
+            )
+            self.cleaning_stats.update_comparison(
+                self.dataframe,
+                result,
+                columns,
+                "duplicates"
             )
