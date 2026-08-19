@@ -212,14 +212,41 @@ class CleaningDialog(QDialog):
         )
 
     def duplicate_operations(self):
-        pass
+        self.operation_layout.addWidget(
+            QLabel("Duplicates")
+        )
+        self.groupBy()
+        self.col_sel()
+        self.action()
+        self.fill()
 
     def missing_val_operations(self):
 
         self.operation_layout.addWidget(
             QLabel("Missing Values")
         )
+        self.col_sel()
+        self.action()
+        self.fill()
 
+    def groupBy(self):
+        """
+        Creates a checkbox for each column in self.dataframe
+        and stores them in self.dupe_cols for later use.
+        Adds them directly to self.operation_layout.
+        """
+        self.dupe_cols = []
+        self.checkbox_group = QButtonGroup(self)
+        self.checkbox_group.setExclusive(False)  # Allow multiple selections
+
+        # Add checkboxes directly to the existing operation_layout
+        for col in self.dataframe.columns:
+            cb = QCheckBox(str(col), self)
+            self.checkbox_group.addButton(cb)
+            self.operation_layout.addWidget(cb)  
+            self.dupe_cols.append(cb)
+            
+    def col_sel(self):
         # -------------------------------
         # Column selection
         # -------------------------------
@@ -253,7 +280,7 @@ class CleaningDialog(QDialog):
         self.operation_layout.addWidget(
             self.missing_column_combo
         )
-
+    def action(self):
         # -------------------------------
         # Action
         # -------------------------------
@@ -277,7 +304,7 @@ class CleaningDialog(QDialog):
         self.operation_layout.addWidget(
             self.missing_action_combo
         )
-
+    def fill(self):
         # -------------------------------
         # Fill method
         # -------------------------------
