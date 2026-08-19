@@ -52,8 +52,18 @@ class DataCleaner:
             series = result[column]
 
             if options.method == "mean":
+                if not self._supports_numeric_fill(series):
+                    raise ValueError(
+                        "Mean can only be used with numeric or datetime "
+                        f"columns: {column}"
+                    )
                 fill_value = series.mean()
             elif options.method == "median":
+                if not self._supports_numeric_fill(series):
+                    raise ValueError(
+                        "Median can only be used with numeric or datetime "
+                        f"columns: {column}"
+                    )
                 fill_value = series.median()
             else:
                 modes = series.mode(dropna=True)
@@ -107,6 +117,13 @@ class DataCleaner:
             value = value.casefold()
 
         return value
+
+    @staticmethod
+    def _supports_numeric_fill(series):
+        return (
+            pd.api.types.is_numeric_dtype(series)
+            or pd.api.types.is_datetime64_any_dtype(series)
+        )
 
     @staticmethod
     def _columns(dataframe, columns):

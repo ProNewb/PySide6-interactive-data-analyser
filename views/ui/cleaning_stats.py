@@ -110,6 +110,12 @@ class CleaningStats(QWidget):
             else f"Result {label}: -"
         )
 
+    def show_error(self, message):
+        self.rows_label.setText("Rows: -")
+        self.columns_label.setText("Selected columns: -")
+        self.current_label.setText("Current: -")
+        self.result_label.setText(f"Result: {message}")
+
     def clear(self):
         """Reset all displayed statistics."""
 

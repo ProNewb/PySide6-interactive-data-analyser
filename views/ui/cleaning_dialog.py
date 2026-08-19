@@ -2,8 +2,10 @@ from PySide6.QtWidgets import (
     QButtonGroup,
     QCheckBox,
     QDialog,
+    QGridLayout,
     QHBoxLayout,
     QMessageBox,
+    QScrollArea,
     QVBoxLayout,
     QLabel,
     QComboBox,
@@ -11,6 +13,8 @@ from PySide6.QtWidgets import (
     QPushButton,
     QWidget
 )
+
+from PySide6.QtCore import Qt
 
 from core.column_selector import ColumnSelector
 from core.data_clearner import DataCleaner, MissingValueOptions, DuplicateOptions
@@ -53,7 +57,14 @@ class CleaningDialog(QDialog):
 
     def build_ui(self):
 
-        layout = QVBoxLayout(self)
+        outer_layout = QVBoxLayout(self)
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
+
+        self.dialog_scroll = QScrollArea()
+        self.dialog_scroll.setWidgetResizable(True)
+        self.dialog_scroll.setWidget(content_widget)
+        outer_layout.addWidget(self.dialog_scroll)
 
         # ----------------------------------
         # Cleaning operation
@@ -89,9 +100,10 @@ class CleaningDialog(QDialog):
             self.operation_widget
         )
 
-        layout.addWidget(
-            self.operation_widget
-        )
+        self.operation_scroll = QScrollArea()
+        self.operation_scroll.setWidgetResizable(True)
+        self.operation_scroll.setWidget(self.operation_widget)
+        layout.addWidget(self.operation_scroll)
 
         # ----------------------------------
         # Preview
@@ -102,6 +114,12 @@ class CleaningDialog(QDialog):
         )
 
         self.preview_table = PreviewTable()
+        self.preview_table.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.preview_table.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
 
         layout.addWidget(
             self.preview_table
@@ -224,9 +242,6 @@ class CleaningDialog(QDialog):
             QLabel("Duplicates")
         )
         self.groupBy()
-        self.col_sel()
-        self.action()
-        self.fill()
 
     def missing_val_operations(self):
 
@@ -247,15 +262,131 @@ class CleaningDialog(QDialog):
         self.checkbox_group = QButtonGroup(self)
         self.checkbox_group.setExclusive(False)  # Allow multiple selections
 
+        self.operation_layout.addWidget(
+            QLabel("Columns")
+        )
+
+        self.duplicate_preset_checkboxes = []
+        preset_layout = QGridLayout()
+        presets_per_row = 3
+        for label, preset in (
+            ("All Columns", "all"),
+            ("All Numeric", "numeric"),
+            ("All Datetime", "datetime"),
+            ("All Categorical", "categorical"),
+            ("Location / Coordinates", "location")
+        ):
+            preset_checkbox = QCheckBox(label, self)
+            preset_checkbox.clicked.connect(
+                lambda checked, value=preset:
+                    self.update_duplicate_preset(checked, value)
+            )
+            preset_index = len(self.duplicate_preset_checkboxes)
+            preset_layout.addWidget(
+                preset_checkbox,
+                preset_index // presets_per_row,
+                preset_index % presets_per_row
+            )
+            self.duplicate_preset_checkboxes.append(preset_checkbox)
+
+        for column_index in range(presets_per_row):
+            preset_layout.setColumnStretch(column_index, 1)
+
+        self.operation_layout.addLayout(preset_layout)
+
+        column_layout = QGridLayout()
+        columns_per_row = 3
+
+        for column_index in range(columns_per_row):
+            column_layout.setColumnStretch(column_index, 1)
+
         # Add checkboxes directly to the existing operation_layout
-        for col in self.dataframe.columns:
+        for index, col in enumerate(self.dataframe.columns):
             cb = QCheckBox(str(col), self)
             self.checkbox_group.addButton(cb)
-            self.operation_layout.addWidget(cb)  
+            column_layout.addWidget(
+                cb,
+                index // columns_per_row,
+                index % columns_per_row
+            )
             self.dupe_cols.append((col, cb))
             cb.stateChanged.connect(
                 self.update_cleaning_statistics
             )
+
+        self.operation_layout.addLayout(column_layout)
+
+    def add_column_presets(self, combo):
+        combo.addItem("All Columns", "all")
+        combo.addItem("All Numeric", "numeric")
+        combo.addItem("All Datetime", "datetime")
+        combo.addItem("All Categorical", "categorical")
+        combo.addItem("Location / Coordinates", "location")
+
+        for column in self.dataframe.columns:
+            combo.addItem(str(column), [column])
+
+    def selected_preset_columns(self, preset):
+        if preset == "all":
+            return list(self.dataframe.columns)
+
+        if preset == "numeric":
+            return list(
+                self.dataframe.select_dtypes(include="number").columns
+            )
+
+        if preset == "datetime":
+            return list(
+                self.dataframe.select_dtypes(
+                    include=["datetime", "datetimetz"]
+                ).columns
+            )
+
+        if preset == "categorical":
+            return list(
+                self.dataframe.select_dtypes(
+                    include=["object", "category", "string"]
+                ).columns
+            )
+
+        if preset == "location":
+            location_names = {
+                "lat", "latitude", "lon", "lng", "longitude",
+                "x", "y", "easting", "northing"
+            }
+            return [
+                column
+                for column in self.dataframe.columns
+                if str(column).strip().lower() in location_names
+            ]
+
+        return list(preset or [])
+
+    def update_duplicate_preset(self, checked, preset):
+        if not checked:
+            self.update_cleaning_statistics()
+            return
+
+        for preset_checkbox in self.duplicate_preset_checkboxes:
+            if preset_checkbox is not self.sender():
+                preset_checkbox.blockSignals(True)
+                preset_checkbox.setChecked(False)
+                preset_checkbox.blockSignals(False)
+
+        self.apply_duplicate_preset(preset)
+
+    def apply_duplicate_preset(self, preset):
+        if not hasattr(self, "dupe_cols"):
+            return
+
+        columns = self.selected_preset_columns(preset)
+
+        for column, checkbox in self.dupe_cols:
+            checkbox.blockSignals(True)
+            checkbox.setChecked(column in columns)
+            checkbox.blockSignals(False)
+
+        self.update_cleaning_statistics()
             
     def col_sel(self):
         # -------------------------------
@@ -268,25 +399,7 @@ class CleaningDialog(QDialog):
 
         self.missing_column_combo = QComboBox()
 
-        self.missing_column_combo.addItem(
-            "All Columns",
-            None
-        )
-        self.missing_column_combo.addItem(
-            "All numerical Columns",
-            None
-        )
-        self.missing_column_combo.addItem(
-            "All categorical Columns",
-            None
-        )
-
-        for column in self.dataframe.columns:
-
-            self.missing_column_combo.addItem(
-                str(column),
-                column
-            )
+        self.add_column_presets(self.missing_column_combo)
 
         self.operation_layout.addWidget(
             self.missing_column_combo
@@ -369,6 +482,9 @@ class CleaningDialog(QDialog):
 
         self.fill_value.setPlaceholderText(
             "Enter value"
+        )
+        self.fill_value.textChanged.connect(
+            self.update_cleaning_statistics
         )
 
         self.operation_layout.addWidget(
@@ -454,9 +570,8 @@ class CleaningDialog(QDialog):
 
         if operation == "missing":
 
-            columns = (
-                self.column_selector
-                .get_selected_columns()
+            columns = self.selected_preset_columns(
+                self.missing_column_combo.currentData()
             )
 
             action = (
@@ -530,12 +645,18 @@ class CleaningDialog(QDialog):
         )
 
         if operation == "missing":
-            columns = self.column_selector.get_selected_columns()
-            selected_operation = self.get_operation()
-            result = self.cleaner.clean_missing(
-                self.dataframe,
-                selected_operation
+            columns = self.selected_preset_columns(
+                self.missing_column_combo.currentData()
             )
+            selected_operation = self.get_operation()
+            try:
+                result = self.cleaner.clean_missing(
+                    self.dataframe,
+                    selected_operation
+                )
+            except ValueError as error:
+                self.cleaning_stats.show_error(str(error))
+                return
             self.cleaning_stats.update_comparison(
                 self.dataframe,
                 result,
