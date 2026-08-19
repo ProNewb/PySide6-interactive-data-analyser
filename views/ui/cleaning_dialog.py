@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QLineEdit,
     QPushButton,
+    QSizePolicy,
     QWidget
 )
 
@@ -102,6 +103,11 @@ class CleaningDialog(QDialog):
 
         self.operation_scroll = QScrollArea()
         self.operation_scroll.setWidgetResizable(True)
+        self.operation_scroll.setMinimumHeight(240)
+        self.operation_scroll.setSizePolicy(
+            QSizePolicy.Policy.Expanding,
+            QSizePolicy.Policy.Expanding
+        )
         self.operation_scroll.setWidget(self.operation_widget)
         layout.addWidget(self.operation_scroll)
 
@@ -241,7 +247,26 @@ class CleaningDialog(QDialog):
         self.operation_layout.addWidget(
             QLabel("Duplicates")
         )
-        self.groupBy()
+        self.duplicate_selection_widget = QWidget()
+        self.duplicate_selection_layout = QVBoxLayout(
+            self.duplicate_selection_widget
+        )
+        self.duplicate_selection_layout.setContentsMargins(0, 0, 0, 0)
+
+        self.duplicate_scroll = QScrollArea()
+        self.duplicate_scroll.setWidgetResizable(True)
+        self.duplicate_scroll.setHorizontalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAlwaysOff
+        )
+        self.duplicate_scroll.setVerticalScrollBarPolicy(
+            Qt.ScrollBarPolicy.ScrollBarAsNeeded
+        )
+        self.duplicate_scroll.setMinimumHeight(220)
+        self.duplicate_scroll.setWidget(self.duplicate_selection_widget)
+        self.operation_layout.addWidget(self.duplicate_scroll)
+        self.groupBy(self.duplicate_selection_layout)
+        self.action()
+        self.fill()
 
     def missing_val_operations(self):
 
@@ -252,7 +277,7 @@ class CleaningDialog(QDialog):
         self.action()
         self.fill()
 
-    def groupBy(self):
+    def groupBy(self, target_layout):
         """
         Creates a checkbox for each column in self.dataframe
         and stores them in self.dupe_cols for later use.
@@ -262,7 +287,7 @@ class CleaningDialog(QDialog):
         self.checkbox_group = QButtonGroup(self)
         self.checkbox_group.setExclusive(False)  # Allow multiple selections
 
-        self.operation_layout.addWidget(
+        target_layout.addWidget(
             QLabel("Columns")
         )
 
@@ -292,7 +317,7 @@ class CleaningDialog(QDialog):
         for column_index in range(presets_per_row):
             preset_layout.setColumnStretch(column_index, 1)
 
-        self.operation_layout.addLayout(preset_layout)
+        target_layout.addLayout(preset_layout)
 
         column_layout = QGridLayout()
         columns_per_row = 3
@@ -314,7 +339,7 @@ class CleaningDialog(QDialog):
                 self.update_cleaning_statistics
             )
 
-        self.operation_layout.addLayout(column_layout)
+        target_layout.addLayout(column_layout)
 
     def add_column_presets(self, combo):
         combo.addItem("All Columns", "all")

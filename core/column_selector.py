@@ -7,6 +7,8 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt
 import pandas as pd
 from PySide6.QtCore import Signal
+
+'''Potentially obsolete'''
 class ColumnSelector(QWidget):
     selection_changed = Signal()
     def __init__(self, dataframe, parent=None):
