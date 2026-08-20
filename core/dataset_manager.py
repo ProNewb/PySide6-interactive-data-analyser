@@ -6,8 +6,8 @@ from core.csv_reader import CSVReader
 @dataclass
 class DataState:
     """Stores a previous dataset state for undo operations."""
-
-    dataframe: object
+    before: object
+    after: object
     description: str
 
 
@@ -24,10 +24,12 @@ class DatasetManager:
         self.dataframe = None
         self.original_dataframe = None
         self.history = []
+        self.redo_history = []
+        self.operation_log = []
 
-        # Result dataset
         self.result_dataframe = None
         self.result_history = []
+        self.result_redo_history = []
 
         self.filename = None
 
@@ -38,24 +40,41 @@ class DatasetManager:
     def load_csv(self, filename, options):
         """Load a new CSV and reset dataset state."""
 
-        self.filename = filename
-
-        self.dataframe = self.reader.read(
+        dataframe = self.reader.read(
             filename,
             options
         )
 
         if options.manual_headers:
-            self.dataframe.columns = options.manual_headers
+            dataframe.columns = options.manual_headers
 
-        self.original_dataframe = self.dataframe.copy()
+        self.load_dataframe(filename, dataframe)
 
-        # Loading a new dataset starts a new history.
+    def load_dataframe(
+        self,
+        filename,
+        dataframe,
+        original_dataframe=None,
+        operations=None
+    ):
+        """Load a dataframe and reset or restore its project state."""
+
+        self.filename = filename
+        self.dataframe = dataframe.copy()
+
+        self.original_dataframe = (
+            dataframe.copy()
+            if original_dataframe is None
+            else original_dataframe.copy()
+        )
+
         self.history.clear()
+        self.operation_log = list(operations or [])
 
         # Results belong to the previous dataset.
         self.result_dataframe = None
         self.result_history.clear()
+        self.result_redo_history.clear()
 
     def has_data(self):
         """Return True if a main dataset is loaded."""
@@ -72,21 +91,26 @@ class DatasetManager:
         dataframe,
         description="Data changed"
     ):
-        """Replace the main dataset and record its previous state."""
 
         if self.dataframe is not None:
 
-            self.history.append(
-                DataState(
-                    self.dataframe.copy(),
-                    description
-                )
+            self.operation_log.append(description)
+
+            operation = DataState(
+                before=self.dataframe.copy(),
+                after=dataframe.copy(),
+                description=description
             )
+
+            self.history.append(operation)
 
             if len(self.history) > self.MAX_HISTORY:
                 self.history.pop(0)
 
         self.dataframe = dataframe.copy()
+
+        # A new operation invalidates redo history
+        self.redo_history.clear()
 
     # ==================================================
     # RESULT DATASET
@@ -111,12 +135,13 @@ class DatasetManager:
 
         if self.result_dataframe is not None:
 
-            self.result_history.append(
-                DataState(
-                    self.result_dataframe.copy(),
-                    description
-                )
+            operation = DataState(
+                before=self.result_dataframe.copy(),
+                after=dataframe.copy(),
+                description=description
             )
+
+            self.result_history.append(operation)
 
             if len(self.result_history) > self.MAX_HISTORY:
                 self.result_history.pop(0)
@@ -148,12 +173,17 @@ class DatasetManager:
         """Restore the previous state of the selected dataset."""
 
         if target == "main":
+
             history = self.history
+            redo_history = self.redo_history
 
         elif target == "result":
+
             history = self.result_history
+            redo_history = self.result_redo_history
 
         else:
+
             raise ValueError(
                 f"Invalid undo target: {target}"
             )
@@ -161,15 +191,19 @@ class DatasetManager:
         if not history:
             return None
 
-        previous_state = history.pop()
+        operation = history.pop()
 
         if target == "main":
-            self.dataframe = previous_state.dataframe.copy()
+
+            self.dataframe = operation.before.copy()
 
         else:
-            self.result_dataframe = previous_state.dataframe.copy()
 
-        return previous_state.description
+            self.result_dataframe = operation.before.copy()
+
+        redo_history.append(operation)
+
+        return operation.description
 
     # ==================================================
     # RESET
@@ -196,5 +230,79 @@ class DatasetManager:
 
         self.dataframe = self.original_dataframe.copy()
         self.history.clear()
+        self.operation_log.clear()
 
         return True
+
+    def get_operation_log(self):
+        """Return all operations applied to the main dataframe."""
+
+        return list(self.operation_log)
+
+    def get_undo_history(self):
+
+        return list(self.undo_stack)
+    def can_redo(self, target="main"):
+
+        if target == "main":
+            return bool(self.redo_history)
+
+        if target == "result":
+            return bool(self.result_redo_history)
+
+        return False
+    def redo(self, target="main"):
+
+        if target == "main":
+
+            redo_history = self.redo_history
+            history = self.history
+
+        elif target == "result":
+
+            redo_history = self.result_redo_history
+            history = self.result_history
+
+        else:
+
+            raise ValueError(
+                f"Invalid redo target: {target}"
+            )
+
+        if not redo_history:
+            return None
+
+        operation = redo_history.pop()
+
+        if target == "main":
+
+            self.dataframe = operation.after.copy()
+
+        else:
+
+            self.result_dataframe = operation.after.copy()
+
+        history.append(operation)
+
+        return operation.description
+    
+    def get_undo_history(self, target="main"):
+
+        if target == "main":
+            return list(self.history)
+
+        if target == "result":
+            return list(self.result_history)
+
+        return []
+
+
+    def get_redo_history(self, target="main"):
+
+        if target == "main":
+            return list(self.redo_history)
+
+        if target == "result":
+            return list(self.result_redo_history)
+
+        return []

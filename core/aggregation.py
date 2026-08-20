@@ -8,3 +8,11 @@ class Aggregation:
 
         # Aggregation operations to apply to the grouped data.
         self.aggregations = aggregations
+
+    def describe(self):
+        groups = ", ".join(str(column) for column in self.group_by)
+        operations = ", ".join(
+            f"{function}({column})"
+            for column, function in self.aggregations
+        )
+        return f"group by {groups}; {operations}"

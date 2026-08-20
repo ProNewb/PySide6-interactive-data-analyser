@@ -25,7 +25,7 @@ class DataDialog(QDialog):
         self.dataframe = dataframe
         self.condition_rows = []
         self.preview_table = PreviewTable()
-        self.table.setAlternatingRowColors(True)
+       
         self.options = ImportOptions()
         self.datatable = DataTable()
         self.setWindowTitle("Filter Data")

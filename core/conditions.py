@@ -83,3 +83,17 @@ class Condition:
 
         # Non-numeric columns use the supplied value directly.
         return self.value
+
+    def describe(self):
+        operators = {
+            "equals": "=",
+            "not_equals": "!=",
+            "contains": "contains",
+            "greater_than": ">",
+            "less_than": "<",
+            "greater_or_equal": ">=",
+            "less_or_equal": "<="
+        }
+        operator = operators.get(self.operator, self.operator)
+        value = self.value if self.operator == "contains" else repr(self.value)
+        return f"{self.column} {operator} {value}"

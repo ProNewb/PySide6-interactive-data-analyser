@@ -11,6 +11,16 @@ class DuplicateOptions:
     case_sensitive: bool = True
     ignore_whitespace: bool = False
 
+    def describe(self):
+        columns = ", ".join(str(column) for column in self.columns)
+        details = []
+        if not self.case_sensitive:
+            details.append("case-insensitive")
+        if self.ignore_whitespace:
+            details.append("ignore whitespace")
+        suffix = f" ({', '.join(details)})" if details else ""
+        return f"remove duplicates in {columns}{suffix}"
+
 @dataclass
 class MissingValueOptions:
 
@@ -18,6 +28,14 @@ class MissingValueOptions:
     action: str
     method: str | None = None
     value: object = None
+
+    def describe(self):
+        columns = ", ".join(str(column) for column in self.columns)
+        if self.action == "drop":
+            return f"drop rows with missing values in {columns}"
+        if self.method == "constant":
+            return f"fill missing values in {columns} with {self.value!r}"
+        return f"fill missing values in {columns} with {self.method}"
 
 
 class DataCleaner:

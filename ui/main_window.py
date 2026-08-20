@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QTabWidget,
     QTextEdit,
+    QToolButton,
     QWidget,
     QLabel,
     QVBoxLayout
@@ -105,6 +106,15 @@ class MainWindow(QMainWindow):
         self.main_menu.open_action.triggered.connect(
             self.load_dataset
         )
+        self.main_menu.open_project_action.triggered.connect(
+            self.load_project
+        )
+        self.main_menu.save_project_action.triggered.connect(
+            self.file_controller.save_project
+        )
+        self.main_menu.export_data_action.triggered.connect(
+            self.file_controller.export_csv
+        )
         self.main_menu.settings_action.triggered.connect(
             self.open_options
         )
@@ -116,14 +126,16 @@ class MainWindow(QMainWindow):
             self.open_filter_dialog
         )
 
-        self.main_menu.undo_action.triggered.connect(
+        self.main_menu.undo_button.triggered.connect(
             self.undo_operation
         )
 
         self.main_menu.reset_action.triggered.connect(
             self.reset_operation
         )
-
+        self.main_menu.redo_button.setEnabled(
+            self.dataset_manager.can_redo()
+        )
         self.main_menu.aggregate_action.triggered.connect(
             self.open_aggregation_dialog
         )
@@ -202,6 +214,16 @@ class MainWindow(QMainWindow):
 
             self.status.showMessage(
                 "Dataset loaded successfully"
+            )
+
+    def load_project(self):
+
+        if self.file_controller.open_project():
+
+            self.refresh_views()
+
+            self.status.showMessage(
+                "Project loaded successfully"
             )
 
 
@@ -338,17 +360,23 @@ class MainWindow(QMainWindow):
 
         target = self.target_combo.currentData()
 
+        target_name = "Result" if target == "result" else "Main"
+        description = (
+            f"{target_name}: filter where {conditions.describe()}"
+        )
+
         if target == "result":
 
             self.dataset_manager.set_result_dataframe(
-                filtered_dataframe
+                filtered_dataframe,
+                description
             )
 
         else:
 
             self.dataset_manager.set_dataframe(
                 filtered_dataframe,
-                "Applied filter"
+                description
             )
 
         self.refresh_views()
@@ -390,14 +418,16 @@ class MainWindow(QMainWindow):
 
         self.update_comparison_layout()
         self.update_data_actions()
-
+        self.update_history_menus()
+        
     def undo_operation(self):
 
         target = self.target_combo.currentData()
 
-        # A selection is a temporary view of data,
-        # so there is no history to undo on it.
-        if target == "selection":
+        if target in (
+            "main_selection",
+            "result_selection"
+        ):
 
             QMessageBox.information(
                 self,
@@ -407,13 +437,13 @@ class MainWindow(QMainWindow):
 
             return
 
-        description = self.dataset_manager.undo(
-            target
-        )
+        description = self.dataset_manager.undo(target)
 
         if description is not None:
 
             self.refresh_views()
+
+            self.update_data_actions()
 
             self.status.showMessage(
                 f"Undid: {description}"
@@ -446,12 +476,22 @@ class MainWindow(QMainWindow):
 
 
     def update_data_actions(self):
-        #enables the undo/reset actions when appropriate
+
         target = self.target_combo.currentData()
 
-        self.main_menu.undo_action.setEnabled(
-            target != "selection"
+        is_dataset = target in (
+            "main",
+            "result"
+        )
+
+        self.main_menu.undo_button.setEnabled(
+            is_dataset
             and self.dataset_manager.can_undo(target)
+        )
+
+        self.main_menu.redo_button.setEnabled(
+            is_dataset
+            and self.dataset_manager.can_redo(target)
         )
 
         self.main_menu.reset_action.setEnabled(
@@ -524,7 +564,8 @@ class MainWindow(QMainWindow):
         # ----------------------------------
 
         self.dataset_manager.set_result_dataframe(
-            aggregated_dataframe
+            aggregated_dataframe,
+            "Result: aggregate " + aggregation.describe()
         )
 
         self.main_menu.result_dataset_action.setChecked(
@@ -576,9 +617,13 @@ class MainWindow(QMainWindow):
 
         if target == "result_selection":
 
-            return self.result_view.get_analysis_dataframe()
+            dataframe = (
+                self.result_view
+                .get_analysis_dataframe()
+            )
 
             if dataframe is None:
+
                 QMessageBox.warning(
                     self,
                     "No Selection",
@@ -588,8 +633,6 @@ class MainWindow(QMainWindow):
                 return None
 
             return dataframe
-
-        return None
 
     def hide_main_view(self):
 
@@ -679,10 +722,24 @@ class MainWindow(QMainWindow):
 
             cleaned = dialog.get_result()
 
-            self.dataset_manager.set_dataframe(
-                cleaned,
-                "Clean data"
-            )
+            target = self.target_combo.currentData()
+            target_name = "Result" if target == "result" else "Main"
+            operation = dialog.get_operation()
+            description = f"{target_name}: {operation.describe()}"
+
+            if target == "main":
+
+                self.dataset_manager.set_dataframe(
+                    cleaned,
+                    description
+                )
+
+            elif target == "result":
+
+                self.dataset_manager.set_result_dataframe(
+                    cleaned,
+                    description
+                )
 
             self.refresh_views()
 
@@ -715,3 +772,139 @@ class MainWindow(QMainWindow):
         )
 
         return answer == QMessageBox.Yes
+
+    def update_undo_menu(self):
+
+        menu = self.main_menu.undo_history_menu
+        menu.clear()
+
+        target = self.target_combo.currentData()
+
+        if target not in ("main", "result"):
+            return
+
+        history = self.dataset_manager.get_undo_history(
+            target
+        )
+
+        for operation in reversed(history):
+
+            action = menu.addAction(
+                operation.description
+            )
+
+            action.triggered.connect(
+                lambda checked=False,
+                op=operation:
+                self.undo_to_operation(op)
+            )
+
+    def redo_operation(self):
+
+        target = self.target_combo.currentData()
+
+        if target in (
+            "main_selection",
+            "result_selection"
+        ):
+
+            QMessageBox.information(
+                self,
+                "Redo",
+                "Redo cannot be applied directly to a selection."
+            )
+
+            return
+
+        description = self.dataset_manager.redo(
+            target
+        )
+
+        if description is not None:
+
+            self.refresh_views()
+
+            self.status.showMessage(
+                f"Redid: {description}"
+            )
+
+    def update_redo_menu(self):
+
+        menu = self.main_menu.redo_history_menu
+        menu.clear()
+
+        target = self.target_combo.currentData()
+
+        if target not in ("main", "result"):
+            return
+
+        history = self.dataset_manager.get_redo_history(
+            target
+        )
+
+        for operation in reversed(history):
+
+            action = menu.addAction(
+                operation.description
+            )
+
+            action.triggered.connect(
+                lambda checked=False,
+                op=operation:
+                self.redo_to_operation(op)
+            )
+
+    def update_history_menus(self):
+
+        target = self.target_combo.currentData()
+
+        # Only datasets have history
+        if target not in ("main", "result"):
+
+            self.main_menu.undo_history_menu.clear()
+            self.main_menu.redo_history_menu.clear()
+            return
+
+        # ---------------- Undo ----------------
+
+        undo_menu = self.main_menu.undo_history_menu
+        undo_menu.clear()
+
+        history = self.dataset_manager.get_undo_history(target)
+
+        for i, operation in enumerate(reversed(history), 1):
+
+            text = f"{i}. {operation.description}"
+
+            action = undo_menu.addAction(text)
+
+            action.triggered.connect(
+                lambda checked=False, steps=i: self.undo_multiple(steps)
+            )
+
+        # ---------------- Redo ----------------
+
+        redo_menu = self.main_menu.redo_history_menu
+        redo_menu.clear()
+
+        history = self.dataset_manager.get_redo_history(target)
+
+        for i, operation in enumerate(reversed(history), 1):
+
+            text = f"{i}. {operation.description}"
+
+            action = redo_menu.addAction(text)
+
+            action.triggered.connect(
+                lambda checked=False, steps=i: self.redo_multiple(steps)
+            )
+    def undo_multiple(self, steps):
+
+        for _ in range(steps):
+            self.undo_operation()
+
+
+    def redo_multiple(self, steps):
+
+        for _ in range(steps):
+            self.redo_operation()

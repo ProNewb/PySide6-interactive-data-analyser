@@ -61,3 +61,9 @@ class ConditionGroup:
         raise ValueError(
             f"Unknown logic operator: {self.logic}"
         )
+
+    def describe(self):
+        return f" {self.logic} ".join(
+            condition.describe()
+            for condition in self.conditions
+        )
