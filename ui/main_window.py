@@ -244,8 +244,13 @@ class MainWindow(QMainWindow):
         )
 
         self.target_combo.addItem(
-            "Current Selection",
-            "selection"
+            "Main Selection",
+            "main_selection"
+        )
+
+        self.target_combo.addItem(
+            "Result Selection",
+            "result_selection"
         )
 
         target_layout.addWidget(
@@ -491,31 +496,46 @@ class MainWindow(QMainWindow):
 
             return
 
-        target = self.target_combo.currentData()
+        # ----------------------------------
+        # Check whether result exists
+        # ----------------------------------
 
-        if target == "result":
+        existing_result = (
+            self.dataset_manager
+            .get_result_dataframe()
+        )
 
-            self.dataset_manager.set_result_dataframe(
-                aggregated_dataframe
+        if existing_result is not None:
+
+            answer = QMessageBox.question(
+                self,
+                "Overwrite Result?",
+                "A result dataset already exists.\n\n"
+                "Do you want to replace it?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
             )
 
-            self.main_menu.result_dataset_action.setChecked(
-                True
-            )
+            if answer != QMessageBox.Yes:
+                return
 
-            
+        # ----------------------------------
+        # Store result
+        # ----------------------------------
 
-        else:
+        self.dataset_manager.set_result_dataframe(
+            aggregated_dataframe
+        )
 
-            self.dataset_manager.set_result_dataframe(
-                aggregated_dataframe
-            )
+        self.main_menu.result_dataset_action.setChecked(
+            True
+        )
 
-            self.main_menu.result_dataset_action.setChecked(
-                True
-            )
-        
         self.refresh_views()
+
+        self.status.showMessage(
+            "Aggregation completed"
+        )
 
 
 
@@ -550,20 +570,13 @@ class MainWindow(QMainWindow):
 
             return dataframe
 
-        if target == "selection":
+        if target == "main_selection":
 
-            # Determine which view is currently active
-            if self.result_view.isVisible():
-                dataframe = (
-                    self.result_view
-                    .get_analysis_dataframe()
-                )
+            return self.main_view.get_analysis_dataframe()
 
-            else:
-                dataframe = (
-                    self.main_view
-                    .get_analysis_dataframe()
-                )
+        if target == "result_selection":
+
+            return self.result_view.get_analysis_dataframe()
 
             if dataframe is None:
                 QMessageBox.warning(
@@ -682,3 +695,23 @@ class MainWindow(QMainWindow):
         )
 
         dialog.exec()
+
+    def confirm_result_overwrite(self):
+
+        if (
+            self.dataset_manager
+            .get_result_dataframe()
+            is None
+        ):
+            return True
+
+        answer = QMessageBox.question(
+            self,
+            "Overwrite Result?",
+            "A result dataset already exists.\n\n"
+            "Do you want to replace it?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        return answer == QMessageBox.Yes
