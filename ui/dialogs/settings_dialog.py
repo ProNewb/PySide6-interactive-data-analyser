@@ -25,6 +25,7 @@ from core.condition_group import ConditionGroup
 from core.conditions import Condition
 from core.csv_reader import CSVReader
 from core.dataset_table import DataTable
+from ui.helpers.font_delegate import FontDelegate
 from ui.stats.cleaning_stats import CleaningStats
 from ui.helpers.condition_row import ConditionRow
 from ui.dialogs.import_dialog import ImportOptions
@@ -35,21 +36,60 @@ from PySide6.QtGui import QFontDatabase, QStyleHints
 class SettingsDialog(QDialog):
 
     THEMES = {
+        # Existing
         "Dark Teal": "dark_teal.xml",
         "Dark Blue": "dark_blue.xml",
         "Dark Purple": "dark_purple.xml",
         "Light Teal": "light_teal.xml",
         "Light Blue": "light_blue.xml",
-        "Light Purple": "light_purple.xml"
+        "Light Purple": "light_purple.xml",
+
+        # Additional Dark Themes
+        "Dark Cyan": "dark_cyan.xml",
+        "Dark Pink": "dark_pink.xml",
+        "Dark Red": "dark_red.xml",
+        "Dark Amber": "dark_amber.xml",
+        "Dark Lime": "dark_lime.xml",
+        "Dark Yellow": "dark_yellow.xml",
+        "Dark Orange": "dark_orange.xml",
+
+        # Additional Light Themes
+        "Light Cyan": "light_cyan.xml",
+        "Light Pink": "light_pink.xml",
+        "Light Red": "light_red.xml",
+        "Light Amber": "light_amber.xml",
+        "Light Lime": "light_lime.xml",
+        "Light Yellow": "light_yellow.xml",
+        "Light Orange": "light_orange.xml"
     }
+
     ACCENTS = {
-    "Teal": "#009688",
-    "Blue": "#2196F3",
-    "Purple": "#9C27B0",
-    "Green": "#4CAF50",
-    "Orange": "#FF9800",
-    "Red": "#F44336"
-}
+        # Existing
+        "Teal": "#009688",
+        "Blue": "#2196F3",
+        "Purple": "#9C27B0",
+        "Green": "#4CAF50",
+        "Orange": "#FF9800",
+        "Red": "#F44336",
+        "Deep Purple": "#432567",
+        "White": "#FFFFFF",
+
+        
+        "Cyan": "#00BCD4",
+        "Light Blue": "#03A9F4",
+        "Indigo": "#3F51B5",
+        "Pink": "#E91E63",
+        "Amber": "#FFC107",
+        "Lime": "#CDDC39",
+        "Yellow": "#FFEB3B",
+        "Deep Orange": "#FF5722",
+        "Brown": "#795548",
+        "Grey": "#9E9E9E",
+        "Blue Grey": "#607D8B",
+        "Black": "#000000"
+    }
+
+
     def __init__(
     self,
     settings_manager,
@@ -106,7 +146,7 @@ class SettingsDialog(QDialog):
         self.font_spin.valueChanged.connect(
             self.preview_theme
         )
-        
+
     def load_settings(self):
 
         settings = self.settings_manager.settings
@@ -199,16 +239,8 @@ class SettingsDialog(QDialog):
 
     def cancel_settings(self):
 
-        self.settings_manager.settings.theme = (
-            self.original_settings.theme
-        )
-
-        self.settings_manager.settings.font_size = (
-            self.original_settings.font_size
-        )
-
-        self.settings_manager.settings.start_maximized = (
-            self.original_settings.start_maximized
+        self.settings_manager.settings = deepcopy(
+            self.original_settings
         )
 
         self.theme_manager.apply_theme(
@@ -272,7 +304,9 @@ class SettingsDialog(QDialog):
         # ---------------------------------
         # Font family
         # ---------------------------------
-
+        self.font_combo.setItemDelegate(
+        FontDelegate(self.font_combo)
+    )
 
         fonts = QFontDatabase.families()
 
@@ -348,4 +382,38 @@ class SettingsDialog(QDialog):
 
         self.setLayout(
             layout
+        )
+    def preview_hovered_font(self, index):
+
+        font_name = index.data()
+
+        if not font_name:
+            return
+
+        preview_settings = deepcopy(
+            self.settings_manager.settings
+        )
+
+        preview_settings.theme = (
+            self.theme_combo.currentData()
+        )
+
+        preview_settings.font_family = (
+            font_name
+        )
+
+        preview_settings.font_size = (
+            self.font_spin.value()
+        )
+
+        self.theme_manager.apply_theme(
+            preview_settings
+        )
+
+    def restore_font_preview(self):
+
+        settings = self.settings_manager.settings
+
+        self.theme_manager.apply_theme(
+            settings
         )

@@ -1,7 +1,6 @@
 {
-    "theme": "light_blue.xml",
-    "accent": "#FF9800",
-    "font_family": "Arial",
+    "theme": "dark_red.xml",
+    "font_family": "Algerian",
     "font_size": 10,
     "start_maximized": false
 }
