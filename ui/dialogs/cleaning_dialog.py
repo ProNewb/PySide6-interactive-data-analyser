@@ -642,9 +642,12 @@ class CleaningDialog(QDialog):
         return self.cleaning_result
 
     def missing_stats(self):
-        pass
+        """Refresh compatibility statistics for a missing-value operation."""
+        self.update_cleaning_statistics()
+
     def duplicate_stats(self):
-        pass
+        """Refresh compatibility statistics for a duplicate operation."""
+        self.update_cleaning_statistics()
 
     def update_statistics(
         self,

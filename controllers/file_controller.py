@@ -5,9 +5,18 @@ import pandas as pd
 
 from PySide6.QtWidgets import QFileDialog
 from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QInputDialog
 
 from ui.dialogs.import_dialog import ImportDialog
 
+from dataclasses import dataclass
+
+@dataclass
+class ColumnInfo:
+
+    name: str
+    detected_type: str
+    nullable: bool
 
 class FileController:
     """Handle file-related operations for the application."""
@@ -61,6 +70,44 @@ class FileController:
 
         return True
 
+    def import_dataset_for_join(self, parent=None):
+        """Import a second dataset using the normal import workflow."""
+
+        filename, _ = QFileDialog.getOpenFileName(
+            parent,
+            "Import Dataset for Join",
+            "",
+            "CSV Files (*.csv);;Excel Files (*.xlsx *.xls);;"
+            "JSON Files (*.json);;Parquet Files (*.parquet);;"
+            "All Files (*)"
+        )
+
+        if not filename:
+            return None
+
+        try:
+            if filename.lower().endswith(".csv"):
+                dialog = ImportDialog(filename, parent)
+                if not dialog.exec():
+                    return None
+                options = dialog.get_options()
+                dataframe = self.dataset_manager.reader.read(
+                    filename,
+                    options
+                )
+                if options.manual_headers:
+                    dataframe.columns = options.manual_headers
+                return dataframe
+
+            return self._read_dataset(filename)
+        except (OSError, ValueError, ImportError) as error:
+            QMessageBox.warning(
+                parent,
+                "Import Dataset",
+                f"Could not import the dataset:\n{error}"
+            )
+            return None
+
     def open_project(self):
         """Open a saved project and restore its operations."""
 
@@ -78,20 +125,22 @@ class FileController:
             with open(filename, "r", encoding="utf-8") as project_file:
                 project = json.load(project_file)
 
-            dataframe = self._project_dataframe(project["data"])
-            original_dataframe = self._project_dataframe(
-                project.get("original_data", project["data"])
-            )
-            operations = project.get("operations", [])
+            main = project["main"]
+            result = project["result"]
 
-            if not isinstance(operations, list):
-                raise ValueError("Project operations must be a list")
-
-            self.dataset_manager.load_dataframe(
-                project.get("source_file", filename),
-                dataframe,
-                original_dataframe,
-                operations
+            self.dataset_manager.load_project(
+                filename=project.get("source_file", filename),
+                original=self._project_dataframe(main["original"]),
+                current=self._project_dataframe(main["current"]),
+                operations=main["operations"],
+                result_dataframe=(
+                    None if not result["visible"]
+                    else self._project_dataframe(result["current"])
+                ),
+                result_operations=result.get("operations", []),
+                main_history=project.get("history", {}).get("main", {}),
+                result_history=project.get("history", {}).get("result", {}),
+                dataframe_from_json=self._project_dataframe
             )
         except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             QMessageBox.warning(
@@ -111,6 +160,15 @@ class FileController:
         )
 
     @staticmethod
+    def _dataframe_json(dataframe):
+        return json.loads(
+            dataframe.to_json(
+                orient="table",
+                date_format="iso"
+            )
+        )
+
+    @staticmethod
     def _read_dataset(filename):
         extension = filename.lower().rsplit(".", 1)[-1]
 
@@ -126,7 +184,7 @@ class FileController:
         raise ValueError(f"Unsupported file type: .{extension}")
 
     # ==================================================
-    # FUTURE FILE OPERATIONS
+    # PROJECT AND EXPORT OPERATIONS
     # ==================================================
 
     def save_project(self):
@@ -155,20 +213,42 @@ class FileController:
         if not filename.lower().endswith(".json"):
             filename += ".json"
 
+        result = self.dataset_manager.get_result_dataframe()
+
         project = {
+
+            "version": 3,
             "source_file": self.dataset_manager.filename,
-            "operations": self.dataset_manager.get_operation_log(),
-            "original_data": json.loads(
-                self.dataset_manager.original_dataframe.to_json(
-                    orient="table",
-                    date_format="iso"
-                )
+
+            "main": {
+
+                "original": self._dataframe_json(
+                    self.dataset_manager.original_dataframe
+                ),
+                "current": self._dataframe_json(dataframe),
+                "operations": self.dataset_manager.get_operation_log()
+            },
+
+            "result": {
+
+                "visible": result is not None,
+
+                "current": None if result is None else self._dataframe_json(result),
+                "operations": self.dataset_manager.get_result_operation_log()
+            }
+        }
+
+        project["history"] = {
+            # Keep the complete descriptions above and the bounded state
+            # snapshots here so saved projects preserve both auditability and
+            # the existing five-entry undo/redo behavior.
+            "main": self.dataset_manager.get_history_snapshot(
+                "main",
+                self._dataframe_json
             ),
-            "data": json.loads(
-                dataframe.to_json(
-                    orient="table",
-                    date_format="iso"
-                )
+            "result": self.dataset_manager.get_history_snapshot(
+                "result",
+                self._dataframe_json
             )
         }
 
@@ -186,9 +266,41 @@ class FileController:
         return True
 
     def export_csv(self):
-        """Export the current main dataframe to a standard file format."""
+        """Export the selected Main or Result dataframe."""
 
-        dataframe = self.dataset_manager.get_dataframe()
+        available = []
+        if self.dataset_manager.get_dataframe() is not None:
+            available.append(("Main Dataset", "main"))
+        if self.dataset_manager.get_result_dataframe() is not None:
+            available.append(("Result Dataset", "result"))
+
+        if not available:
+            QMessageBox.information(
+                None,
+                "Export Data",
+                "There is no dataset to export."
+            )
+            return False
+
+        labels = [label for label, _ in available]
+        selected_label, accepted = QInputDialog.getItem(
+            None,
+            "Export Data",
+            "Dataset to export:",
+            labels,
+            0,
+            False
+        )
+
+        if not accepted:
+            return False
+
+        selected_target = dict(available)[selected_label]
+        dataframe = (
+            self.dataset_manager.get_result_dataframe()
+            if selected_target == "result"
+            else self.dataset_manager.get_dataframe()
+        )
 
         if dataframe is None:
             QMessageBox.information(
@@ -251,3 +363,36 @@ class FileController:
         """Close the current file and clear its project state."""
 
         return self.dataset_manager.close_file()
+
+    def detect_column_types(df):
+
+        columns = []
+
+        for name in df.columns:
+
+            dtype = df[name].dtype
+
+            if pd.api.types.is_integer_dtype(dtype):
+                detected = "Integer"
+
+            elif pd.api.types.is_float_dtype(dtype):
+                detected = "Float"
+
+            elif pd.api.types.is_bool_dtype(dtype):
+                detected = "Boolean"
+
+            elif pd.api.types.is_datetime64_any_dtype(dtype):
+                detected = "Date"
+
+            else:
+                detected = "Text"
+
+            columns.append(
+                ColumnInfo(
+                    name,
+                    detected,
+                    df[name].isna().any()
+                )
+            )
+
+        return columns

@@ -81,6 +81,15 @@ class Condition:
                     f"for column '{self.column}'"
                 )
 
+        if pd.api.types.is_datetime64_any_dtype(series):
+            try:
+                return pd.to_datetime(self.value)
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"'{self.value}' is not a valid date "
+                    f"for column '{self.column}'"
+                )
+
         # Non-numeric columns use the supplied value directly.
         return self.value
 

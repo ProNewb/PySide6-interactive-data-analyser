@@ -22,7 +22,36 @@ class CSVReader:
             delimiter=options.delimiter,
             nrows=rows
         )
+        for column, dtype in getattr(
+            options,
+            "column_types",
+            {}
+        ).items():
 
+            if dtype == "int":
+
+                dataframe[column] = pd.to_numeric(
+                    dataframe[column],
+                    errors="coerce"
+                ).astype("Int64")
+
+            elif dtype == "float":
+
+                dataframe[column] = pd.to_numeric(
+                    dataframe[column],
+                    errors="coerce"
+                )
+
+            elif dtype == "datetime":
+
+                dataframe[column] = pd.to_datetime(
+                    dataframe[column],
+                    errors="coerce"
+                )
+
+            elif dtype == "bool":
+
+                dataframe[column] = dataframe[column].astype("boolean")
         # Replace automatically generated column names when
         # the user supplied their own headers.
         if options.manual_headers:

@@ -1,4 +1,6 @@
 import plotly.express as px
+import numpy as np
+import pandas as pd
 
 
 class GraphGenerator:
@@ -13,17 +15,18 @@ class GraphGenerator:
         bins=None,
         size=None,
         title=None,
-        color=None
+        color=None,
+        trendline=False
     ):
 
         if graph_type == "Scatter":
-
-            return self.create_scatter(
+            figure = self.create_scatter(
                 dataframe,
                 x_column,
                 y_column,
                 title
             )
+            return self.add_trendline(figure, dataframe, x_column, y_column, trendline)
 
         elif graph_type == "Line":
 
@@ -108,13 +111,20 @@ class GraphGenerator:
 
         elif graph_type == "Bubble":
 
-            return self.create_bubble_chart(
+            figure = self.create_bubble_chart(
                 dataframe,
                 x_column,
                 y_column,
                 size,
                 title
             )
+            return self.add_trendline(figure, dataframe, x_column, y_column, trendline)
+
+        elif graph_type == "Heatmap":
+            return self.create_heatmap(dataframe, title)
+
+        elif graph_type == "Correlation Map":
+            return self.create_correlation_map(dataframe, title)
 
         elif graph_type == "3D Scatter":
 
@@ -272,4 +282,40 @@ class GraphGenerator:
 
             title=title,
             color=color
+        )
+
+    def add_trendline(self, figure, dataframe, x, y, enabled):
+        if not enabled or x is None or y is None:
+            return figure
+        numeric = dataframe[[x, y]].dropna()
+        if len(numeric) < 2:
+            return figure
+        x_values = pd.to_numeric(numeric[x], errors="coerce")
+        y_values = pd.to_numeric(numeric[y], errors="coerce")
+        valid = ~(x_values.isna() | y_values.isna())
+        if valid.sum() < 2:
+            return figure
+        coefficients = np.polyfit(x_values[valid], y_values[valid], 1)
+        ordered = np.sort(x_values[valid])
+        figure.add_scatter(
+            x=ordered,
+            y=np.polyval(coefficients, ordered),
+            mode="lines",
+            name="Trend line"
+        )
+        return figure
+
+    def create_heatmap(self, dataframe, title):
+        numeric = dataframe.select_dtypes(include="number")
+        return px.imshow(
+            numeric.corr(),
+            text_auto=True,
+            title=title or "Numeric heatmap",
+            color_continuous_scale="RdBu_r"
+        )
+
+    def create_correlation_map(self, dataframe, title):
+        return self.create_heatmap(
+            dataframe,
+            title or "Correlation map"
         )

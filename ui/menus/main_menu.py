@@ -126,7 +126,32 @@ class MainMenu:
         self.data_menu.addAction(
             self.aggregate_action
         )
+        # ==================================================
+        # JOIN MENU
+        # ==================================================
 
+
+        self.join_action = QAction(
+            "Join",
+            window
+        )
+
+        self.data_menu.addAction(
+            self.join_action
+        )
+        # ==================================================
+        # Transform MENU
+        # ==================================================
+
+
+        self.transform_action = QAction(
+            "Transform",
+            window
+        )
+
+        self.data_menu.addAction(
+            self.transform_action
+        )
         # ----------------------------------
         # Reset
         # ----------------------------------
@@ -321,3 +346,4 @@ class MainMenu:
         self.clean_menu.addAction(
             self.clean_action
         )
+

@@ -32,6 +32,7 @@ class ImportOptions:
 
         # Data handling
         self.infer_types = True
+        self.column_types = {}
 
 
 
@@ -310,8 +311,6 @@ class ImportDialog(QDialog):
 
     def select_header_file(self):
 
-        print("Selecting header file...")
-
         filename, _ = QFileDialog.getOpenFileName(
             self,
             "Select Header File",
@@ -319,14 +318,10 @@ class ImportDialog(QDialog):
             "Text Files (*.txt);;CSV Files (*.csv)"
         )
 
-        print(filename)
-
         if not filename:
-            print("No header file selected")
             return
 
         self.options.header_file = filename
         self.options.manual_headers = HeaderReader().read_headers(filename)
-        print("Stored:", self.options.header_file)
 
         self.update_preview()

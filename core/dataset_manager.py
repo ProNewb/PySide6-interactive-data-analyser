@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+import pandas as pd
+
 from core.csv_reader import CSVReader
 
 
@@ -32,7 +34,7 @@ class DatasetManager:
         self.result_redo_history = []
 
         self.filename = None
-
+        self.result_operation_log = []
     # ==================================================
     # MAIN DATASET
     # ==================================================
@@ -75,6 +77,7 @@ class DatasetManager:
         self.result_dataframe = None
         self.result_history.clear()
         self.result_redo_history.clear()
+        self.result_operation_log.clear()
 
     def has_data(self):
         """Return True if a main dataset is loaded."""
@@ -147,12 +150,14 @@ class DatasetManager:
                 self.result_history.pop(0)
 
         self.result_dataframe = dataframe.copy()
-
+        self.result_operation_log.append(description)
     def clear_result(self):
         """Remove the current result dataset and its history."""
 
         self.result_dataframe = None
         self.result_history.clear()
+        self.result_redo_history.clear()
+        self.result_operation_log.clear()
 
     def close_file(self):
         """Clear the loaded dataset and all associated project state."""
@@ -255,6 +260,94 @@ class DatasetManager:
 
         return list(self.operation_log)
 
+    @staticmethod
+    def _state_payload(operation, dataframe_to_json):
+        return {
+            "before": dataframe_to_json(operation.before),
+            "after": dataframe_to_json(operation.after),
+            "description": operation.description
+        }
+
+    @staticmethod
+    def _state_from_payload(payload, dataframe_from_json):
+        return DataState(
+            before=dataframe_from_json(payload["before"]),
+            after=dataframe_from_json(payload["after"]),
+            description=payload["description"]
+        )
+
+    def get_history_snapshot(self, target="main", dataframe_to_json=None):
+        """Return capped undo/redo snapshots for project restoration.
+
+        The operation log remains complete; these snapshots are only the
+        bounded state needed to keep the five-step undo/redo feature usable
+        after reopening a project.
+        """
+        history = self.history if target == "main" else self.result_history
+        redo_history = (
+            self.redo_history if target == "main"
+            else self.result_redo_history
+        )
+        return {
+            "undo": [
+                self._state_payload(operation, dataframe_to_json)
+                for operation in history[-self.MAX_HISTORY:]
+            ],
+            "redo": [
+                self._state_payload(operation, dataframe_to_json)
+                for operation in redo_history[-self.MAX_HISTORY:]
+            ]
+        }
+
+    def load_project(
+        self,
+        filename,
+        original,
+        current,
+        operations,
+        result_dataframe=None,
+        result_operations=None,
+        main_history=None,
+        result_history=None,
+        dataframe_from_json=None
+    ):
+        self.filename = filename
+        self.original_dataframe = original.copy()
+        self.dataframe = current.copy()
+        self.operation_log = list(operations or [])
+        self.history.clear()
+        self.redo_history.clear()
+
+        if dataframe_from_json is None:
+            dataframe_from_json = lambda value: value
+
+        main_history = main_history or {}
+        self.history = [
+            self._state_from_payload(payload, dataframe_from_json)
+            for payload in main_history.get("undo", [])[-self.MAX_HISTORY:]
+        ]
+        self.redo_history = [
+            self._state_from_payload(payload, dataframe_from_json)
+            for payload in main_history.get("redo", [])[-self.MAX_HISTORY:]
+        ]
+
+        self.result_dataframe = (
+            None if result_dataframe is None else result_dataframe.copy()
+        )
+        self.result_operation_log = list(result_operations or [])
+        self.result_history = []
+        self.result_redo_history = []
+
+        result_history = result_history or {}
+        self.result_history = [
+            self._state_from_payload(payload, dataframe_from_json)
+            for payload in result_history.get("undo", [])[-self.MAX_HISTORY:]
+        ]
+        self.result_redo_history = [
+            self._state_from_payload(payload, dataframe_from_json)
+            for payload in result_history.get("redo", [])[-self.MAX_HISTORY:]
+        ]
+
     def get_undo_history(self):
 
         return list(self.undo_stack)
@@ -322,3 +415,40 @@ class DatasetManager:
             return list(self.result_redo_history)
 
         return []
+
+    def get_result_operation_log(self):
+
+        return list(self.result_operation_log)
+
+    def numeric_columns(self, dataframe):
+        return [
+            column
+            for column in dataframe.columns
+            if (
+                pd.api.types.is_numeric_dtype(dataframe[column])
+                and not pd.api.types.is_bool_dtype(dataframe[column])
+            )
+        ]
+
+    def text_columns(self, dataframe):
+        return [
+            column
+            for column in dataframe.columns
+            if not pd.api.types.is_numeric_dtype(dataframe[column])
+            and not pd.api.types.is_datetime64_any_dtype(dataframe[column])
+            and (
+                pd.api.types.is_object_dtype(dataframe[column])
+                or pd.api.types.is_string_dtype(dataframe[column])
+                or isinstance(dataframe[column].dtype, pd.CategoricalDtype)
+            )
+        ]
+
+    def date_columns(self, dataframe):
+        return [
+            column
+            for column in dataframe.columns
+            if (
+                pd.api.types.is_datetime64_any_dtype(dataframe[column])
+                or pd.api.types.is_datetime64_dtype(dataframe[column])
+            )
+        ]

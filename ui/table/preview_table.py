@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QTableWidget, QTableWidgetItem
 
 
 class PreviewTable(QTableWidget):
-    '''Preview to show how the imported table will look'''
+    '''Preview tables show 20 rows unless a caller explicitly requests all.'''
     def __init__(self, parent=None):
         super().__init__(parent)
 
@@ -11,9 +11,9 @@ class PreviewTable(QTableWidget):
         )
 
 
-    def display_dataframe(self, df):
+    def display_dataframe(self, df, rows=20, full=False):
 
-        preview = df.head(10)
+        preview = df if full else df.head(rows)
 
         self.setRowCount(
             len(preview)

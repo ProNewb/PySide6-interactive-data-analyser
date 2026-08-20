@@ -1,179 +1,163 @@
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QComboBox,
     QDialog,
-    QVBoxLayout,
+    QHBoxLayout,
     QLabel,
-    QPushButton
+    QPushButton,
+    QSplitter,
+    QVBoxLayout
 )
 
-from ui.helpers.groupby_row import GroupbyRow
-from ui.helpers.aggregation_row import AggregationRow
 from core.aggregation import Aggregation
+from core.data_processor import DataProcessor
+from ui.helpers.aggregation_row import AggregationRow
+from ui.helpers.groupby_row import GroupbyRow
+from ui.table.preview_table import PreviewTable
 
 
 class AggregationDialog(QDialog):
-    '''Class responsible for aggregation options'''
-    def __init__(self, dataframe, parent=None):
+    """Configure an aggregation with target selection and live preview."""
 
+    def __init__(self, dataframe, parent=None, target_dataframes=None,
+                 target="main"):
         super().__init__(parent)
-
         self.dataframe = dataframe
-
+        self.target_dataframes = target_dataframes or {target: dataframe}
         self.groupby_rows = []
         self.aggregation_rows = []
+        self.processor = DataProcessor()
+        self.source_preview = PreviewTable()
+        self.result_preview = PreviewTable()
 
         self.setWindowTitle("Aggregate Data")
+        layout = QVBoxLayout(self)
 
-        layout = QVBoxLayout()
-
-        # =================================
-        # GROUP BY
-        # =================================
-
-        layout.addWidget(
-            QLabel("Group By")
+        target_layout = QHBoxLayout()
+        target_layout.addWidget(QLabel("Target dataset"))
+        self.target_combo = QComboBox()
+        for key, label in (("main", "Main Dataset"),
+                           ("result", "Result Dataset")):
+            if key in self.target_dataframes:
+                self.target_combo.addItem(label, key)
+        self.target_combo.setCurrentIndex(
+            max(0, self.target_combo.findData(target))
         )
+        target_layout.addWidget(self.target_combo)
+        layout.addLayout(target_layout)
 
+        layout.addWidget(QLabel("Group By"))
         self.groupby_layout = QVBoxLayout()
+        layout.addLayout(self.groupby_layout)
+        self.add_group_button = QPushButton("+ Add Group")
+        layout.addWidget(self.add_group_button)
 
-        layout.addLayout(
-            self.groupby_layout
-        )
-
-        self.add_group_button = QPushButton(
-            "+ Add Group"
-        )
-
-        layout.addWidget(
-            self.add_group_button
-        )
-
-        self.add_group_button.clicked.connect(
-            self.create_groupby_row
-        )
-
-        # =================================
-        # AGGREGATIONS
-        # =================================
-
-        layout.addWidget(
-            QLabel("Aggregations")
-        )
-
+        layout.addWidget(QLabel("Aggregations"))
         self.aggregation_layout = QVBoxLayout()
+        layout.addLayout(self.aggregation_layout)
+        self.add_aggregation_button = QPushButton("+ Add Aggregation")
+        layout.addWidget(self.add_aggregation_button)
 
-        layout.addLayout(
-            self.aggregation_layout
-        )
+        previews = QSplitter(Qt.Horizontal)
+        previews.addWidget(self.source_preview)
+        previews.addWidget(self.result_preview)
+        layout.addWidget(previews)
+        labels = QHBoxLayout()
+        labels.addWidget(QLabel("Target data"))
+        labels.addWidget(QLabel("Aggregation result"))
+        layout.insertLayout(layout.indexOf(previews), labels)
 
-        self.add_aggregation_button = QPushButton(
-            "+ Add Aggregation"
-        )
+        buttons = QHBoxLayout()
+        cancel_button = QPushButton("Cancel")
+        self.apply_button = QPushButton("Apply")
+        buttons.addStretch()
+        buttons.addWidget(cancel_button)
+        buttons.addWidget(self.apply_button)
+        layout.addLayout(buttons)
 
-        layout.addWidget(
-            self.add_aggregation_button
-        )
+        cancel_button.clicked.connect(self.reject)
+        self.apply_button.clicked.connect(self.accept)
+        self.add_group_button.clicked.connect(self.create_groupby_row)
+        self.add_aggregation_button.clicked.connect(self.create_aggregation_row)
+        self.target_combo.currentIndexChanged.connect(self.change_target)
 
-        self.add_aggregation_button.clicked.connect(
-            self.create_aggregation_row
-        )
+        self.change_target()
+        self.update_preview()
 
-        # =================================
-        # APPLY
-        # =================================
+    def get_target(self):
+        return self.target_combo.currentData()
 
-        self.apply_button = QPushButton(
-            "Apply"
-        )
-
-        layout.addWidget(
-            self.apply_button
-        )
-
-        self.apply_button.clicked.connect(
-            self.accept
-        )
-
-        self.setLayout(layout)
-
-        # Create initial rows
+    def change_target(self):
+        if not hasattr(self, "groupby_layout"):
+            return
+        self.dataframe = self.target_dataframes[self.get_target()]
+        self._clear_rows()
         self.create_groupby_row()
         self.create_aggregation_row()
+        self.update_preview()
 
-    # =====================================
-    # GROUP BY
-    # =====================================
+    def _clear_rows(self):
+        for layout, rows in (
+            (self.groupby_layout, self.groupby_rows),
+            (self.aggregation_layout, self.aggregation_rows)
+        ):
+            while layout.count():
+                item = layout.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            rows.clear()
 
     def create_groupby_row(self):
-
-        row = GroupbyRow(
-            self.dataframe
-        )
-
-        row.remove_requested.connect(
-            self.remove_groupby_row
-        )
-
+        row = GroupbyRow(self.dataframe)
+        row.remove_requested.connect(self.remove_groupby_row)
+        row.column_combo.currentIndexChanged.connect(self.update_preview)
         self.groupby_layout.addWidget(row)
-
         self.groupby_rows.append(row)
 
     def remove_groupby_row(self, row):
-
         if len(self.groupby_rows) <= 1:
             return
-
         self.groupby_rows.remove(row)
-
         self.groupby_layout.removeWidget(row)
-
         row.deleteLater()
-
-    # =====================================
-    # AGGREGATION
-    # =====================================
+        self.update_preview()
 
     def create_aggregation_row(self):
-
-        row = AggregationRow(
-            self.dataframe
-        )
-
-        row.remove_requested.connect(
-            self.remove_aggregation_row
-        )
-
+        row = AggregationRow(self.dataframe)
+        row.remove_requested.connect(self.remove_aggregation_row)
+        row.column_combo.currentIndexChanged.connect(self.update_preview)
+        row.function_combo.currentIndexChanged.connect(self.update_preview)
         self.aggregation_layout.addWidget(row)
-
         self.aggregation_rows.append(row)
 
     def remove_aggregation_row(self, row):
-
         if len(self.aggregation_rows) <= 1:
             return
-
         self.aggregation_rows.remove(row)
-
         self.aggregation_layout.removeWidget(row)
-
         row.deleteLater()
-
-    # =====================================
-    # GET RESULT
-    # =====================================
+        self.update_preview()
 
     def get_aggregation(self):
-
-        group_by = [
-            row.get_column()
-            for row in self.groupby_rows
-        ]
-
-        aggregations = [
-            row.get_aggregation()
-            for row in self.aggregation_rows
-        ]
-
         return Aggregation(
-            group_by,
-            aggregations
+            [row.get_column() for row in self.groupby_rows],
+            [row.get_aggregation() for row in self.aggregation_rows]
         )
+
+    def update_preview(self):
+        # Preview uses the same processor validation as Apply, so the dialog
+        # cannot display a result that the main window would later reject.
+        self.source_preview.display_dataframe(self.dataframe)
+        try:
+            result = self.processor.aggregate(
+                self.dataframe,
+                self.get_aggregation()
+            )
+        except (KeyError, TypeError, ValueError):
+            self.result_preview.clearContents()
+            self.result_preview.setRowCount(0)
+            self.apply_button.setEnabled(False)
+            return
+
+        self.result_preview.display_dataframe(result)
+        self.apply_button.setEnabled(True)
