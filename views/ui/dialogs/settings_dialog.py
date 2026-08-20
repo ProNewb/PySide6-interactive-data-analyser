@@ -31,6 +31,7 @@ from views.ui.dialogs.import_dialog import ImportOptions
 from views.ui.preview_table import PreviewTable
 from analysis.data_summary import DataSummary
 from PySide6.QtWidgets import QFormLayout, QSpinBox
+from PySide6.QtGui import QFontDatabase, QStyleHints
 class SettingsDialog(QDialog):
 
     THEMES = {
@@ -41,6 +42,14 @@ class SettingsDialog(QDialog):
         "Light Blue": "light_blue.xml",
         "Light Purple": "light_purple.xml"
     }
+    ACCENTS = {
+    "Teal": "#009688",
+    "Blue": "#2196F3",
+    "Purple": "#9C27B0",
+    "Green": "#4CAF50",
+    "Orange": "#FF9800",
+    "Red": "#F44336"
+}
     def __init__(
     self,
     settings_manager,
@@ -93,8 +102,6 @@ class SettingsDialog(QDialog):
 
         settings = self.settings_manager.settings
 
-        print("SETTINGS FONT SIZE:", settings.font_size)
-
         index = self.theme_combo.findData(
             settings.theme
         )
@@ -102,21 +109,42 @@ class SettingsDialog(QDialog):
         if index >= 0:
             self.theme_combo.setCurrentIndex(index)
 
+        index = self.accent_combo.findData(
+            settings.accent
+        )
+
+        if index >= 0:
+            self.accent_combo.setCurrentIndex(
+                index
+            )
+            
+        index = self.font_combo.findText(
+            settings.font_family
+        )
+
+        if index >= 0:
+            self.font_combo.setCurrentIndex(index)
+
         self.font_spin.setValue(
             settings.font_size
         )
 
-        print("SPIN BOX VALUE:", self.font_spin.value())
-
         self.maximized_checkbox.setChecked(
             settings.start_maximized
         )
-
     def apply_settings(self):
 
         settings = self.settings_manager.settings
 
-        settings.theme = self.theme_combo.currentData()
+        settings.theme = (
+            self.theme_combo.currentData()
+        )
+        settings.accent = (
+            self.accent_combo.currentData()
+        )
+        settings.font_family = (
+            self.font_combo.currentText()
+        )
 
         settings.font_size = (
             self.font_spin.value()
@@ -143,7 +171,9 @@ class SettingsDialog(QDialog):
         preview_settings.theme = (
             self.theme_combo.currentData()
         )
-
+        preview_settings.accent = (
+            self.accent_combo.currentData()
+        )
         preview_settings.font_size = (
             self.font_spin.value()
         )
@@ -206,7 +236,39 @@ class SettingsDialog(QDialog):
             "Theme:",
             self.theme_combo
         )
+        # --------------------------------
+        # Theme accent 
+        # --------------------------------
+        
+        self.accent_combo = QComboBox()
 
+        for name, colour in self.ACCENTS.items():
+
+            self.accent_combo.addItem(
+                name,
+                colour
+            )
+
+        form_layout.addRow(
+            "Accent:",
+            self.accent_combo
+        )
+        self.font_combo = QComboBox()
+        # ---------------------------------
+        # Font family
+        # ---------------------------------
+
+
+        fonts = QFontDatabase.families()
+
+        self.font_combo.addItems(
+            sorted(fonts)
+        )
+
+        form_layout.addRow(
+            "Font:",
+            self.font_combo
+        )
         # ----------------------------------
         # Font size
         # ----------------------------------

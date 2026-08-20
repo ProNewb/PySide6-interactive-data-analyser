@@ -1,7 +1,7 @@
 {
-    "theme": "dark_teal.xml",
-    "accent": "#009688",
-    "font_family": "Segoe UI",
-    "font_size": 12,
+    "theme": "light_blue.xml",
+    "accent": "#F44336",
+    "font_family": "Sitka Heading",
+    "font_size": 13,
     "start_maximized": false
 }
