@@ -42,7 +42,7 @@ class CleaningDialog(QDialog):
         self.cleaning_result = None
         self.cleaner = DataCleaner()
         self.setWindowTitle("Clean Data")
-
+        self.resize(1600, 900)
         self.build_ui()
         self.connect_signals()
         self.update_operation_ui()
