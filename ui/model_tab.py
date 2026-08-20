@@ -58,9 +58,9 @@ from ui.graph.graph_widget import GraphWidget
 
 
 class ModelTab(QWidget):
-    """Train, evaluate, and inspect a supervised prediction model."""
+    """Train, evaluate, and inspect a supervised prediction model. 1.p"""
 
-    def __init__(self, dataframe_provider, parent=None):
+    def __init__(self, dataframe_provider, parent=None)
         super().__init__(parent)
         self.dataframe_provider = dataframe_provider
         self.dataframe = None

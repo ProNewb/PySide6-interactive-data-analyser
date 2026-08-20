@@ -1,5 +1,6 @@
-from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QFileDialog, QFrame
 '''OBSOLETE Basic file operation function - defunct'''
+
 def select_header_file(self):
 
     filename, _ = QFileDialog.getOpenFileName(
