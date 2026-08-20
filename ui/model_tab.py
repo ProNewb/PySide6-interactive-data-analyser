@@ -33,11 +33,22 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LinearRegression, LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
+    balanced_accuracy_score,
+    f1_score,
+    precision_score,
+    recall_score,
     mean_absolute_error,
     mean_squared_error,
-    r2_score
+    r2_score,
+    explained_variance_score,
+    median_absolute_error
 )
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import (
+    KFold,
+    StratifiedKFold,
+    cross_val_predict,
+    train_test_split
+)
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
@@ -87,14 +98,25 @@ class ModelTab(QWidget):
         self.random_state = QSpinBox()
         self.random_state.setRange(0, 999999)
         self.random_state.setValue(42)
+        self.validation_combo = QComboBox()
+        self.validation_combo.addItem("Holdout split", "holdout")
+        self.validation_combo.addItem("K-fold cross-validation", "kfold")
+        self.folds_spin = QSpinBox()
+        self.folds_spin.setRange(2, 10)
+        self.folds_spin.setValue(5)
         self.stratify_check = QCheckBox("Stratify classification split")
+        self.full_predictions_check = QCheckBox("Show full-dataset predictions")
+        self.full_predictions_check.setChecked(True)
         data_form.addRow("Dataset", self.dataset_combo)
         data_form.addRow("Task", self.task_combo)
         data_form.addRow("Target", self.target_combo)
         data_form.addRow("Missing values", self.missing_combo)
         data_form.addRow("Test size (%)", self.test_size)
         data_form.addRow("Random state", self.random_state)
+        data_form.addRow("Validation", self.validation_combo)
+        data_form.addRow("Folds", self.folds_spin)
         data_form.addRow(self.stratify_check)
+        data_form.addRow(self.full_predictions_check)
         controls.addWidget(data_group)
 
         model_group = QGroupBox("Model")
@@ -139,6 +161,7 @@ class ModelTab(QWidget):
 
         self.prediction_table = QTableWidget()
         self.prediction_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        self.prediction_table.setMinimumHeight(280)
         layout.addWidget(self.prediction_table)
         layout.addWidget(QLabel("Prediction plot"))
         layout.addWidget(self.prediction_graph)
@@ -146,10 +169,18 @@ class ModelTab(QWidget):
         self.dataset_combo.currentIndexChanged.connect(self.refresh_data)
         self.target_combo.currentIndexChanged.connect(self.rebuild_features)
         self.task_combo.currentIndexChanged.connect(self.update_models)
+        self.task_combo.currentIndexChanged.connect(self.rebuild_targets)
+        self.validation_combo.currentIndexChanged.connect(self.update_validation_controls)
         self.model_combo.currentIndexChanged.connect(self.update_model_options)
         self.refresh_button.clicked.connect(self.refresh_data)
         self.train_button.clicked.connect(self.train_model)
         self.update_models()
+        self.update_validation_controls()
+
+    def update_validation_controls(self):
+        is_kfold = self.validation_combo.currentData() == "kfold"
+        self.test_size.setEnabled(not is_kfold)
+        self.folds_spin.setEnabled(is_kfold)
 
     def refresh_data(self):
         frames = self.dataframe_provider()
@@ -181,12 +212,28 @@ class ModelTab(QWidget):
         self.target_combo.clear()
         if self.dataframe is not None:
             for column in self.dataframe.columns:
-                self.target_combo.addItem(str(column), column)
+                series = self.dataframe[column]
+                classification = (
+                    self.task_combo.currentData() == "classification"
+                )
+                numeric = pd.api.types.is_numeric_dtype(series)
+                if classification:
+                    allowed = (
+                        not numeric
+                        or series.nunique(dropna=True)
+                        <= max(20, int(len(series) * 0.2))
+                    )
+                else:
+                    allowed = numeric and not pd.api.types.is_bool_dtype(series)
+                if allowed:
+                    self.target_combo.addItem(str(column), column)
         self.target_combo.blockSignals(False)
         if current is not None:
             index = self.target_combo.findData(current)
             if index >= 0:
                 self.target_combo.setCurrentIndex(index)
+        if self.target_combo.currentIndex() < 0 and self.target_combo.count():
+            self.target_combo.setCurrentIndex(0)
 
     def rebuild_features(self):
         while self.feature_grid.count():
@@ -278,6 +325,16 @@ class ModelTab(QWidget):
             classification = self.task_combo.currentData() == "classification"
             if classification and y.nunique() < 2:
                 raise ValueError("Classification requires at least two target classes.")
+            if classification and pd.api.types.is_numeric_dtype(y):
+                if y.nunique() > max(20, int(len(y) * 0.2)):
+                    raise ValueError(
+                        "This target looks continuous. Select Regression "
+                        "instead of Classification."
+                    )
+            if not classification and not pd.api.types.is_numeric_dtype(y):
+                raise ValueError(
+                    "Regression requires a numeric target column."
+                )
             if len(data) < 4:
                 raise ValueError("At least four usable rows are required.")
             numeric = X.select_dtypes(include="number").columns.tolist()
@@ -302,29 +359,86 @@ class ModelTab(QWidget):
                 ("model", estimator)
             ])
             stratify = y if classification and self.stratify_check.isChecked() else None
-            X_train, X_test, y_train, y_test = train_test_split(
-                X, y,
-                test_size=self.test_size.value() / 100,
-                random_state=self.random_state.value(),
-                stratify=stratify
-            )
-            self.pipeline.fit(X_train, y_train)
-            predictions = self.pipeline.predict(X_test)
+            if self.validation_combo.currentData() == "kfold":
+                if classification:
+                    splitter = StratifiedKFold(
+                        n_splits=self.folds_spin.value(),
+                        shuffle=True,
+                        random_state=self.random_state.value()
+                    )
+                else:
+                    splitter = KFold(
+                        n_splits=self.folds_spin.value(),
+                        shuffle=True,
+                        random_state=self.random_state.value()
+                    )
+                predictions = cross_val_predict(
+                    self.pipeline,
+                    X,
+                    y,
+                    cv=splitter
+                )
+                X_eval, y_eval = X, y
+                self.pipeline.fit(X, y)
+            else:
+                try:
+                    X_train, X_test, y_train, y_test = train_test_split(
+                        X, y,
+                        test_size=self.test_size.value() / 100,
+                        random_state=self.random_state.value(),
+                        stratify=stratify
+                    )
+                except ValueError as split_error:
+                    if stratify is None:
+                        raise
+                    X_train, X_test, y_train, y_test = train_test_split(
+                        X, y,
+                        test_size=self.test_size.value() / 100,
+                        random_state=self.random_state.value(),
+                        stratify=None
+                    )
+                    self.metrics_output.setPlainText(
+                        f"Stratified split unavailable; used a random split.\n"
+                        f"Reason: {split_error}"
+                    )
+                self.pipeline.fit(X_train, y_train)
+                predictions = self.pipeline.predict(X_test)
+                X_eval, y_eval = X_test, y_test
             self.model = self.pipeline
             self.predictions = predictions
             if classification:
-                score = accuracy_score(y_test, predictions)
-                metrics = f"Accuracy: {score:.4f}\nTest rows: {len(y_test)}"
+                metrics = (
+                    f"Accuracy: {accuracy_score(y_eval, predictions):.4f}\n"
+                    f"Balanced accuracy: {balanced_accuracy_score(y_eval, predictions):.4f}\n"
+                    f"Precision (weighted): {precision_score(y_eval, predictions, average='weighted', zero_division=0):.4f}\n"
+                    f"Recall (weighted): {recall_score(y_eval, predictions, average='weighted', zero_division=0):.4f}\n"
+                    f"F1 (weighted): {f1_score(y_eval, predictions, average='weighted', zero_division=0):.4f}\n"
+                    f"Evaluated rows: {len(y_eval)}"
+                )
             else:
                 metrics = (
-                    f"R²: {r2_score(y_test, predictions):.4f}\n"
-                    f"MAE: {mean_absolute_error(y_test, predictions):.4f}\n"
-                    f"RMSE: {mean_squared_error(y_test, predictions) ** 0.5:.4f}\n"
-                    f"Test rows: {len(y_test)}"
+                    f"R²: {r2_score(y_eval, predictions):.4f}\n"
+                    f"Explained variance: {explained_variance_score(y_eval, predictions):.4f}\n"
+                    f"MAE: {mean_absolute_error(y_eval, predictions):.4f}\n"
+                    f"Median absolute error: {median_absolute_error(y_eval, predictions):.4f}\n"
+                    f"RMSE: {mean_squared_error(y_eval, predictions) ** 0.5:.4f}\n"
+                    f"Evaluated rows: {len(y_eval)}"
                 )
             self.metrics_output.setPlainText(metrics)
-            self.display_predictions(X_test, y_test, predictions)
-            self.display_prediction_graph(y_test, predictions, classification)
+            if self.validation_combo.currentData() == "kfold" or self.full_predictions_check.isChecked():
+                all_predictions = self.pipeline.predict(X)
+                if self.validation_combo.currentData() == "kfold":
+                    self.display_predictions(X, y, predictions)
+                else:
+                    self.display_predictions(X, y, all_predictions)
+            else:
+                self.display_predictions(X_eval, y_eval, predictions)
+            try:
+                self.display_prediction_graph(y_eval, predictions, classification)
+            except (ValueError, TypeError) as graph_error:
+                self.metrics_output.append(
+                    f"Prediction graph unavailable: {graph_error}"
+                )
         except (ValueError, TypeError, KeyError) as error:
             self.show_error(str(error))
 

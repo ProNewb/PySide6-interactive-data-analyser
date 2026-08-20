@@ -27,7 +27,9 @@ from PySide6.QtWidgets import (
     QComboBox,
     QPushButton,
     QLineEdit,
-    QSpinBox
+    QSpinBox,
+    QMessageBox
+    ,QCheckBox
 )
 
 
@@ -75,6 +77,8 @@ class GraphTab(QWidget):
             "3D Scatter",
             "Map",
             "Tree Map"
+            ,"Heatmap"
+            ,"Correlation Map"
         ])
 
         # -------------------------
@@ -85,6 +89,15 @@ class GraphTab(QWidget):
         self.y_column = QComboBox()
         self.z_column = QComboBox()
         self.size_column = QComboBox()
+        self.group_check = QCheckBox("Group categories")
+        self.group_column = QComboBox()
+        self.group_aggregation = QComboBox()
+        self.group_aggregation.addItem("Average", "mean")
+        self.group_aggregation.addItem("Sum", "sum")
+        self.group_aggregation.addItem("Count", "count")
+        self.group_limit = QSpinBox()
+        self.group_limit.setRange(2, 1000)
+        self.group_limit.setValue(20)
 
         # -------------------------
         # Histogram bins
@@ -112,6 +125,8 @@ class GraphTab(QWidget):
         self.generate_button = QPushButton(
             "Generate Graph"
         )
+        self.trendline_check = QCheckBox("Show trend line / curve")
+        self.bell_curve_check = QCheckBox("Show bell curve")
 
         self.build_ui()
 
@@ -126,11 +141,16 @@ class GraphTab(QWidget):
         self.graph_type.currentTextChanged.connect(
             self.update_controls
         )
+        self.group_check.toggled.connect(self.update_group_controls)
+        self.group_column.currentIndexChanged.connect(self.generate_graph)
+        self.group_aggregation.currentIndexChanged.connect(self.generate_graph)
+        self.group_limit.valueChanged.connect(self.generate_graph)
 
         # Set initial visibility
         self.update_controls(
             self.graph_type.currentText()
         )
+        self.update_group_controls()
 
     # ==================================================
     # UI
@@ -231,6 +251,14 @@ class GraphTab(QWidget):
         controls.addWidget(
             self.bins_input
         )
+
+        controls.addWidget(self.group_check)
+        controls.addWidget(QLabel("Group column"))
+        controls.addWidget(self.group_column)
+        controls.addWidget(QLabel("Group aggregation"))
+        controls.addWidget(self.group_aggregation)
+        controls.addWidget(QLabel("Keep top groups"))
+        controls.addWidget(self.group_limit)
         
 
         # -------------------------
@@ -252,6 +280,9 @@ class GraphTab(QWidget):
         controls.addWidget(
             self.generate_button
         )
+
+        controls.addWidget(self.trendline_check)
+        controls.addWidget(self.bell_curve_check)
 
         controls.addStretch()
 
@@ -293,8 +324,14 @@ class GraphTab(QWidget):
 
         self.bins_label.setVisible(False)
         self.bins_input.setVisible(False)
+        self.group_check.setVisible(False)
+        self.group_column.setVisible(False)
+        self.group_aggregation.setVisible(False)
+        self.group_limit.setVisible(False)
         self.color_label.setVisible(False)
         self.color_column.setVisible(False)
+        self.trendline_check.setVisible(False)
+        self.bell_curve_check.setVisible(False)
         # ----------------------------------------------
         # X + Y graphs
         # ----------------------------------------------
@@ -312,6 +349,13 @@ class GraphTab(QWidget):
 
             self.y_label.setVisible(True)
             self.y_column.setVisible(True)
+            self.trendline_check.setVisible(
+                graph_type in {"Scatter", "Line", "Area", "Bubble"}
+            )
+            self.group_check.setVisible(True)
+            self.trendline_check.setVisible(
+                graph_type in {"Scatter", "Line", "Area", "Bubble"}
+            )
 
         # ----------------------------------------------
         # Histogram
@@ -328,6 +372,10 @@ class GraphTab(QWidget):
 
             self.bins_label.setVisible(True)
             self.bins_input.setVisible(True)
+            self.bell_curve_check.setVisible(True)
+
+        elif graph_type in {"Heatmap", "Correlation Map"}:
+            self.trendline_check.setVisible(False)
 
         # ----------------------------------------------
         # Pie / Donut
@@ -401,6 +449,7 @@ class GraphTab(QWidget):
 
             self.z_label.setVisible(True)
             self.z_column.setVisible(True)
+            self.trendline_check.setVisible(True)
 
         # ----------------------------------------------
         # Map
@@ -454,6 +503,32 @@ class GraphTab(QWidget):
 
                 self.color_label.setVisible(True)
                 self.color_column.setVisible(True)
+
+        self.update_group_controls()
+
+    def update_group_controls(self):
+        enabled = self.group_check.isVisible() and self.group_check.isChecked()
+        self.group_column.setVisible(enabled)
+        self.group_aggregation.setVisible(enabled)
+        self.group_limit.setVisible(enabled)
+
+    def grouped_dataframe(self):
+        if not self.group_check.isVisible() or not self.group_check.isChecked():
+            return self.dataframe, self.x_column.currentData(), self.y_column.currentData()
+        group_column = self.group_column.currentData()
+        value_column = self.y_column.currentData()
+        if group_column is None or value_column is None:
+            return self.dataframe, self.x_column.currentData(), value_column
+        grouped = (
+            self.dataframe.groupby(group_column, dropna=False)[value_column]
+            .agg(self.group_aggregation.currentData())
+            .nlargest(self.group_limit.value())
+            .reset_index()
+        )
+        return grouped, group_column, value_column
+
+    def valid_column(self, dataframe, column):
+        return column in dataframe.columns if column is not None else False
     # ==================================================
     # DataFrame
     # ==================================================
@@ -467,6 +542,7 @@ class GraphTab(QWidget):
             self.z_column.clear()
             self.size_column.clear()
             self.color_column.clear()
+            self.group_column.clear()
 
 
             self.color_column.addItem(
@@ -482,6 +558,7 @@ class GraphTab(QWidget):
                 self.z_column.addItem(column_name, userData=column)
                 self.size_column.addItem(column_name, userData=column)
                 self.color_column.addItem(column_name, userData=column)
+                self.group_column.addItem(column_name, userData=column)
             
 
             # ==================================================
@@ -503,6 +580,22 @@ class GraphTab(QWidget):
         size = self.size_column.currentData()
         color = self.color_column.currentData()
         bins = self.bins_input.value()
+        graph_dataframe, grouped_x, grouped_y = self.grouped_dataframe()
+
+        if graph_type == "3D Scatter":
+            graph_dataframe = self.dataframe
+
+        if not all(
+            self.valid_column(graph_dataframe, column)
+            for column in (x, y, z)
+            if column is not None
+        ):
+            QMessageBox.warning(
+                self,
+                "Graph error",
+                "One or more selected columns are unavailable for this chart."
+            )
+            return
 
         # ----------------------------------------------
         # Histogram
@@ -511,10 +604,18 @@ class GraphTab(QWidget):
         if graph_type == "Histogram":
 
             figure = self.generator.create_graph(
-                self.dataframe,
+                graph_dataframe,
                 graph_type,
                 x_column=x,
                 bins=bins,
+                title=title,
+                bell_curve=self.bell_curve_check.isChecked()
+            )
+
+        elif graph_type in {"Heatmap", "Correlation Map"}:
+            figure = self.generator.create_graph(
+                graph_dataframe,
+                graph_type,
                 title=title
             )
 
@@ -525,12 +626,13 @@ class GraphTab(QWidget):
         elif graph_type == "3D Scatter":
 
             figure = self.generator.create_graph(
-                self.dataframe,
+                graph_dataframe,
                 graph_type,
                 x_column=x,
                 y_column=y,
                 z_column=z,
-                title=title
+                title=title,
+                trendline=self.trendline_check.isChecked()
             )
 
         # ----------------------------------------------
@@ -540,12 +642,13 @@ class GraphTab(QWidget):
         elif graph_type == "Bubble":
 
             figure = self.generator.create_graph(
-                self.dataframe,
+                graph_dataframe,
                 graph_type,
                 x_column=x,
                 y_column=y,
                 z_column=size,
-                title=title
+                title=title,
+                trendline=self.trendline_check.isChecked()
             )
 
         # ----------------------------------------------
@@ -555,13 +658,19 @@ class GraphTab(QWidget):
         else:
 
             figure = self.generator.create_graph(
-                self.dataframe,
+                graph_dataframe,
                 graph_type,
                 x_column=x,
                 y_column=y,
-                title=title
+                title=title,
+                trendline=self.trendline_check.isChecked()
             )
 
-        self.graph_widget.display_graph(
-            figure
-        )
+        try:
+            self.graph_widget.display_graph(figure)
+        except (ValueError, TypeError, KeyError) as error:
+            QMessageBox.warning(
+                self,
+                "Graph error",
+                str(error)
+            )

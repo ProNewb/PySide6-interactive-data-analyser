@@ -16,7 +16,8 @@ class GraphGenerator:
         size=None,
         title=None,
         color=None,
-        trendline=False
+        trendline=False,
+        bell_curve=False
     ):
 
         if graph_type == "Scatter":
@@ -34,7 +35,8 @@ class GraphGenerator:
                 dataframe,
                 x_column,
                 y_column,
-                title
+                title,
+                trendline
             )
 
         elif graph_type == "Bar":
@@ -47,13 +49,13 @@ class GraphGenerator:
             )
 
         elif graph_type == "Histogram":
-
-            return self.create_histogram(
+            figure = self.create_histogram(
                 dataframe,
                 x_column,
                 bins,
                 title
             )
+            return self.add_bell_curve(figure, dataframe, x_column, bell_curve)
 
         elif graph_type == "Box":
 
@@ -83,13 +85,13 @@ class GraphGenerator:
             )
 
         elif graph_type == "Area":
-
-            return self.create_area(
+            figure = self.create_area(
                 dataframe,
                 x_column,
                 y_column,
                 title
             )
+            return self.add_trendline(figure, dataframe, x_column, y_column, trendline)
 
         elif graph_type == "Map":
 
@@ -127,8 +129,7 @@ class GraphGenerator:
             return self.create_correlation_map(dataframe, title)
 
         elif graph_type == "3D Scatter":
-
-            return self.create_3d_chart(
+            figure = self.create_3d_chart(
                 dataframe,
                 x_column=x_column,
                 y_column=y_column,
@@ -136,6 +137,7 @@ class GraphGenerator:
                 title=title,
                 color=color
             )
+            return self.add_3d_fit(figure, dataframe, x_column, y_column, z_column, trendline)
 
         else:
 
@@ -156,14 +158,18 @@ class GraphGenerator:
             title=title
         )
 
-    def create_line(self, dataframe, x, y, title):
+    def create_line(self, dataframe, x, y, title, curve=False):
 
-        return px.line(
+        figure = px.line(
             dataframe,
             x=x,
             y=y,
             title=title
         )
+        if curve:
+            for trace in figure.data:
+                trace.line.shape = "spline"
+        return figure
 
     def create_bar(self, dataframe, x, y, title):
 
@@ -303,19 +309,86 @@ class GraphGenerator:
             mode="lines",
             name="Trend line"
         )
+        correlation = x_values[valid].corr(y_values[valid])
+        figure.update_layout(
+            annotations=[dict(
+                text=f"Pearson r = {correlation:.3f}",
+                x=0.02,
+                y=0.98,
+                xref="paper",
+                yref="paper",
+                showarrow=False
+            )]
+        )
+        return figure
+
+    def add_bell_curve(self, figure, dataframe, column, enabled):
+        if not enabled or column is None:
+            return figure
+        values = pd.to_numeric(dataframe[column], errors="coerce").dropna()
+        if len(values) < 2 or values.std() == 0:
+            return figure
+        x_values = np.linspace(values.min(), values.max(), 100)
+        density = (
+            np.exp(-0.5 * ((x_values - values.mean()) / values.std()) ** 2)
+            / (values.std() * np.sqrt(2 * np.pi))
+        )
+        scale = len(values) * (values.max() - values.min()) / max(1, 20)
+        figure.add_scatter(
+            x=x_values,
+            y=density * scale,
+            mode="lines",
+            name="Bell curve"
+        )
+        return figure
+
+    def add_3d_fit(self, figure, dataframe, x, y, z, enabled):
+        if not enabled or any(column is None for column in (x, y, z)):
+            return figure
+        values = dataframe[[x, y, z]].apply(
+            pd.to_numeric,
+            errors="coerce"
+        ).dropna()
+        if len(values) < 3:
+            return figure
+        matrix = np.column_stack([
+            np.ones(len(values)), values[x], values[y]
+        ]).astype(float)
+        target = values[z].to_numpy(dtype=float)
+        coefficients, _, _, _ = np.linalg.lstsq(
+            matrix,
+            target,
+            rcond=None
+        )
+        x_grid = np.linspace(values[x].min(), values[x].max(), 20)
+        y_grid = np.linspace(values[y].min(), values[y].max(), 20)
+        x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
+        z_mesh = coefficients[0] + coefficients[1] * x_mesh + coefficients[2] * y_mesh
+        figure.add_surface(
+            x=x_mesh,
+            y=y_mesh,
+            z=z_mesh,
+            opacity=0.45,
+            name="Best-fit plane"
+        )
         return figure
 
     def create_heatmap(self, dataframe, title):
         numeric = dataframe.select_dtypes(include="number")
         return px.imshow(
-            numeric.corr(),
+            numeric.T,
             text_auto=True,
-            title=title or "Numeric heatmap",
+            title=title or "Numeric value heatmap",
             color_continuous_scale="RdBu_r"
         )
 
     def create_correlation_map(self, dataframe, title):
-        return self.create_heatmap(
-            dataframe,
-            title or "Correlation map"
+        numeric = dataframe.select_dtypes(include="number")
+        return px.imshow(
+            numeric.corr(),
+            text_auto=True,
+            title=title or "Pearson correlation map",
+            color_continuous_scale="RdBu_r",
+            zmin=-1,
+            zmax=1
         )
