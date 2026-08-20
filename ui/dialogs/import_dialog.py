@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (
     QComboBox,
 )
 from core.header_reader import HeaderReader
-from views.ui.preview_table import PreviewTable
+from ui.table.preview_table import PreviewTable
 from core.csv_reader import CSVReader
 from core.dataset_table import DataTable
 

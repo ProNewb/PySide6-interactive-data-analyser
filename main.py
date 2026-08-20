@@ -4,7 +4,7 @@ from PySide6.QtWidgets import QApplication
 
 from core.settings_manager import SettingsManager
 from core.theme_manager import ThemeManager
-from views.ui.main_window import MainWindow
+from ui.main_window import MainWindow
 
 
 def main():

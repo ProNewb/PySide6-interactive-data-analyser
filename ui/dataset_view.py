@@ -8,10 +8,10 @@ from PySide6.QtWidgets import (
     QTabWidget
 )
 
-from views.ui.stats.statistics_widget import StatisticsWidget
-from views.ui.graph.graph_tab import GraphTab
+from ui.stats.statistics_widget import StatisticsWidget
+from ui.graph.graph_tab import GraphTab
 from core.dataset_table import DataTable
-from views.ui.menus.selection_toolbar import SelectionToolbar
+from ui.menus.selection_toolbar import SelectionToolbar
 from PySide6.QtCore import Signal
 
 class DatasetView(QWidget):

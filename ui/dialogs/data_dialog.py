@@ -10,9 +10,9 @@ from PySide6.QtWidgets import (
 from core.condition_group import ConditionGroup
 from core.conditions import Condition
 from core.dataset_table import DataTable
-from views.ui.condition_row import ConditionRow
-from views.ui.dialogs.import_dialog import ImportOptions
-from views.ui.preview_table import PreviewTable
+from ui.helpers.condition_row import ConditionRow
+from ui.dialogs.import_dialog import ImportOptions
+from ui.table.preview_table import PreviewTable
 
 
 

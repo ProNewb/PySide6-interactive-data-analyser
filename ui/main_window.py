@@ -27,19 +27,19 @@ from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
 from core.settings_manager import SettingsManager
 from core.theme_manager import ThemeManager
-from views.ui.dialogs import data_dialog
-from views.ui.dialogs.aggregation_dialog import AggregationDialog
-from views.ui.dialogs.cleaning_dialog import CleaningDialog
-from views.ui.dialogs.data_dialog import DataDialog
-from views.ui.dataset_view import DatasetView
-from views.ui.dialogs.settings_dialog import SettingsDialog
-from views.ui.graph.graph_widget import GraphWidget
-from views.ui.stats.statistics_widget import StatisticsWidget
-from views.ui.menus.control_panel import ControlPanel
-from views.ui.menus.main_menu import MainMenu
-from views.ui.menus.status_bar import StatusBar
-from views.ui.menus.selection_toolbar import SelectionToolbar
-from views.ui.graph.graph_tab import GraphTab
+from ui.dialogs import data_dialog
+from ui.dialogs.aggregation_dialog import AggregationDialog
+from ui.dialogs.cleaning_dialog import CleaningDialog
+from ui.dialogs.data_dialog import DataDialog
+from ui.dataset_view import DatasetView
+from ui.dialogs.settings_dialog import SettingsDialog
+from ui.graph.graph_widget import GraphWidget
+from ui.stats.statistics_widget import StatisticsWidget
+from ui.menus.control_panel import ControlPanel
+from ui.menus.main_menu import MainMenu
+from ui.menus.status_bar import StatusBar
+from ui.menus.selection_toolbar import SelectionToolbar
+from ui.graph.graph_tab import GraphTab
 class MainWindow(QMainWindow):
     """Main application window."""
 

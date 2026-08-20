@@ -25,10 +25,10 @@ from core.condition_group import ConditionGroup
 from core.conditions import Condition
 from core.csv_reader import CSVReader
 from core.dataset_table import DataTable
-from views.ui.stats.cleaning_stats import CleaningStats
-from views.ui.condition_row import ConditionRow
-from views.ui.dialogs.import_dialog import ImportOptions
-from views.ui.preview_table import PreviewTable
+from ui.stats.cleaning_stats import CleaningStats
+from ui.helpers.condition_row import ConditionRow
+from ui.dialogs.import_dialog import ImportOptions
+from ui.table.preview_table import PreviewTable
 from analysis.data_summary import DataSummary
 from PySide6.QtWidgets import QFormLayout, QSpinBox
 from PySide6.QtGui import QFontDatabase, QStyleHints

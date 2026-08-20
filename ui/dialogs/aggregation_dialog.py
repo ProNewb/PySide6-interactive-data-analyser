@@ -5,8 +5,8 @@ from PySide6.QtWidgets import (
     QPushButton
 )
 
-from views.ui.groupby_row import GroupbyRow
-from views.ui.aggregation_row import AggregationRow
+from ui.helpers.groupby_row import GroupbyRow
+from ui.helpers.aggregation_row import AggregationRow
 from core.aggregation import Aggregation
 
 
