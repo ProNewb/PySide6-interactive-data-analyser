@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QMessageBox
 
-from views.ui.statistics_widget import StatisticsWidget
+from views.ui.stats.statistics_widget import StatisticsWidget
 
 
 class AnalysisController:

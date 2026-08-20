@@ -21,7 +21,7 @@ class DataTable(QTableWidget):
 
         # Allow the user to sort columns by clicking the headers.
         self.setSortingEnabled(True)
-
+        
         # Allow multiple rows to be selected.
         self.setSelectionMode(
             QAbstractItemView.ExtendedSelection

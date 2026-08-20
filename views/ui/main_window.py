@@ -19,33 +19,41 @@ from PySide6.QtGui import QFont
 from controllers.file_controller import FileController
 from controllers.analysis_controller import AnalysisController
 
+from core import settings_manager, theme_manager
 from core.condition_group import ConditionGroup
 from core.conditions import Condition
 from core.data_processor import DataProcessor
 from core.dataset_manager import DatasetManager
 from core.dataset_table import DataTable
-
-from views.ui import data_dialog
-from views.ui.aggregation_dialog import AggregationDialog
-from views.ui.cleaning_dialog import CleaningDialog
-from views.ui.data_dialog import DataDialog
+from core.settings_manager import SettingsManager
+from core.theme_manager import ThemeManager
+from views.ui.dialogs import data_dialog
+from views.ui.dialogs.aggregation_dialog import AggregationDialog
+from views.ui.dialogs.cleaning_dialog import CleaningDialog
+from views.ui.dialogs.data_dialog import DataDialog
 from views.ui.dataset_view import DatasetView
-from views.ui.graph_widget import GraphWidget
-from views.ui.statistics_widget import StatisticsWidget
-from views.ui.control_panel import ControlPanel
-from views.ui.main_menu import MainMenu
-from views.ui.status_bar import StatusBar
-from views.ui.selection_toolbar import SelectionToolbar
-from views.ui.graph_tab import GraphTab
+from views.ui.dialogs.settings_dialog import SettingsDialog
+from views.ui.graph.graph_widget import GraphWidget
+from views.ui.stats.statistics_widget import StatisticsWidget
+from views.ui.menus.control_panel import ControlPanel
+from views.ui.menus.main_menu import MainMenu
+from views.ui.menus.status_bar import StatusBar
+from views.ui.menus.selection_toolbar import SelectionToolbar
+from views.ui.graph.graph_tab import GraphTab
 class MainWindow(QMainWindow):
     """Main application window."""
 
-    def __init__(self):
+    def __init__(    self,settings_manager,theme_manager):
 
         super().__init__()
 
         self.dataset_manager = DatasetManager()
+        self.settings_manager = settings_manager
+        self.theme_manager = theme_manager
 
+        self.theme_manager.apply_theme(
+            self.settings_manager.settings
+        )
         self.file_controller = FileController(
             self.dataset_manager
         )
@@ -55,6 +63,8 @@ class MainWindow(QMainWindow):
         self.main_menu = MainMenu(self)
         self.controls = ControlPanel()
 
+
+      
         # ----------------------------------
         # Dataset views
         # ----------------------------------
@@ -95,7 +105,9 @@ class MainWindow(QMainWindow):
         self.main_menu.open_action.triggered.connect(
             self.load_dataset
         )
-
+        self.main_menu.settings_action.triggered.connect(
+            self.open_options
+        )
         self.main_menu.exit_action.triggered.connect(
             self.close
         )
@@ -140,8 +152,10 @@ class MainWindow(QMainWindow):
 
     # Display
     def initialise_window(self):
-        self.setWindowTitle("Data Explorer")
-        self.resize(1200, 800)
+            if self.settings_manager.settings.start_maximized:
+                self.showMaximized()
+            else:
+                self.resize(1200, 800)
 
 
 
@@ -659,4 +673,12 @@ class MainWindow(QMainWindow):
 
             self.refresh_views()
 
-                
+    def open_options(self):
+
+        dialog = SettingsDialog(
+            self.settings_manager,
+            self.theme_manager,
+            self
+        )
+
+        dialog.exec()

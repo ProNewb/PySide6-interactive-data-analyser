@@ -7,10 +7,10 @@ from PySide6.QtWidgets import (
     QTabWidget
 )
 
-from views.ui.statistics_widget import StatisticsWidget
-from views.ui.graph_tab import GraphTab
+from views.ui.stats.statistics_widget import StatisticsWidget
+from views.ui.graph.graph_tab import GraphTab
 from core.dataset_table import DataTable
-from views.ui.selection_toolbar import SelectionToolbar
+from views.ui.menus.selection_toolbar import SelectionToolbar
 from PySide6.QtCore import Signal
 
 class DatasetView(QWidget):
@@ -27,7 +27,7 @@ class DatasetView(QWidget):
         # ----------------------------------
 
         self.table = DataTable()
-
+        self.table.setAlternatingRowColors(True)
         self.selection_toolbar = SelectionToolbar(
             self.table
         )
@@ -44,7 +44,7 @@ class DatasetView(QWidget):
 
         self.title_label = QLabel(title)
 
-        self.close_button = QPushButton("×")
+        self.close_button = QPushButton("[x]")
         self.close_button.setFixedWidth(30)
 
         title_layout.addWidget(

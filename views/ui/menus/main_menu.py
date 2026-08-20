@@ -16,7 +16,12 @@ class MainMenu:
             "Open",
             window
         )
-        
+        self.settings_action = QAction(
+            "Settings",
+            window
+        )
+
+
         self.exit_action = QAction(
             "Exit",
             window
@@ -25,7 +30,9 @@ class MainMenu:
         self.file_menu.addAction(
             self.open_action
         )
-
+        self.file_menu.addAction(
+            self.settings_action
+        )
         self.file_menu.addAction(
             self.exit_action
         )
@@ -56,6 +63,7 @@ class MainMenu:
             "Undo",
             window
         )
+        
 ## reset
         self.reset_action = QAction(
             "Reset",

@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import QFileDialog
 
-from views.ui.import_dialog import ImportDialog
+from views.ui.dialogs.import_dialog import ImportDialog
 
 
 class FileController:

@@ -23,9 +23,9 @@ from core.condition_group import ConditionGroup
 from core.conditions import Condition
 from core.csv_reader import CSVReader
 from core.dataset_table import DataTable
-from views.ui.cleaning_stats import CleaningStats
+from views.ui.stats.cleaning_stats import CleaningStats
 from views.ui.condition_row import ConditionRow
-from views.ui.import_dialog import ImportOptions
+from views.ui.dialogs.import_dialog import ImportOptions
 from views.ui.preview_table import PreviewTable
 from analysis.data_summary import DataSummary
 
@@ -120,6 +120,7 @@ class CleaningDialog(QDialog):
         )
 
         self.preview_table = PreviewTable()
+        self.preview_table.setAlternatingRowColors(True)
         self.preview_table.setVerticalScrollBarPolicy(
             Qt.ScrollBarPolicy.ScrollBarAsNeeded
         )

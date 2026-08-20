@@ -1,6 +1,6 @@
 from core.graph_generator import GraphGenerator
-from views.ui.graph_controls import GraphControls
-from views.ui.graph_widget import GraphWidget
+from views.ui.menus.graph_controls import GraphControls
+from views.ui.graph.graph_widget import GraphWidget
 from PySide6.QtWidgets import QHBoxLayout, QWidget, QVBoxLayout
 
 from PySide6.QtWidgets import (
@@ -13,11 +13,11 @@ from PySide6.QtWidgets import (
     QLineEdit
 )
 
-from views.ui.graph_widget import GraphWidget
+from views.ui.graph.graph_widget import GraphWidget
 
 
 from core.graph_generator import GraphGenerator
-from views.ui.graph_widget import GraphWidget
+from views.ui.graph.graph_widget import GraphWidget
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -32,7 +32,7 @@ from PySide6.QtWidgets import (
 
 
 from core.graph_generator import GraphGenerator
-from views.ui.graph_widget import GraphWidget
+from views.ui.graph.graph_widget import GraphWidget
 
 from PySide6.QtWidgets import (
     QWidget,
