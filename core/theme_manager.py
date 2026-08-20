@@ -1,5 +1,4 @@
 from qt_material import apply_stylesheet
-from PySide6.QtGui import QFont
 
 
 class ThemeManager:
@@ -10,14 +9,27 @@ class ThemeManager:
 
     def apply_theme(self, settings):
 
+        # ------------------------------
+        # Material base theme
+        # ------------------------------
+
         apply_stylesheet(
             self.application,
             theme=settings.theme
         )
 
-        font = QFont(
-            "Segoe UI",
-            settings.font_size
-        )
+        # ------------------------------
+        # User customisation
+        # ------------------------------
 
-        self.application.setFont(font)
+        custom_style = f"""
+            QWidget {{
+                font-family: "{settings.font_family}";
+                font-size: {settings.font_size}pt;
+            }}
+        """
+
+        self.application.setStyleSheet(
+            self.application.styleSheet()
+            + custom_style
+        )

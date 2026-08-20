@@ -94,10 +94,19 @@ class SettingsDialog(QDialog):
         self.theme_combo.currentIndexChanged.connect(
             self.preview_theme
         )
+        '''future
+        self.accent_combo.currentIndexChanged.connect(
+            self.preview_theme
+        )
+'''
+        self.font_combo.currentIndexChanged.connect(
+            self.preview_theme
+        )
 
         self.font_spin.valueChanged.connect(
             self.preview_theme
         )
+        
     def load_settings(self):
 
         settings = self.settings_manager.settings
@@ -105,18 +114,18 @@ class SettingsDialog(QDialog):
         index = self.theme_combo.findData(
             settings.theme
         )
-
+        
         if index >= 0:
             self.theme_combo.setCurrentIndex(index)
-
+        ''' future
         index = self.accent_combo.findData(
             settings.accent
         )
-
-        if index >= 0:
-            self.accent_combo.setCurrentIndex(
-                index
-            )
+'''
+        #if index >= 0:
+         #   self.accent_combo.setCurrentIndex(
+          #      index
+           # )
             
         index = self.font_combo.findText(
             settings.font_family
@@ -139,9 +148,9 @@ class SettingsDialog(QDialog):
         settings.theme = (
             self.theme_combo.currentData()
         )
-        settings.accent = (
-            self.accent_combo.currentData()
-        )
+        #settings.accent = (
+         #   self.accent_combo.currentData()
+        #)
         settings.font_family = (
             self.font_combo.currentText()
         )
@@ -171,9 +180,15 @@ class SettingsDialog(QDialog):
         preview_settings.theme = (
             self.theme_combo.currentData()
         )
-        preview_settings.accent = (
-            self.accent_combo.currentData()
+
+       # preview_settings.accent = (
+        #    self.accent_combo.currentData()
+        #)
+
+        preview_settings.font_family = (
+            self.font_combo.currentText()
         )
+
         preview_settings.font_size = (
             self.font_spin.value()
         )
@@ -239,7 +254,7 @@ class SettingsDialog(QDialog):
         # --------------------------------
         # Theme accent 
         # --------------------------------
-        
+        ''' Not working currently(future feature)
         self.accent_combo = QComboBox()
 
         for name, colour in self.ACCENTS.items():
@@ -252,7 +267,7 @@ class SettingsDialog(QDialog):
         form_layout.addRow(
             "Accent:",
             self.accent_combo
-        )
+        )'''
         self.font_combo = QComboBox()
         # ---------------------------------
         # Font family

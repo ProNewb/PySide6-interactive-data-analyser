@@ -33,8 +33,8 @@ class SettingsManager:
             if "theme" in saved_settings:
                 self.settings.theme = saved_settings["theme"]
 
-            if "accent" in saved_settings:
-                self.settings.accent = saved_settings["accent"]
+            #if "accent" in saved_settings:
+             #   self.settings.accent = saved_settings["accent"]
 
             if "font_family" in saved_settings:
                 self.settings.font_family = (
@@ -58,7 +58,7 @@ class SettingsManager:
 
         data = {
             "theme": self.settings.theme,
-            "accent": self.settings.accent,
+            #"accent": self.settings.accent,
             "font_family": self.settings.font_family,
             "font_size": self.settings.font_size,
             "start_maximized": self.settings.start_maximized

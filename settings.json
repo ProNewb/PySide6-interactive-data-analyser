@@ -1,7 +1,7 @@
 {
     "theme": "light_blue.xml",
-    "accent": "#F44336",
-    "font_family": "Sitka Heading",
-    "font_size": 13,
+    "accent": "#FF9800",
+    "font_family": "Arial",
+    "font_size": 10,
     "start_maximized": false
 }

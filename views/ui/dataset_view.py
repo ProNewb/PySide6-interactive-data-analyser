@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (
+    QStyle,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -44,9 +45,21 @@ class DatasetView(QWidget):
 
         self.title_label = QLabel(title)
 
-        self.close_button = QPushButton("[x]")
-        self.close_button.setFixedWidth(30)
+        self.close_button = QPushButton()
 
+        self.close_button.setFixedSize(
+            30,
+            30
+        )
+
+        self.close_button.setIcon(
+            self.style().standardIcon(
+                QStyle.SP_TitleBarCloseButton
+            )
+        )
+        self.close_button.setToolTip(
+            "Hide dataset"
+        )
         title_layout.addWidget(
             self.title_label
         )
