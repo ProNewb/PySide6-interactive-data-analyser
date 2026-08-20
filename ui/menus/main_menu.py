@@ -30,7 +30,7 @@ class MainMenu:
         )
 
         self.open_action = QAction(
-            "Open",
+            "Open File",
             window
         )
 
@@ -46,6 +46,11 @@ class MainMenu:
 
         self.export_data_action = QAction(
             "Export Data",
+            window
+        )
+
+        self.close_file_action = QAction(
+            "Close File",
             window
         )
 
@@ -73,6 +78,10 @@ class MainMenu:
 
         self.file_menu.addAction(
             self.export_data_action
+        )
+
+        self.file_menu.addAction(
+            self.close_file_action
         )
 
         self.file_menu.addAction(

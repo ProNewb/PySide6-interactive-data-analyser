@@ -115,6 +115,9 @@ class MainWindow(QMainWindow):
         self.main_menu.export_data_action.triggered.connect(
             self.file_controller.export_csv
         )
+        self.main_menu.close_file_action.triggered.connect(
+            self.close_file
+        )
         self.main_menu.settings_action.triggered.connect(
             self.open_options
         )
@@ -225,6 +228,28 @@ class MainWindow(QMainWindow):
             self.status.showMessage(
                 "Project loaded successfully"
             )
+
+    def close_file(self):
+
+        if not self.dataset_manager.has_data():
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Close File",
+            "Close the current file and discard its loaded state?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        self.file_controller.close_project()
+        self.refresh_views()
+        self.main_menu.main_dataset_action.setChecked(False)
+        self.main_menu.result_dataset_action.setChecked(False)
+        self.status.showMessage("File closed")
 
 
 

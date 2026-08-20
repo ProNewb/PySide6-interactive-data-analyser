@@ -248,5 +248,6 @@ class FileController:
         return True
 
     def close_project(self):
-        """Close the current project."""
-        pass
+        """Close the current file and clear its project state."""
+
+        return self.dataset_manager.close_file()

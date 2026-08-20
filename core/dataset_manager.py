@@ -154,6 +154,22 @@ class DatasetManager:
         self.result_dataframe = None
         self.result_history.clear()
 
+    def close_file(self):
+        """Clear the loaded dataset and all associated project state."""
+
+        had_data = self.dataframe is not None
+
+        self.dataframe = None
+        self.original_dataframe = None
+        self.history.clear()
+        self.redo_history.clear()
+        self.operation_log.clear()
+        self.clear_result()
+        self.result_redo_history.clear()
+        self.filename = None
+
+        return had_data
+
     # ==================================================
     # HISTORY
     # ==================================================
