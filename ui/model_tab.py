@@ -514,52 +514,77 @@ class ModelTab(QWidget):
                 )
 
     def display_prediction_graph(self, actual, predicted, classification):
+
         if classification:
+
             figure = go.Figure()
-            figure.add_trace(go.Scatter(
-                x=list(range(len(actual))),
-                y=actual,
-                mode="markers",
-                name="Actual"
-            ))
-            figure.add_trace(go.Scatter(
-                x=list(range(len(predicted))),
-                y=predicted,
-                mode="markers",
-                name="Predicted"
-            ))
+
+            figure.add_trace(
+                go.Scatter(
+                    x=list(range(len(actual))),
+                    y=actual,
+                    mode="markers",
+                    name="Actual"
+                )
+            )
+
+            figure.add_trace(
+                go.Scatter(
+                    x=list(range(len(predicted))),
+                    y=predicted,
+                    mode="markers",
+                    name="Predicted"
+                )
+            )
+
             figure.update_layout(
                 title="Actual versus predicted classes",
                 xaxis_title="Test row",
                 yaxis_title="Class"
             )
+
         else:
+
             actual_values = pd.to_numeric(actual)
             predicted_values = pd.to_numeric(predicted)
-            low = min(actual_values.min(), predicted_values.min())
-            high = max(actual_values.max(), predicted_values.max())
+
+            low = min(
+                actual_values.min(),
+                predicted_values.min()
+            )
+
+            high = max(
+                actual_values.max(),
+                predicted_values.max()
+            )
+
             figure = go.Figure()
-            figure.add_trace(go.Scatter(
-                x=actual_values,
-                y=predicted_values,
-                mode="markers",
-                name="Predictions"
-            ))
-            figure.add_trace(go.Scatter(
-                x=[low, high],
-                y=[low, high],
-                mode="lines",
-                name="Ideal"
-            ))
+
+            figure.add_trace(
+                go.Scatter(
+                    x=actual_values,
+                    y=predicted_values,
+                    mode="markers",
+                    name="Predictions"
+                )
+            )
+
+            figure.add_trace(
+                go.Scatter(
+                    x=[low, high],
+                    y=[low, high],
+                    mode="lines",
+                    name="Ideal"
+                )
+            )
+
             figure.update_layout(
                 title="Actual versus predicted values",
                 xaxis_title="Actual",
                 yaxis_title="Predicted"
             )
-        try:
-            self.prediction_graph.display_graph(figure)
-        except Exception as e:
-            QMessageBox.critical(self, "Graph", str(e))
+
+        self.prediction_graph.display_graph(figure)
 
     def show_error(self, message):
         self.metrics_output.setPlainText(f"Error: {message}")
