@@ -13,6 +13,8 @@ from ui.graph.graph_tab import GraphTab
 from core.dataset_table import DataTable
 from ui.menus.selection_toolbar import SelectionToolbar
 from PySide6.QtCore import Signal
+from ui.model_tab import ModelTab
+
 
 class DatasetView(QWidget):
     '''Top level container class'''
@@ -34,7 +36,7 @@ class DatasetView(QWidget):
         )
 
         self.stats_widget = StatisticsWidget()
-
+        self.model_tab = ModelTab()
         self.graph_tab = GraphTab()
 
         # ----------------------------------
@@ -123,7 +125,11 @@ class DatasetView(QWidget):
             graph_page,
             "Graphs"
         )
-
+        model_page = self.model_tab
+        self.tabs.addTab(
+            model_page,
+              "Model"
+              )
         # ----------------------------------
         # Main layout
         # ----------------------------------
@@ -171,6 +177,7 @@ class DatasetView(QWidget):
         self.graph_tab.set_dataframe(
             self.dataframe
         )
+        self.model_tab.set_dataframe(self.dataframe)
 
     def clear(self):
 
@@ -211,3 +218,6 @@ class DatasetView(QWidget):
             dataframe
         )
 
+        self.model_tab.set_dataframe(
+            dataframe
+        )

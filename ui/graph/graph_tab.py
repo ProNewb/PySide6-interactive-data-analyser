@@ -1,7 +1,11 @@
+import numpy as np
+import pandas as pd
+from sklearn.linear_model import LinearRegression
+import plotly.graph_objects as go 
 from core.graph_generator import GraphGenerator
 from ui.menus.graph_controls import GraphControls
 from ui.graph.graph_widget import GraphWidget
-from PySide6.QtWidgets import QHBoxLayout, QWidget, QVBoxLayout
+from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QMessageBox, QSpinBox, QWidget, QVBoxLayout
 
 from PySide6.QtWidgets import (
     QWidget,
@@ -16,36 +20,6 @@ from PySide6.QtWidgets import (
 from ui.graph.graph_widget import GraphWidget
 
 
-from core.graph_generator import GraphGenerator
-from ui.graph.graph_widget import GraphWidget
-
-from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QComboBox,
-    QPushButton,
-    QLineEdit,
-    QSpinBox,
-    QMessageBox
-    ,QCheckBox
-)
-
-
-from core.graph_generator import GraphGenerator
-from ui.graph.graph_widget import GraphWidget
-
-from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QComboBox,
-    QPushButton,
-    QLineEdit,
-    QSpinBox
-)
 
 
 class GraphTab(QWidget):
@@ -53,6 +27,7 @@ class GraphTab(QWidget):
     def __init__(self):
         super().__init__()
 
+        #self.dataframe_provider = dataframe_provider
         self.dataframe = None
 
         self.graph_widget = GraphWidget()
@@ -142,9 +117,9 @@ class GraphTab(QWidget):
             self.update_controls
         )
         self.group_check.toggled.connect(self.update_group_controls)
-        self.group_column.currentIndexChanged.connect(self.generate_graph)
+        '''self.group_column.currentIndexChanged.connect(self.generate_graph)
         self.group_aggregation.currentIndexChanged.connect(self.generate_graph)
-        self.group_limit.valueChanged.connect(self.generate_graph)
+        self.group_limit.valueChanged.connect(self.generate_graph)'''
 
         # Set initial visibility
         self.update_controls(
@@ -507,16 +482,45 @@ class GraphTab(QWidget):
         self.update_group_controls()
 
     def update_group_controls(self):
-        enabled = self.group_check.isVisible() and self.group_check.isChecked()
-        self.group_column.setVisible(enabled)
-        self.group_aggregation.setVisible(enabled)
-        self.group_limit.setVisible(enabled)
+
+        enabled = (
+            self.group_check.isChecked()
+            and self.group_check.isVisible()
+        )
+
+        self.group_column.setEnabled(enabled)
+        self.group_aggregation.setEnabled(enabled)
+
+        if not enabled:
+            return
+
+        group = self.group_column.currentData()
+
+        current = self.y_column.currentData()
+
+        self.y_column.blockSignals(True)
+        self.y_column.clear()
+
+        for col in self.dataframe.columns:
+            if col != group:
+                self.y_column.addItem(str(col), col)
+
+        if current != group:
+            index = self.y_column.findData(current)
+            if index >= 0:
+                self.y_column.setCurrentIndex(index)
+
+        self.y_column.blockSignals(False)
 
     def grouped_dataframe(self):
         if not self.group_check.isVisible() or not self.group_check.isChecked():
             return self.dataframe, self.x_column.currentData(), self.y_column.currentData()
         group_column = self.group_column.currentData()
         value_column = self.y_column.currentData()
+        if group_column == value_column:
+            raise ValueError(
+                "Group column and value column must be different."
+            )
         if group_column is None or value_column is None:
             return self.dataframe, self.x_column.currentData(), value_column
         grouped = (
@@ -534,8 +538,13 @@ class GraphTab(QWidget):
     # ==================================================
 
     def set_dataframe(self, dataframe):
-        if dataframe is not None:
-            self.dataframe = dataframe.copy()
+
+        # ----------------------------------
+        # Clear existing data
+        # ----------------------------------
+
+        if dataframe is None:
+            self.dataframe = None
 
             self.x_column.clear()
             self.y_column.clear()
@@ -544,6 +553,35 @@ class GraphTab(QWidget):
             self.color_column.clear()
             self.group_column.clear()
 
+            return
+
+        self.dataframe = dataframe.copy()
+
+        # ----------------------------------
+        # Prevent signals firing while
+        # rebuilding the controls
+        # ----------------------------------
+
+        widgets = [
+            self.x_column,
+            self.y_column,
+            self.z_column,
+            self.size_column,
+            self.color_column,
+            self.group_column
+        ]
+
+        for widget in widgets:
+            widget.blockSignals(True)
+
+        try:
+
+            self.x_column.clear()
+            self.y_column.clear()
+            self.z_column.clear()
+            self.size_column.clear()
+            self.color_column.clear()
+            self.group_column.clear()
 
             self.color_column.addItem(
                 "None",
@@ -553,13 +591,43 @@ class GraphTab(QWidget):
             for column in dataframe.columns:
 
                 column_name = str(column)
-                self.x_column.addItem(column_name, userData=column)
-                self.y_column.addItem(column_name, userData=column)
-                self.z_column.addItem(column_name, userData=column)
-                self.size_column.addItem(column_name, userData=column)
-                self.color_column.addItem(column_name, userData=column)
-                self.group_column.addItem(column_name, userData=column)
-            
+
+                self.x_column.addItem(
+                    column_name,
+                    userData=column
+                )
+
+                self.y_column.addItem(
+                    column_name,
+                    userData=column
+                )
+
+                self.z_column.addItem(
+                    column_name,
+                    userData=column
+                )
+
+                self.size_column.addItem(
+                    column_name,
+                    userData=column
+                )
+
+                self.color_column.addItem(
+                    column_name,
+                    userData=column
+                )
+
+                self.group_column.addItem(
+                    column_name,
+                    userData=column
+                )
+
+        finally:
+
+            for widget in widgets:
+                widget.blockSignals(False)
+
+        self.update_group_controls()
 
             # ==================================================
     # Generate graph
@@ -581,7 +649,13 @@ class GraphTab(QWidget):
         color = self.color_column.currentData()
         bins = self.bins_input.value()
         graph_dataframe, grouped_x, grouped_y = self.grouped_dataframe()
+        if graph_type not in {"Histogram", "Heatmap", "Correlation Map"}:
 
+            if x is None or x not in graph_dataframe.columns:
+                return
+
+            if y is None or y not in graph_dataframe.columns:
+                return
         if graph_type == "3D Scatter":
             graph_dataframe = self.dataframe
 
@@ -674,3 +748,8 @@ class GraphTab(QWidget):
                 "Graph error",
                 str(error)
             )
+
+
+    def current_dataframe(self):
+
+        return self.dataframe_provider()

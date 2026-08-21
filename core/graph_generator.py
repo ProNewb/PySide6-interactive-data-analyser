@@ -1,10 +1,16 @@
 import plotly.express as px
 import numpy as np
 import pandas as pd
+from sklearn.linear_model import LinearRegression
+import plotly.graph_objects as go
 
+from ui.helpers.curve_generator import CurveGenerator 
 
 class GraphGenerator:
     '''Plotly graph generator class'''
+    def __init__(self):
+        self.curves = CurveGenerator()
+    
     def create_graph(
         self,
         dataframe,
@@ -21,23 +27,38 @@ class GraphGenerator:
     ):
 
         if graph_type == "Scatter":
-            figure = self.create_scatter(
-                dataframe,
-                x_column,
-                y_column,
-                title
-            )
-            return self.add_trendline(figure, dataframe, x_column, y_column, trendline)
 
-        elif graph_type == "Line":
+            figure = self.create_scatter(dataframe, x_column, y_column, title)
 
-            return self.create_line(
+            if trendline:
+                figure, _ = self.curves.add_trendline(
+                    figure,
+                    dataframe,
+                    x_column,
+                    y_column
+                )
+
+            return figure
+
+        if graph_type == "Line":
+
+            figure = self.create_line(
                 dataframe,
                 x_column,
                 y_column,
                 title,
-                trendline
+                curve=False
             )
+
+            if trendline:
+                figure, _ = self.curves.add_trendline(
+                    figure,
+                    dataframe,
+                    x_column,
+                    y_column
+                )
+
+            return figure
 
         elif graph_type == "Bar":
 
@@ -55,7 +76,7 @@ class GraphGenerator:
                 bins,
                 title
             )
-            return self.add_bell_curve(figure, dataframe, x_column, bell_curve)
+            return self.curves.add_bell_curve(figure, dataframe, x_column,bins, bell_curve)
 
         elif graph_type == "Box":
 
@@ -84,14 +105,19 @@ class GraphGenerator:
                 title
             )
 
-        elif graph_type == "Area":
-            figure = self.create_area(
-                dataframe,
-                x_column,
-                y_column,
-                title
-            )
-            return self.add_trendline(figure, dataframe, x_column, y_column, trendline)
+        if graph_type == "Area":
+
+            figure = self.create_area(dataframe, x_column, y_column, title)
+
+            if trendline:
+                figure, _ = self.curves.add_trendline(
+                    figure,
+                    dataframe,
+                    x_column,
+                    y_column
+                )
+
+            return figure
 
         elif graph_type == "Map":
 
@@ -117,10 +143,19 @@ class GraphGenerator:
                 dataframe,
                 x_column,
                 y_column,
-                size,
+                z_column,
                 title
             )
-            return self.add_trendline(figure, dataframe, x_column, y_column, trendline)
+
+            if trendline:
+                figure, _ = self.curves.add_trendline(
+                    figure,
+                    dataframe,
+                    x_column,
+                    y_column
+                )
+
+            return figure
 
         elif graph_type == "Heatmap":
             return self.create_heatmap(dataframe, title)
@@ -137,8 +172,16 @@ class GraphGenerator:
                 title=title,
                 color=color
             )
-            return self.add_3d_fit(figure, dataframe, x_column, y_column, z_column, trendline)
+            if trendline:
+                figure, model = self.curves.add_regression_plane(
+                    figure,
+                    dataframe,
+                    x_column,
+                    y_column,
+                    z_column
+                )
 
+            return figure
         else:
 
             raise ValueError(
@@ -290,88 +333,8 @@ class GraphGenerator:
             color=color
         )
 
-    def add_trendline(self, figure, dataframe, x, y, enabled):
-        if not enabled or x is None or y is None:
-            return figure
-        numeric = dataframe[[x, y]].dropna()
-        if len(numeric) < 2:
-            return figure
-        x_values = pd.to_numeric(numeric[x], errors="coerce")
-        y_values = pd.to_numeric(numeric[y], errors="coerce")
-        valid = ~(x_values.isna() | y_values.isna())
-        if valid.sum() < 2:
-            return figure
-        coefficients = np.polyfit(x_values[valid], y_values[valid], 1)
-        ordered = np.sort(x_values[valid])
-        figure.add_scatter(
-            x=ordered,
-            y=np.polyval(coefficients, ordered),
-            mode="lines",
-            name="Trend line"
-        )
-        correlation = x_values[valid].corr(y_values[valid])
-        figure.update_layout(
-            annotations=[dict(
-                text=f"Pearson r = {correlation:.3f}",
-                x=0.02,
-                y=0.98,
-                xref="paper",
-                yref="paper",
-                showarrow=False
-            )]
-        )
-        return figure
 
-    def add_bell_curve(self, figure, dataframe, column, enabled):
-        if not enabled or column is None:
-            return figure
-        values = pd.to_numeric(dataframe[column], errors="coerce").dropna()
-        if len(values) < 2 or values.std() == 0:
-            return figure
-        x_values = np.linspace(values.min(), values.max(), 100)
-        density = (
-            np.exp(-0.5 * ((x_values - values.mean()) / values.std()) ** 2)
-            / (values.std() * np.sqrt(2 * np.pi))
-        )
-        scale = len(values) * (values.max() - values.min()) / max(1, 20)
-        figure.add_scatter(
-            x=x_values,
-            y=density * scale,
-            mode="lines",
-            name="Bell curve"
-        )
-        return figure
 
-    def add_3d_fit(self, figure, dataframe, x, y, z, enabled):
-        if not enabled or any(column is None for column in (x, y, z)):
-            return figure
-        values = dataframe[[x, y, z]].apply(
-            pd.to_numeric,
-            errors="coerce"
-        ).dropna()
-        if len(values) < 3:
-            return figure
-        matrix = np.column_stack([
-            np.ones(len(values)), values[x], values[y]
-        ]).astype(float)
-        target = values[z].to_numpy(dtype=float)
-        coefficients, _, _, _ = np.linalg.lstsq(
-            matrix,
-            target,
-            rcond=None
-        )
-        x_grid = np.linspace(values[x].min(), values[x].max(), 20)
-        y_grid = np.linspace(values[y].min(), values[y].max(), 20)
-        x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
-        z_mesh = coefficients[0] + coefficients[1] * x_mesh + coefficients[2] * y_mesh
-        figure.add_surface(
-            x=x_mesh,
-            y=y_mesh,
-            z=z_mesh,
-            opacity=0.45,
-            name="Best-fit plane"
-        )
-        return figure
 
     def create_heatmap(self, dataframe, title):
         numeric = dataframe.select_dtypes(include="number")
@@ -392,3 +355,47 @@ class GraphGenerator:
             zmin=-1,
             zmax=1
         )
+
+    def generate_prediction_curve(self):
+
+        feature = self.prediction_feature.currentData()
+
+        numeric = self.dataframe.select_dtypes("number")
+
+        values = np.linspace(
+            numeric[feature].min(),
+            numeric[feature].max(),
+            self.prediction_points.value()
+        )
+
+        sample = {}
+
+        for col in self.selected_features():
+
+            if col == feature:
+                sample[col] = values
+
+            elif pd.api.types.is_numeric_dtype(self.dataframe[col]):
+
+                sample[col] = [self.dataframe[col].median()] * len(values)
+
+            else:
+
+                sample[col] = [self.dataframe[col].mode()[0]] * len(values)
+
+        predict_df = pd.DataFrame(sample)
+
+        y = self.pipeline.predict(predict_df)
+
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                x=values,
+                y=y,
+                mode="lines",
+                name="Prediction"
+            )
+        )
+
+        self.prediction_graph.display_graph(fig)

@@ -89,10 +89,7 @@ class MainWindow(QMainWindow):
         # ----------------------------------
 
         self.tabs = QTabWidget()
-        self.model_tab = ModelTab(
-            self.get_model_dataframes,
-            self
-        )
+      
 
         # ----------------------------------
         # Window
@@ -363,10 +360,7 @@ class MainWindow(QMainWindow):
             "Data"
         )
 
-        self.tabs.addTab(
-            self.model_tab,
-            "Model"
-        )
+
 
     def get_model_dataframes(self):
         """Provide current datasets to the Model tab without sharing widgets."""
@@ -484,7 +478,7 @@ class MainWindow(QMainWindow):
         self.update_comparison_layout()
         self.update_data_actions()
         self.update_history_menus()
-        self.model_tab.refresh_data()
+        #self.model_tab.refresh_data()
         
     def undo_operation(self):
 

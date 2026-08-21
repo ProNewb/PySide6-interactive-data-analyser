@@ -53,24 +53,27 @@ from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from sklearn.svm import SVC, SVR
+import plotly.graph_objects as go 
 
 from ui.graph.graph_widget import GraphWidget
+from ui.helpers.curve_generator import CurveGenerator
 
 
 class ModelTab(QWidget):
     """Train, evaluate, and inspect a supervised prediction model. 1.p"""
 
-    def __init__(self, dataframe_provider, parent=None)
-        super().__init__(parent)
-        self.dataframe_provider = dataframe_provider
+    def __init__(self):
+        super().__init__()
+        #self.dataframe_provider = dataframe_provider
         self.dataframe = None
         self.model = None
         self.pipeline = None
         self.predictions = None
+        self.curves = CurveGenerator()
         self.prediction_graph = GraphWidget()
         
         self.build_ui()
-        self.refresh_data()
+        #self.refresh_data()
 
     def build_ui(self):
         outer_layout = QVBoxLayout(self)
@@ -82,9 +85,9 @@ class ModelTab(QWidget):
         outer_layout.addWidget(scroll_area)
 
         controls = QHBoxLayout()
-        data_group = QGroupBox("Model data")
+        data_group = QGroupBox("Training data")
         data_form = QFormLayout(data_group)
-        self.dataset_combo = QComboBox()
+        #self.dataset_combo = QComboBox()
         self.task_combo = QComboBox()
         self.task_combo.addItem("Classification", "classification")
         self.task_combo.addItem("Regression", "regression")
@@ -107,7 +110,7 @@ class ModelTab(QWidget):
         self.stratify_check = QCheckBox("Stratify classification split")
         self.full_predictions_check = QCheckBox("Show full-dataset predictions")
         self.full_predictions_check.setChecked(True)
-        data_form.addRow("Dataset", self.dataset_combo)
+        #data_form.addRow("Dataset", self.dataset_combo)
         data_form.addRow("Task", self.task_combo)
         data_form.addRow("Target", self.target_combo)
         data_form.addRow("Missing values", self.missing_combo)
@@ -148,9 +151,9 @@ class ModelTab(QWidget):
 
         actions = QHBoxLayout()
         self.train_button = QPushButton("Train model")
-        self.refresh_button = QPushButton("Refresh datasets")
+        #self.refresh_button = QPushButton("Refresh datasets")
         actions.addWidget(self.train_button)
-        actions.addWidget(self.refresh_button)
+        #actions.addWidget(self.refresh_button)
         actions.addStretch()
         layout.addLayout(actions)
 
@@ -166,13 +169,13 @@ class ModelTab(QWidget):
         layout.addWidget(QLabel("Prediction plot"))
         layout.addWidget(self.prediction_graph)
 
-        self.dataset_combo.currentIndexChanged.connect(self.refresh_data)
+        #self.dataset_combo.currentIndexChanged.connect(self.refresh_data)
         self.target_combo.currentIndexChanged.connect(self.rebuild_features)
         self.task_combo.currentIndexChanged.connect(self.update_models)
         self.task_combo.currentIndexChanged.connect(self.rebuild_targets)
         self.validation_combo.currentIndexChanged.connect(self.update_validation_controls)
         self.model_combo.currentIndexChanged.connect(self.update_model_options)
-        self.refresh_button.clicked.connect(self.refresh_data)
+        #self.refresh_button.clicked.connect(self.refresh_data)
         self.train_button.clicked.connect(self.train_model)
         self.update_models()
         self.update_validation_controls()
@@ -182,41 +185,29 @@ class ModelTab(QWidget):
         self.test_size.setEnabled(not is_kfold)
         self.folds_spin.setEnabled(is_kfold)
 
-    def refresh_data(self):
-        frames = self.dataframe_provider()
-        current = self.dataset_combo.currentData()
-        self.dataset_combo.blockSignals(True)
-        self.dataset_combo.clear()
-        for key, label, dataframe in frames:
-            if dataframe is not None:
-                self.dataset_combo.addItem(label, key)
-        self.dataset_combo.blockSignals(False)
-        if current is not None:
-            index = self.dataset_combo.findData(current)
-            if index >= 0:
-                self.dataset_combo.setCurrentIndex(index)
-        self.load_selected_dataframe()
-
-    def load_selected_dataframe(self):
-        frames = {
-            key: dataframe
-            for key, _, dataframe in self.dataframe_provider()
-        }
-        self.dataframe = frames.get(self.dataset_combo.currentData())
-        self.rebuild_targets()
-        self.rebuild_features()
-
+    
     def rebuild_targets(self):
+
         current = self.target_combo.currentData()
+
         self.target_combo.blockSignals(True)
         self.target_combo.clear()
+
         if self.dataframe is not None:
+
+            classification = (
+                self.task_combo.currentData()
+                == "classification"
+            )
+
             for column in self.dataframe.columns:
+
                 series = self.dataframe[column]
-                classification = (
-                    self.task_combo.currentData() == "classification"
+
+                numeric = pd.api.types.is_numeric_dtype(
+                    series
                 )
-                numeric = pd.api.types.is_numeric_dtype(series)
+
                 if classification:
                     allowed = (
                         not numeric
@@ -224,16 +215,32 @@ class ModelTab(QWidget):
                         <= max(20, int(len(series) * 0.2))
                     )
                 else:
-                    allowed = numeric and not pd.api.types.is_bool_dtype(series)
+                    allowed = (
+                        numeric
+                        and not pd.api.types.is_bool_dtype(series)
+                    )
+
                 if allowed:
-                    self.target_combo.addItem(str(column), column)
+                    self.target_combo.addItem(
+                        str(column),
+                        column
+                    )
+
         self.target_combo.blockSignals(False)
+
         if current is not None:
             index = self.target_combo.findData(current)
+
             if index >= 0:
                 self.target_combo.setCurrentIndex(index)
-        if self.target_combo.currentIndex() < 0 and self.target_combo.count():
+
+        if (
+            self.target_combo.currentIndex() < 0
+            and self.target_combo.count()
+        ):
             self.target_combo.setCurrentIndex(0)
+
+        self.rebuild_features()
 
     def rebuild_features(self):
         while self.feature_grid.count():
@@ -498,9 +505,33 @@ class ModelTab(QWidget):
                 xaxis_title="Actual",
                 yaxis_title="Predicted"
             )
-        self.prediction_graph.display_graph(figure)
+        try:
+            self.prediction_graph.display_graph(figure)
+        except Exception as e:
+            QMessageBox.critical(self, "Graph", str(e))
 
     def show_error(self, message):
         self.metrics_output.setPlainText(f"Error: {message}")
         self.prediction_table.clearContents()
         self.prediction_table.setRowCount(0)
+
+    def set_dataframe(self, dataframe):
+
+        self.dataframe = (
+            dataframe.copy()
+            if dataframe is not None
+            else None
+        )
+
+        self.rebuild_targets()
+        self.rebuild_features()
+
+        self.model = None
+        self.pipeline = None
+        self.predictions = None
+
+        self.metrics_output.clear()
+        self.prediction_table.clearContents()
+        self.prediction_table.setRowCount(0)
+
+        #self.prediction_graph.clear()
