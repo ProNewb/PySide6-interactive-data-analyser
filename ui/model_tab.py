@@ -71,7 +71,7 @@ class ModelTab(QWidget):
         self.predictions = None
         self.curves = CurveGenerator()
         self.prediction_graph = GraphWidget()
-        
+        self.prediction_graph.setMinimumHeight(400)
         self.build_ui()
         #self.refresh_data()
 
@@ -167,8 +167,8 @@ class ModelTab(QWidget):
         self.prediction_table.setMinimumHeight(280)
         layout.addWidget(self.prediction_table)
         layout.addWidget(QLabel("Prediction plot"))
-        layout.addWidget(self.prediction_graph)
-
+        layout.addWidget(self.prediction_graph, 1)
+        
         self.target_combo.currentIndexChanged.connect(
             self.rebuild_features
         )
@@ -295,28 +295,44 @@ class ModelTab(QWidget):
             )
 
     def update_models(self):
-        classification = self.task_combo.currentData() == "classification"
-        classification_models = {
-            "logistic", "random_forest", "extra_trees", "knn", "svm"
-        }
-        regression_models = {
-            "linear", "knn_regressor", "svm_regressor",
-            "random_forest_regressor", "extra_trees_regressor"
-        }
-        allowed = classification_models if classification else regression_models
-        for index in range(self.model_combo.count()):
-            value = self.model_combo.itemData(index)
-            self.model_combo.model().item(index).setEnabled(
-                classification == (value in allowed)
-            )
-        if not classification:
-            self.model_combo.setCurrentIndex(
-                self.model_combo.findData("linear")
-            )
+
+        current = self.model_combo.currentData()
+
+        self.model_combo.blockSignals(True)
+        self.model_combo.clear()
+
+        if self.task_combo.currentData() == "classification":
+
+            models = [
+                ("Logistic regression", "logistic"),
+                ("Random forest", "random_forest"),
+                ("Extra trees", "extra_trees"),
+                ("K-nearest neighbours", "knn"),
+                ("Support vector machine", "svm"),
+            ]
+
         else:
-            self.model_combo.setCurrentIndex(
-                self.model_combo.findData("logistic")
-            )
+
+            models = [
+                ("Linear regression", "linear"),
+                ("K-nearest neighbours regressor", "knn_regressor"),
+                ("Support vector regressor", "svm_regressor"),
+                ("Random forest regressor", "random_forest_regressor"),
+                ("Extra trees regressor", "extra_trees_regressor"),
+            ]
+
+        for name, value in models:
+            self.model_combo.addItem(name, value)
+
+        self.model_combo.blockSignals(False)
+
+        if current is not None:
+
+            index = self.model_combo.findData(current)
+
+            if index >= 0:
+                self.model_combo.setCurrentIndex(index)
+
         self.update_model_options()
 
     def update_model_options(self):
@@ -552,10 +568,7 @@ class ModelTab(QWidget):
 
     def set_dataframe(self, dataframe):
 
-        if dataframe is None:
-            self.dataframe = None
-        else:
-            self.dataframe = dataframe.copy()
+        self.dataframe = dataframe.copy() if dataframe is not None else None
 
         self.model = None
         self.pipeline = None
@@ -565,4 +578,57 @@ class ModelTab(QWidget):
         self.prediction_table.clearContents()
         self.prediction_table.setRowCount(0)
 
+        if self.dataframe is None:
+            self.target_combo.clear()
+            self.rebuild_features()
+            return
+
+        has_classification = self.has_valid_target(True)
+        has_regression = self.has_valid_target(False)
+
+        # Choose an appropriate task
+        if has_classification:
+            self.task_combo.setCurrentIndex(
+                self.task_combo.findData("classification")
+            )
+        elif has_regression:
+            self.task_combo.setCurrentIndex(
+                self.task_combo.findData("regression")
+            )
+        else:
+            self.target_combo.clear()
+            self.rebuild_features()
+            self.show_error(
+                "No suitable target columns were found for "
+                "classification or regression."
+            )
+            return
+
         self.rebuild_targets()
+
+    def has_valid_target(self, classification):
+        if self.dataframe is None:
+            return False
+
+        for column in self.dataframe.columns:
+
+            series = self.dataframe[column]
+
+            numeric = pd.api.types.is_numeric_dtype(series)
+
+            if classification:
+                allowed = (
+                    not numeric
+                    or series.nunique(dropna=True)
+                    <= max(20, int(len(series) * 0.2))
+                )
+            else:
+                allowed = (
+                    numeric
+                    and not pd.api.types.is_bool_dtype(series)
+                )
+
+            if allowed:
+                return True
+
+        return False
