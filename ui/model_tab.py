@@ -169,16 +169,33 @@ class ModelTab(QWidget):
         layout.addWidget(QLabel("Prediction plot"))
         layout.addWidget(self.prediction_graph)
 
-        #self.dataset_combo.currentIndexChanged.connect(self.refresh_data)
-        self.target_combo.currentIndexChanged.connect(self.rebuild_features)
-        self.task_combo.currentIndexChanged.connect(self.update_models)
-        self.task_combo.currentIndexChanged.connect(self.rebuild_targets)
-        self.validation_combo.currentIndexChanged.connect(self.update_validation_controls)
-        self.model_combo.currentIndexChanged.connect(self.update_model_options)
-        #self.refresh_button.clicked.connect(self.refresh_data)
-        self.train_button.clicked.connect(self.train_model)
+        self.target_combo.currentIndexChanged.connect(
+            self.rebuild_features
+        )
+
+        self.task_combo.currentIndexChanged.connect(
+            self.update_models
+        )
+
+        self.task_combo.currentIndexChanged.connect(
+            self.rebuild_targets
+        )
+
+        self.validation_combo.currentIndexChanged.connect(
+            self.update_validation_controls
+        )
+
+        self.model_combo.currentIndexChanged.connect(
+            self.update_model_options
+        )
+
+        self.train_button.clicked.connect(
+            self.train_model
+        )
+
         self.update_models()
         self.update_validation_controls()
+        self.rebuild_targets()
 
     def update_validation_controls(self):
         is_kfold = self.validation_combo.currentData() == "kfold"
@@ -188,76 +205,94 @@ class ModelTab(QWidget):
     
     def rebuild_targets(self):
 
-        current = self.target_combo.currentData()
-
         self.target_combo.blockSignals(True)
         self.target_combo.clear()
 
-        if self.dataframe is not None:
+        if self.dataframe is None:
+            self.target_combo.blockSignals(False)
+            self.rebuild_features()
+            return
 
-            classification = (
-                self.task_combo.currentData()
-                == "classification"
+        classification = (
+            self.task_combo.currentData()
+            == "classification"
+        )
+
+        for column in self.dataframe.columns:
+
+            series = self.dataframe[column]
+
+            numeric = pd.api.types.is_numeric_dtype(
+                series
             )
 
-            for column in self.dataframe.columns:
+            if classification:
 
-                series = self.dataframe[column]
-
-                numeric = pd.api.types.is_numeric_dtype(
-                    series
+                allowed = (
+                    not numeric
+                    or series.nunique(dropna=True)
+                    <= max(20, int(len(series) * 0.2))
                 )
 
-                if classification:
-                    allowed = (
-                        not numeric
-                        or series.nunique(dropna=True)
-                        <= max(20, int(len(series) * 0.2))
-                    )
-                else:
-                    allowed = (
-                        numeric
-                        and not pd.api.types.is_bool_dtype(series)
-                    )
+            else:
 
-                if allowed:
-                    self.target_combo.addItem(
-                        str(column),
-                        column
-                    )
+                allowed = (
+                    numeric
+                    and not pd.api.types.is_bool_dtype(series)
+                )
+
+            if allowed:
+
+                self.target_combo.addItem(
+                    str(column),
+                    column
+                )
 
         self.target_combo.blockSignals(False)
 
-        if current is not None:
-            index = self.target_combo.findData(current)
+        # Select first available target
+        if self.target_combo.count() > 0:
 
-            if index >= 0:
-                self.target_combo.setCurrentIndex(index)
-
-        if (
-            self.target_combo.currentIndex() < 0
-            and self.target_combo.count()
-        ):
             self.target_combo.setCurrentIndex(0)
 
         self.rebuild_features()
 
     def rebuild_features(self):
+
         while self.feature_grid.count():
+
             item = self.feature_grid.takeAt(0)
+
             if item.widget():
                 item.widget().deleteLater()
+
+        self.feature_checks = []
+
         if self.dataframe is None:
             return
+
         target = self.target_combo.currentData()
-        self.feature_checks = []
+
         for index, column in enumerate(self.dataframe.columns):
+
             if column == target:
                 continue
-            check = QCheckBox(str(column))
+
+            check = QCheckBox(
+                str(column)
+            )
+
             check.setChecked(True)
-            self.feature_grid.addWidget(check, index // 4, index % 4)
-            self.feature_checks.append((column, check))
+
+            self.feature_grid.addWidget(
+                check,
+                index // 4,
+                index % 4
+            )
+
+            self.feature_checks.append(
+                (column, check)
+            )
 
     def update_models(self):
         classification = self.task_combo.currentData() == "classification"
@@ -517,14 +552,10 @@ class ModelTab(QWidget):
 
     def set_dataframe(self, dataframe):
 
-        self.dataframe = (
-            dataframe.copy()
-            if dataframe is not None
-            else None
-        )
-
-        self.rebuild_targets()
-        self.rebuild_features()
+        if dataframe is None:
+            self.dataframe = None
+        else:
+            self.dataframe = dataframe.copy()
 
         self.model = None
         self.pipeline = None
@@ -534,4 +565,4 @@ class ModelTab(QWidget):
         self.prediction_table.clearContents()
         self.prediction_table.setRowCount(0)
 
-        #self.prediction_graph.clear()
+        self.rebuild_targets()

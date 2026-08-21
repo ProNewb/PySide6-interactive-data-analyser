@@ -362,12 +362,6 @@ class MainWindow(QMainWindow):
 
 
 
-    def get_model_dataframes(self):
-        """Provide current datasets to the Model tab without sharing widgets."""
-        return [
-            ("main", "Main Dataset", self.dataset_manager.get_dataframe()),
-            ("result", "Result Dataset", self.dataset_manager.get_result_dataframe())
-        ]
 
 
 
@@ -442,43 +436,25 @@ class MainWindow(QMainWindow):
 
 
     def refresh_views(self):
-        # refresh the view after a data operation
-        dataframe = (
-            self.dataset_manager
-            .get_dataframe()
-        )
 
-        result = (
-            self.dataset_manager
-            .get_result_dataframe()
-        )
+        dataframe = self.dataset_manager.get_dataframe()
+        result = self.dataset_manager.get_result_dataframe()
 
         # Main dataset
         if dataframe is not None:
-
-            self.main_view.set_dataframe(
-                dataframe
-            )
-
+            self.main_view.set_dataframe(dataframe)
         else:
-
             self.main_view.clear()
 
         # Result dataset
         if result is not None:
-
-            self.result_view.set_dataframe(
-                result
-            )
-
+            self.result_view.set_dataframe(result)
         else:
-
             self.result_view.clear()
 
         self.update_comparison_layout()
         self.update_data_actions()
         self.update_history_menus()
-        #self.model_tab.refresh_data()
         
     def undo_operation(self):
 

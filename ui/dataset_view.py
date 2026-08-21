@@ -164,11 +164,13 @@ class DatasetView(QWidget):
 
     def set_dataframe(self, dataframe):
 
+        if dataframe is None:
+            self.clear()
+            return
+
         self.dataframe = dataframe.copy()
 
-        self.table.display_dataframe(
-            self.dataframe
-        )
+        self.table.display_dataframe(self.dataframe)
 
         self.stats_widget.load_dataframe(
             self.dataframe
@@ -177,7 +179,10 @@ class DatasetView(QWidget):
         self.graph_tab.set_dataframe(
             self.dataframe
         )
-        self.model_tab.set_dataframe(self.dataframe)
+
+        self.model_tab.set_dataframe(
+            self.dataframe
+        )
 
     def clear(self):
 
@@ -189,6 +194,7 @@ class DatasetView(QWidget):
 
         self.stats_widget.load_dataframe(None)
         self.graph_tab.set_dataframe(None)
+        self.model_tab.set_dataframe(None)
 
     def get_dataframe(self):
 
