@@ -1,5 +1,19 @@
+import json
+
+from io import StringIO
+
+import pandas as pd
+
+from PySide6.QtWidgets import QFileDialog
+from PySide6.QtWidgets import QMessageBox
+from PySide6.QtWidgets import QInputDialog
+
+from ui.dialogs.import_dialog import ImportDialog
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QFileDialog,
+    QInputDialog,
+    QMessageBox,
     QWidget,
     QVBoxLayout,
     QSplitter
@@ -130,3 +144,212 @@ class Workspace(QWidget):
                 0,
                 1200
             ])
+
+    # ==================================================
+    # PROJECT AND EXPORT OPERATIONS
+    # ==================================================
+
+    def save_project(self):
+        """Save the current dataframe and applied operations as JSON."""
+
+        dataframe = self.dataset_manager.get_dataframe()
+
+        if dataframe is None:
+            QMessageBox.information(
+                None,
+                "Save Project",
+                "There is no dataset to save."
+            )
+            return False
+
+        filename, _ = QFileDialog.getSaveFileName(
+            None,
+            "Save Project",
+            "",
+            "Project Files (*.json);;All Files (*)"
+        )
+
+        if not filename:
+            return False
+
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
+
+        result = self.dataset_manager.get_result_dataframe()
+
+        project = {
+
+            "version": 3,
+            "source_file": self.dataset_manager.filename,
+
+            "main": {
+
+                "original": self._dataframe_json(
+                    self.dataset_manager.original_dataframe
+                ),
+                "current": self._dataframe_json(dataframe),
+                "operations": self.dataset_manager.get_operation_log()
+            },
+
+            "result": {
+
+                "visible": result is not None,
+
+                "current": None if result is None else self._dataframe_json(result),
+                "operations": self.dataset_manager.get_result_operation_log()
+            }
+        }
+
+        project["history"] = {
+            # Keep the complete descriptions above and the bounded state
+            # snapshots here so saved projects preserve both auditability and
+            # the existing five-entry undo/redo behavior.
+            "main": self.dataset_manager.get_history_snapshot(
+                "main",
+                self._dataframe_json
+            ),
+            "result": self.dataset_manager.get_history_snapshot(
+                "result",
+                self._dataframe_json
+            )
+        }
+
+        try:
+            with open(filename, "w", encoding="utf-8") as project_file:
+                json.dump(project, project_file, indent=2, default=str)
+        except OSError as error:
+            QMessageBox.warning(
+                None,
+                "Save Project",
+                f"Could not save the project:\n{error}"
+            )
+            return False
+
+        return True
+
+    def export_csv(self):
+        """Export the selected Main or Result dataframe."""
+
+        available = []
+        if self.dataset_manager.get_dataframe() is not None:
+            available.append(("Main Dataset", "main"))
+        if self.dataset_manager.get_result_dataframe() is not None:
+            available.append(("Result Dataset", "result"))
+
+        if not available:
+            QMessageBox.information(
+                None,
+                "Export Data",
+                "There is no dataset to export."
+            )
+            return False
+
+        labels = [label for label, _ in available]
+        selected_label, accepted = QInputDialog.getItem(
+            None,
+            "Export Data",
+            "Dataset to export:",
+            labels,
+            0,
+            False
+        )
+
+        if not accepted:
+            return False
+
+        selected_target = dict(available)[selected_label]
+        dataframe = (
+            self.dataset_manager.get_result_dataframe()
+            if selected_target == "result"
+            else self.dataset_manager.get_dataframe()
+        )
+
+        if dataframe is None:
+            QMessageBox.information(
+                None,
+                "Export Data",
+                "There is no dataset to export."
+            )
+            return False
+
+        filename, selected_filter = QFileDialog.getSaveFileName(
+            None,
+            "Export Data",
+            "",
+            "CSV Files (*.csv);;Excel Files (*.xlsx);;"
+            "JSON Files (*.json);;Parquet Files (*.parquet);;"
+            "All Files (*)"
+        )
+
+        if not filename:
+            return False
+
+        extension = filename.lower().rsplit(".", 1)[-1] \
+            if "." in filename else ""
+
+        if not extension:
+            extension = {
+                "Excel Files (*.xlsx)": "xlsx",
+                "JSON Files (*.json)": "json",
+                "Parquet Files (*.parquet)": "parquet"
+            }.get(selected_filter, "csv")
+            filename = f"{filename}.{extension}"
+
+        try:
+            if extension == "csv":
+                dataframe.to_csv(filename, index=False)
+            elif extension in ("xlsx", "xls"):
+                dataframe.to_excel(filename, index=False)
+            elif extension == "json":
+                dataframe.to_json(filename, orient="records", date_format="iso")
+            elif extension == "parquet":
+                dataframe.to_parquet(filename, index=False)
+            else:
+                QMessageBox.warning(
+                    None,
+                    "Export Data",
+                    f"Unsupported file type: .{extension}"
+                )
+                return False
+        except (OSError, ValueError, ImportError) as error:
+            QMessageBox.warning(
+                None,
+                "Export Data",
+                f"Could not export the dataset:\n{error}"
+            )
+            return False
+
+        return True
+
+    def has_data(self):
+        return self.dataset_manager.has_data()
+
+    def has_result(self):
+        return self.dataset_manager.has_result()
+
+    def _dataframe_json(self, dataframe):
+
+        if dataframe is None:
+            return None
+
+        return {
+            "columns": [str(column) for column in dataframe.columns],
+            "data": dataframe.to_json(
+                orient="records",
+                date_format="iso"
+            )
+        }
+
+    def _dataframe_from_json(self, data):
+
+        if data is None:
+            return None
+
+        df = pd.read_json(
+            StringIO(data["data"]),
+            orient="records"
+        )
+
+        df.columns = data["columns"]
+
+        return df

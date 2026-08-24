@@ -11,7 +11,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.aggregation import Aggregation
-from core.data_processor import DataProcessor
+from core.data_processor import AggregationConfig, DataProcessor
 from ui.helpers.aggregation_row import AggregationRow
 from ui.helpers.groupby_row import GroupbyRow
 from ui.table.preview_table import PreviewTable
@@ -20,14 +20,18 @@ from ui.table.preview_table import PreviewTable
 class AggregationDialog(QDialog):
     """Configure an aggregation with target selection and live preview."""
 
-    def __init__(self, dataframe, parent=None, target_dataframes=None,
-                 target="main"):
+
+    def __init__(
+        self,
+        datasets,
+        parent=None,
+        current=None,
+        use_selection=False
+    ):
         super().__init__(parent)
-        self.dataframe = dataframe
-        if target_dataframes is None:
-            self.target_dataframes = {target: dataframe}
-        else:
-            self.target_dataframes = target_dataframes
+
+        self.datasets = datasets
+
         self.groupby_rows = []
         self.aggregation_rows = []
         self.processor = DataProcessor()
@@ -40,14 +44,15 @@ class AggregationDialog(QDialog):
         target_layout = QHBoxLayout()
         target_layout.addWidget(QLabel("Target dataset"))
         self.target_combo = QComboBox()
-        for key, label in (("main", "Main Dataset"),
-                           ("result", "Result Dataset")):
-            if key in self.target_dataframes:
-                self.target_combo.addItem(label, key)
-        self.target_combo.setCurrentIndex(
-            max(0, self.target_combo.findData(target))
-        )
+
+        for label in datasets:
+            self.target_combo.addItem(label)
+
+        self.target_combo.setCurrentText(current)
+
         self.use_selection = QCheckBox("Use selection")
+        self.use_selection.setChecked(use_selection)
+
 
 
         target_layout.addWidget(
@@ -96,17 +101,38 @@ class AggregationDialog(QDialog):
 
         self.change_target()
         self.update_preview()
+        self.use_selection.toggled.connect(self.change_target)
+    def get_dataset_key(self):
+        return self.target_combo.currentText()
+
+
+    def get_dataframe(self):
+
+        info = self.datasets[self.get_dataset_key()]
+        df = info["dataframe"]
+
+        if self.use_selection.isChecked():
+            return info["view"].get_analysis_dataframe()
+
+        return df
+
+
+    def get_workspace(self):
+        return self.datasets[self.get_dataset_key()]["workspace"]
+
 
     def get_target(self):
-        return self.target_combo.currentData()
+        return self.datasets[self.get_dataset_key()]["target"]
 
     def change_target(self):
-        if not hasattr(self, "groupby_layout"):
-            return
-        self.dataframe = self.target_dataframes[self.get_target()]
+
+        self.dataframe = self.get_dataframe()
+
         self._clear_rows()
+
         self.create_groupby_row()
         self.create_aggregation_row()
+
         self.update_preview()
 
     def _clear_rows(self):
@@ -176,3 +202,16 @@ class AggregationDialog(QDialog):
 
         self.result_preview.display_dataframe(result, full=full)
         self.apply_button.setEnabled(True)
+
+    def get_aggregation(self):
+
+        return AggregationConfig(
+            group_by=[
+                row.get_column()
+                for row in self.groupby_rows
+            ],
+            aggregations=[
+                row.get_aggregation()
+                for row in self.aggregation_rows
+            ]
+        )

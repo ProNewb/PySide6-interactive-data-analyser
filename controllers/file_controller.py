@@ -396,3 +396,17 @@ class FileController:
             )
 
         return columns
+
+    @staticmethod
+    def _project_dataframe(data):
+        if data is None:
+            return None
+
+        df = pd.read_json(
+            StringIO(data["data"]),
+            orient="records"
+        )
+
+        df.columns = data["columns"]
+
+        return df

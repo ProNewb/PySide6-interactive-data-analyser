@@ -19,11 +19,15 @@ from ui.table.preview_table import PreviewTable
 class TransformDialog(QDialog):
     """Configure a column transform and preview its result."""
 
-    def __init__(self, dataframe, parent=None, target_dataframes=None,
-                 target="main"):
+    def __init__(
+        self,
+        datasets,
+        parent=None,
+        current=None,
+        use_selection=False
+    ):
         super().__init__(parent)
-        self.dataframe = dataframe
-        self.target_dataframes = target_dataframes or {target: dataframe}
+        self.datasets = datasets
         self.preview = PreviewTable()
         self.result_preview = PreviewTable()
 
@@ -33,16 +37,17 @@ class TransformDialog(QDialog):
         target_layout = QHBoxLayout()
         target_layout.addWidget(QLabel("Target dataset"))
         self.target_combo = QComboBox()
-        for key, label in (("main", "Main Dataset"),
-                           ("result", "Result Dataset")):
-            if key in self.target_dataframes:
-                self.target_combo.addItem(label, key)
-        self.target_combo.setCurrentIndex(
-            max(0, self.target_combo.findData(target))
-        )
+
+        for name in datasets:
+            self.target_combo.addItem(name)
+
+        self.target_combo.setCurrentText(current)
+
+        self.use_selection = QCheckBox("Use selection")
+        self.use_selection.setChecked(use_selection)
         target_layout.addWidget(self.target_combo)
         layout.addLayout(target_layout)
-        self.use_selection = QCheckBox("Use selection")
+
 
 
         layout.addWidget(
@@ -50,9 +55,10 @@ class TransformDialog(QDialog):
         )
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Column"))
+        controls.addWidget(QLabel("Column"))
+
         self.column_combo = QComboBox()
-        for column in dataframe.columns:
-            self.column_combo.addItem(str(column), column)
+
         controls.addWidget(self.column_combo)
 
         controls.addWidget(QLabel("Operation"))
@@ -120,17 +126,42 @@ class TransformDialog(QDialog):
         self.target_combo.currentIndexChanged.connect(self.change_target)
         self.change_target()
         self.update_operation_options()
+        self.use_selection.toggled.connect(self.change_target)
+
+    def get_dataset_key(self):
+        return self.target_combo.currentText()
+
+
+    def get_dataframe(self):
+
+        info = self.datasets[self.get_dataset_key()]
+        df = info["dataframe"]
+
+        if self.use_selection.isChecked():
+            return info["view"].get_analysis_dataframe()
+
+        return df
+
+
+    def get_workspace(self):
+        return self.datasets[self.get_dataset_key()]["workspace"]
+
 
     def get_target(self):
-        return self.target_combo.currentData()
+        return self.datasets[self.get_dataset_key()]["target"]
 
     def change_target(self):
-        if not hasattr(self, "column_combo"):
-            return
-        self.dataframe = self.target_dataframes[self.get_target()]
+
+        self.dataframe = self.get_dataframe()
+
         self.column_combo.clear()
+
         for column in self.dataframe.columns:
-            self.column_combo.addItem(str(column), column)
+            self.column_combo.addItem(
+                str(column),
+                column
+            )
+
         self.update_operation_options()
 
     def update_operation_options(self):

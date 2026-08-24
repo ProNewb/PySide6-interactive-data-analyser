@@ -33,29 +33,34 @@ from analysis.data_summary import DataSummary
 class CleaningDialog(QDialog):
     """Dialog for configuring and previewing data-cleaning operations."""
 
-    def __init__(self, dataframe, parent=None, target_dataframes=None,
-                 target="main"):
+    def __init__(
+        self,
+        datasets,
+        parent=None,
+        current=None,
+        use_selection=False
+    ):
         super().__init__(parent)
-        self.summary = DataSummary()
-        self.dataframe = dataframe.copy()
-        self.column_selector = ColumnSelector(self.dataframe)
+
+        self.datasets = datasets
+        self.current = current
+        self.use_selection_default = use_selection
+        
         self.cleaning_stats = CleaningStats()
         self.cleaning_result = None
         self.cleaner = DataCleaner()
+
         self.setWindowTitle("Clean Data")
         self.resize(1600, 900)
+
         self.build_ui()
+
+        self.dataframe = self.get_dataframe()
+
         self.connect_signals()
+
         self.update_operation_ui()
-        self.apply_button.clicked.connect(
-            self.apply
-        )   
-        self.column_selector.selection_changed.connect(
-            self.update_cleaning_statistics
-        )
-        self.cleaning_objective_box.currentIndexChanged.connect(
-            self.update_operation_ui
-        )
+        self.update_preview()
 
     def build_ui(self):
 
@@ -67,7 +72,29 @@ class CleaningDialog(QDialog):
         self.dialog_scroll.setWidgetResizable(True)
         self.dialog_scroll.setWidget(content_widget)
         outer_layout.addWidget(self.dialog_scroll)
+        
 
+        target_layout = QHBoxLayout()
+        target_layout.addWidget(QLabel("Target dataset"))
+        self.target_combo = QComboBox()
+
+        for label in self.datasets:
+            self.target_combo.addItem(label)
+
+        if self.current:
+            self.target_combo.setCurrentText(self.current)
+
+        self.use_selection = QCheckBox("Use selection")
+
+        self.use_selection.setChecked(self.use_selection_default)
+
+
+
+        target_layout.addWidget(
+            self.use_selection
+        )
+        target_layout.addWidget(self.target_combo)
+        layout.addLayout(target_layout)
         # ----------------------------------
         # Cleaning operation
         # ----------------------------------
@@ -183,6 +210,13 @@ class CleaningDialog(QDialog):
             self.reject
         )
 
+        self.target_combo.currentIndexChanged.connect(
+            self.change_target
+        )
+        self.use_selection.toggled.connect(self.change_target)
+        self.apply_button.clicked.connect(
+            self.apply
+        )
     def update_operation_ui(self):
 
         self.clear_operation_ui()
@@ -608,12 +642,33 @@ class CleaningDialog(QDialog):
 
     def apply(self):
 
-        self.update_preview()
+        try:
+            operation = self.get_operation()
 
-        if self.cleaning_result is None:
-            return
+            if operation is None:
+                return
 
-        self.accept()
+            if isinstance(operation, MissingValueOptions):
+                result = self.cleaner.clean_missing(
+                    self.dataframe,
+                    operation
+                )
+            else:
+                result = self.cleaner.remove_duplicates(
+                    self.dataframe,
+                    operation
+                )
+
+            self.cleaning_result = result
+            self.accept()
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Cleaning Failed",
+                str(error)
+            )
 
     def get_result(self):
 
@@ -690,3 +745,35 @@ class CleaningDialog(QDialog):
     def set_dataframe(self, dataframe):
         self.dataframe = dataframe.copy()
         self.update_preview()
+
+    def get_dataset_key(self):
+        return self.target_combo.currentText()
+
+
+    def get_dataframe(self):
+
+        info = self.datasets[self.get_dataset_key()]
+        df = info["dataframe"]
+
+        if self.use_selection.isChecked():
+            return info["view"].get_analysis_dataframe()
+
+        return df
+
+
+    def get_workspace(self):
+        return self.datasets[self.get_dataset_key()]["workspace"]
+
+
+    def get_target(self):
+        return self.datasets[self.get_dataset_key()]["target"]
+
+
+    def change_target(self):
+
+        self.dataframe = self.get_dataframe()
+
+        self.update_operation_ui()
+        self.update_preview()
+
+  

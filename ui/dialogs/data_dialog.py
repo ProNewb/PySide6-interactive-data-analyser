@@ -21,13 +21,16 @@ from ui.table.preview_table import PreviewTable
 
 class DataDialog(QDialog):
     ''' Class responsible for displaying and capturing user options for aggregation and filtering'''
-    def __init__(self, dataframe, parent=None, target_dataframes=None,
-                 target="main"):
+    def __init__(
+        self,
+        datasets,
+        parent=None,
+        current=None,
+        use_selection=False
+    ):
 
         super().__init__(parent)
-
-        self.dataframe = dataframe
-        self.target_dataframes = target_dataframes or {target: dataframe}
+        self.datasets = datasets
         self.condition_rows = []
         self.preview_table = PreviewTable()
         self.filtered_preview_table = PreviewTable()
@@ -40,20 +43,19 @@ class DataDialog(QDialog):
 
         layout.addWidget(QLabel("Target dataset"))
         self.target_combo = QComboBox()
-        for key, label in (("main", "Main Dataset"),
-                           ("result", "Result Dataset")):
-            if key in self.target_dataframes:
-                self.target_combo.addItem(label, key)
-        self.target_combo.setCurrentIndex(
-            max(0, self.target_combo.findData(target))
-        )
+
+        for name in datasets:
+            self.target_combo.addItem(name)
+
+        self.target_combo.setCurrentText(current)
+
+        self.use_selection = QCheckBox("Use selection")
+        self.use_selection.setChecked(use_selection)
         layout.addWidget(self.target_combo)
         self.target_combo.currentIndexChanged.connect(
             self.change_target
         )
-        self.use_selection = QCheckBox("Use selection")
-
-
+        
         layout.addWidget(
             self.use_selection
         )
@@ -142,8 +144,12 @@ class DataDialog(QDialog):
         # --------------------------------
 
         self.change_target()
+
         self.update_preview()
 
+        self.use_selection.toggled.connect(
+            self.change_target
+        )
 
     def get_conditions(self):
 
@@ -157,19 +163,46 @@ class DataDialog(QDialog):
             self.logic_combo.currentData()
         )
 
+    def get_dataset_key(self):
+        return self.target_combo.currentText()
+
+
+    def get_dataframe(self):
+
+        info = self.datasets[self.get_dataset_key()]
+        df = info["dataframe"]
+
+        if self.use_selection.isChecked():
+            return info["view"].get_analysis_dataframe()
+
+        return df
+
+
+    def get_workspace(self):
+        return self.datasets[self.get_dataset_key()]["workspace"]
+
+
     def get_target(self):
-        return self.target_combo.currentData()
+        return self.datasets[self.get_dataset_key()]["target"]
 
     def change_target(self):
-        if not hasattr(self, "conditions_layout"):
+
+        self.dataframe = self.get_dataframe()
+
+        if self.dataframe is None:
+            self.apply_button.setEnabled(False)
             return
-        self.dataframe = self.target_dataframes[self.get_target()]
-        while self.conditions_layout.count():
-            item = self.conditions_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
+
+        # Remove existing conditions
+        for row in self.condition_rows:
+            self.conditions_layout.removeWidget(row)
+            row.deleteLater()
+
         self.condition_rows.clear()
+
+        # Create a fresh condition for the new dataframe
         self.create_new_condition()
+
         self.update_preview()
 
     def create_new_condition(self):

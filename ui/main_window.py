@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from PySide6.QtCore import QFileInfo, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
@@ -58,8 +60,10 @@ class MainWindow(QMainWindow):
 
         # Workspace container
         self.workspaces = QTabWidget()
-
         self.workspaces.setTabsClosable(True)
+        self.workspaces.tabCloseRequested.connect(self.close_workspace)
+
+        #self.create_workspace("Untitled")
 
         self.workspaces.setStyleSheet("""
             QTabBar::tab {
@@ -68,9 +72,7 @@ class MainWindow(QMainWindow):
             }
         """)
 
-        self.workspaces.tabCloseRequested.connect(
-            self.close_workspace
-        )
+
         self.theme_manager.apply_theme(
             self.settings_manager.settings
         )
@@ -122,8 +124,9 @@ class MainWindow(QMainWindow):
         self.main_menu.save_project_action.triggered.connect(
             self.save_project
         )
+
         self.main_menu.export_data_action.triggered.connect(
-            self.file_controller.export_csv
+            self.export_data
         )
         self.main_menu.close_file_action.triggered.connect(
             self.close_file
@@ -260,7 +263,9 @@ class MainWindow(QMainWindow):
         self.use_selection = QCheckBox(
             "Use selection"
         )
-
+        self.allow_cross_tab_selection = QCheckBox(
+            "cross-tab selection"
+        )
         target_layout.addWidget(
             self.target_combo
         )
@@ -268,7 +273,9 @@ class MainWindow(QMainWindow):
         target_layout.addWidget(
             self.use_selection
         )
-
+        target_layout.addWidget(
+            self.allow_cross_tab_selection
+        )
         target_layout.addStretch()
 
         self.main_layout.addLayout(
@@ -277,43 +284,60 @@ class MainWindow(QMainWindow):
     # retrieve data
     def load_dataset(self):
 
-        workspace = self.create_workspace()
+        current_workspace = self.workspace
 
-        workspace.file_controller.open_file()
+        # Reuse the initial empty Untitled tab
+        if (
+            self.workspaces.count() == 1
+            and current_workspace is not None
+            and not current_workspace.dataset_manager.has_data()
+        ):
+            workspace = current_workspace
+            created_new = False
 
-        if workspace.dataset_manager.has_data():
+        else:
+            workspace = self.create_workspace("Untitled")
+            created_new = True
 
-            workspace.refresh()
+        # Open the file
+        if not workspace.file_controller.open_file():
 
-            filename = workspace.dataset_manager.filename
+            if created_new:
 
-            if filename:
-                title = QFileInfo(filename).fileName()
-            else:
-                title = "Untitled"
+                index = self.workspaces.indexOf(workspace)
 
-            index = self.workspaces.indexOf(
-                workspace
-            )
+                if index >= 0:
+                    self.workspaces.removeTab(index)
 
+                workspace.deleteLater()
+
+            return
+
+        # Refresh only this workspace
+        workspace.refresh()
+
+        # Rename the tab
+        filename = workspace.dataset_manager.filename
+
+        if filename:
+            title = Path(filename).stem
+        else:
+            title = "Untitled"
+
+        index = self.workspaces.indexOf(workspace)
+
+        if index >= 0:
             self.workspaces.setTabText(
                 index,
                 title
             )
+            self.workspaces.setCurrentIndex(index)
 
-            self.status.showMessage(
-                "Dataset loaded successfully"
-            )
+        self.update_workspace_controls()
 
-        else:
-
-            index = self.workspaces.indexOf(
-                workspace
-            )
-
-            self.workspaces.removeTab(index)
-
-            workspace.deleteLater()
+        self.status.showMessage(
+            f"Loaded {title}"
+        )
 
     def load_project(self):
 
@@ -336,135 +360,56 @@ class MainWindow(QMainWindow):
 
         index = self.workspaces.currentIndex()
 
-        if index < 0:
-            return
-
-        self.close_workspace(index)
-
-
-
-
-    def build_tabs(self):
-        '''Build each container'''
-        self.tabs = QTabWidget()
-
-        # ==================================
-        # DATA TAB
-        # ==================================
-
-        data_page = QWidget()
-
-        data_layout = QVBoxLayout(
-            data_page
-        )
-
-        # ----------------------------------
-        # Operation target
-        # ----------------------------------
-
-        target_layout = QHBoxLayout()
-
-        target_layout.addWidget(
-            QLabel("Operate on:")
-        )
-
-        self.target_combo = QComboBox()
-
-        self.target_combo.addItem(
-            "Main Dataset",
-            "main"
-        )
-
-        self.target_combo.addItem(
-            "Result Dataset",
-            "result"
-        )
-
-        self.use_selection = QCheckBox("Use selection")
-
-        target_layout.addWidget(
-            self.target_combo
-        )
-        target_layout.addWidget(
-            self.use_selection
-        )
-        target_layout.addStretch()
-
-        data_layout.addLayout(
-            target_layout
-        )
-
-        # ----------------------------------
-        # Dataset views
-        # ----------------------------------
-
-        data_layout.addWidget(
-            self.workspaces
-        )
-
-
-
-
-
+        if index >= 0:
+            self.close_workspace(index)
 
 
     def open_filter_dialog(self):
 
         target, dataframe = self.get_dialog_dataframe()
 
-        dialog = DataDialog(
-            dataframe,
-            self,
-            self.get_target_dataframes(),
-            target
-        )
 
+        dialog = DataDialog(
+            self.get_available_datasets(),
+            self,
+            current=f"{self.workspaces.tabText(self.workspaces.currentIndex())} • Main",
+            use_selection=self.use_selection.isChecked()
+        )
         if not dialog.exec():
             return
 
-        conditions = dialog.get_conditions()
+        workspace = dialog.get_workspace()
+        target = dialog.get_target()
+        dataframe = dialog.get_dataframe()
+
+        config = dialog.get_conditions()
 
         try:
-
-            filtered_dataframe = (
-                self.data_processor.filter(
-                    dataframe,
-                    conditions
-                )
+            result = self.data_processor.filter(
+                dataframe,
+                config
             )
-
         except ValueError as error:
-
             QMessageBox.warning(
                 self,
-                "Invalid Filter",
+                "Filter Failed",
                 str(error)
             )
-
             return
 
-        target = dialog.get_target()
-
-        target_name = "Result" if target == "result" else "Main"
-        description = (
-            f"{target_name}: filter where {conditions.describe()}"
-        )
-
-        if target == "result":
-
-            self.dataset_manager.set_result_dataframe(
-                filtered_dataframe,
-                description
+        if target == "main":
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
             )
-
         else:
-
-            self.dataset_manager.set_dataframe(
-                filtered_dataframe,
-                description
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
             )
 
-        self.refresh_views()
+        workspace.refresh()
+        self.update_workspace_controls()
 
 
     def refresh_views(self):
@@ -562,82 +507,55 @@ class MainWindow(QMainWindow):
 
         target, dataframe = self.get_dialog_dataframe()
 
-        dialog = AggregationDialog(
-            dataframe,
-            self,
-            self.get_target_dataframes(),
-            target
-        )
+        if dataframe is None:
+            QMessageBox.warning(
+                self,
+                "Aggregate",
+                "There is no dataset available to aggregate."
+            )
+            return
 
+        dialog = AggregationDialog(
+            self.get_available_datasets(),
+            self,
+            current=(
+                f"{self.workspaces.tabText(self.workspaces.currentIndex())}"
+                f" • Main"
+            ),
+            use_selection=self.use_selection.isChecked()
+        )
 
         if not dialog.exec():
             return
 
-        aggregation = dialog.get_aggregation()
-        #dataframe = dataframes[dialog.get_target()]
+        workspace = dialog.get_workspace()
+        dataframe = dialog.get_dataframe()
+        config = dialog.get_aggregation()
 
         try:
-
-            aggregated_dataframe = (
-                self.data_processor.aggregate(
-                    dataframe,
-                    aggregation
-                )
+            result = self.data_processor.aggregate(
+                dataframe,
+                config
             )
-
-        except (ValueError, KeyError) as error:
-
+        except ValueError as error:
             QMessageBox.warning(
                 self,
-                "Invalid Aggregation",
+                "Aggregation Failed",
                 str(error)
             )
-
             return
 
-        # ----------------------------------
-        # Check whether result exists
-        # ----------------------------------
-
-        existing_result = (
-            self.dataset_manager
-            .get_result_dataframe()
+        workspace.dataset_manager.set_result_dataframe(
+            result,
+            config.describe()
         )
 
-        if existing_result is not None:
-
-            answer = QMessageBox.question(
-                self,
-                "Overwrite Result?",
-                "A result dataset already exists.\n\n"
-                "Do you want to replace it?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No
-            )
-
-            if answer != QMessageBox.Yes:
-                return
-
-        # ----------------------------------
-        # Store result
-        # ----------------------------------
-
-        self.dataset_manager.set_result_dataframe(
-            aggregated_dataframe,
-            "Result: aggregate " + aggregation.describe()
-        )
-
-        self.main_menu.result_dataset_action.setChecked(
-            True
-        )
-
-        self.refresh_views()
+        workspace.refresh()
+        self.update_workspace_controls()
 
         self.status.showMessage(
-            "Aggregation completed"
+            "Aggregation created result dataset"
         )
-
-
 
 
     def get_target_dataframe(self):
@@ -743,39 +661,63 @@ class MainWindow(QMainWindow):
 
         target, dataframe = self.get_dialog_dataframe()
 
+        if dataframe is None:
+            QMessageBox.warning(
+                self,
+                "Clean Data",
+                "There is no dataset available to clean."
+            )
+            return
+
         dialog = CleaningDialog(
-            dataframe,
+            self.get_available_datasets(),
             self,
-            self.get_target_dataframes(),
-            target
+            current=(
+                f"{self.workspaces.tabText(self.workspaces.currentIndex())}"
+                f" • Main"
+            ),
+            use_selection=self.use_selection.isChecked()
         )
 
         dialog.set_dataframe(dataframe)
 
-        if dialog.exec():
+        if not dialog.exec():
+            return
 
-            cleaned = dialog.get_result()
+        workspace = dialog.get_workspace()
+        target = dialog.get_target()
+        result = dialog.get_result()
 
-            target = self.target_combo.currentData()
-            target_name = "Result" if target == "result" else "Main"
-            operation = dialog.get_operation()
-            description = f"{target_name}: {operation.describe()}"
+        if result is None:
+            QMessageBox.warning(
+                self,
+                "Cleaning Failed",
+                "No cleaning result was produced."
+            )
+            return
 
-            if target == "main":
+        config = dialog.get_operation()
 
-                self.dataset_manager.set_dataframe(
-                    cleaned,
-                    description
-                )
+        if target == "main":
 
-            elif target == "result":
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
 
-                self.dataset_manager.set_result_dataframe(
-                    cleaned,
-                    description
-                )
+        else:
 
-            self.refresh_views()
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            "Cleaning completed"
+        )
 
     def open_options(self):
 
@@ -953,135 +895,115 @@ class MainWindow(QMainWindow):
 
     def open_join_dialog(self):
 
-        dataframe = self.dataset_manager.get_dataframe()
-
-        if dataframe is None:
-            QMessageBox.warning(
-                self,
-                "Join",
-                "Load a main dataset before starting a join."
-            )
+        if self.workspace is None:
             return
-
-        imported_dataframe = (
-            self.file_controller.import_dataset_for_join(self)
-        )
-
-        if imported_dataframe is None:
-            return
-
-        target, dataframe = self.get_dialog_dataframe()
 
         dialog = JoinDialog(
-            dataframe,
-            imported_dataframe,
+            self.get_available_datasets(),
             self,
-            self.get_target_dataframes(),
-            target
+            current=(
+                f"{self.workspaces.tabText(self.workspaces.currentIndex())}"
+                f" • Main"
+            ),
+            use_selection=self.use_selection.isChecked()
         )
 
         if not dialog.exec():
             return
+
+        workspace = dialog.get_workspace()
+
+        left_dataframe = dialog.get_left_dataframe()
+        right_dataframe = dialog.get_right_dataframe()
 
         config = dialog.get_config()
-        target = dialog.get_target()
 
-        target_dataframe = self.get_dataframe_for_target(target)
-
-        if target_dataframe is None:
-            return
-
-        try:
-            joined = self.data_processor.join(
-                target_dataframe,
-                imported_dataframe,
-                config
-            )
-
-        except (KeyError, TypeError, ValueError) as error:
+        if (
+            left_dataframe is None
+            or right_dataframe is None
+        ):
             QMessageBox.warning(
                 self,
-                "Join",
-                str(error)
+                "Join Failed",
+                "Both datasets must contain data."
             )
             return
-
-        if dialog.get_output() == "target":
-
-            if target == "main":
-                self.dataset_manager.set_dataframe(
-                    joined,
-                    "Main: add columns; " + config.describe()
-                )
-
-            else:
-                self.dataset_manager.set_result_dataframe(
-                    joined,
-                    "Result: add columns; " + config.describe()
-                )
-
-        else:
-            self.dataset_manager.set_result_dataframe(
-                joined,
-                "Result: " + config.describe()
-            )
-
-        self.main_menu.result_dataset_action.setChecked(True)
-        self.refresh_views()
-
-
-    def open_transform_dialog(self):
-
-        target, dataframe = self.get_dialog_dataframe()
-
-        dialog = TransformDialog(
-            dataframe,
-            self,
-            self.get_target_dataframes(),
-            target
-        )
-
-        if not dialog.exec():
-            return
-
-        config = dialog.get_transform()
-        target = dialog.get_target()
-
-        if target == "main":
-            dataframe = self.dataset_manager.get_dataframe()
-        else:
-            dataframe = self.dataset_manager.get_result_dataframe()
-
 
         try:
-            transformed = self.data_processor.transform(
-                dataframe,
+
+            result = self.data_processor.join(
+                left_dataframe,
+                right_dataframe,
                 config
             )
 
         except ValueError as error:
+
             QMessageBox.warning(
                 self,
-                "Transform",
+                "Join Failed",
                 str(error)
+            )
+
+            return
+
+        if result is None:
+            QMessageBox.warning(
+                self,
+                "Join Failed",
+                "The join did not produce a result."
             )
             return
 
-        description = config.describe()
+        if config.mode == "target":
 
-        if target == "result":
-            self.dataset_manager.set_result_dataframe(
-                transformed,
-                description
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
             )
+
         else:
-            self.dataset_manager.set_dataframe(
-                transformed,
-                description
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
             )
 
-        self.refresh_views()
-        self.status.showMessage("Transform completed")
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            "Join completed"
+        )
+        
+    def open_transform_dialog(self):
+
+        target, dataframe = self.get_dialog_dataframe()
+
+
+        dialog = TransformDialog(
+            self.get_available_datasets(),
+            self,
+            current=f"{self.workspaces.tabText(self.workspaces.currentIndex())} • Main",
+            use_selection=self.use_selection.isChecked()
+        )
+        if not dialog.exec():
+            return
+
+        workspace = dialog.get_workspace()
+        target = dialog.get_target()
+        dataframe = dialog.get_dataframe()
+
+        config = dialog.get_transform()
+
+        result = self.data_processor.transform(dataframe, config)
+
+        if target == "main":
+            workspace.dataset_manager.set_dataframe(result, config.describe())
+        else:
+            workspace.dataset_manager.set_result_dataframe(result, config.describe())
+
+        workspace.refresh()
 
 
     def get_target_dataframes(self):
@@ -1145,8 +1067,19 @@ class MainWindow(QMainWindow):
         return workspace
     
     def save_project(self):
-        if self.file_controller:
-            self.file_controller.save_project()
+
+        if self.workspace is None:
+            return
+
+        self.workspace.save_project()
+
+
+    def export_data(self):
+
+        if self.workspace is None:
+            return
+
+        self.workspace.export_csv()
 
     @property
     def workspace(self):
@@ -1251,41 +1184,6 @@ class MainWindow(QMainWindow):
         self.update_data_actions()
         self.update_history_menus()
 
-    def load_dataset(self):
-
-        workspace = self.create_workspace()
-
-        workspace.file_controller.open_file()
-
-        if workspace.dataset_manager.has_data():
-
-            workspace.refresh()
-
-            filename = workspace.dataset_manager.filename
-
-            if filename:
-                title = QFileInfo(filename).fileName()
-            else:
-                title = "Untitled"
-
-            index = self.workspaces.indexOf(workspace)
-
-            self.workspaces.setTabText(
-                index,
-                title
-            )
-
-            self.status.showMessage(
-                "Dataset loaded successfully"
-            )
-
-        else:
-
-            index = self.workspaces.indexOf(workspace)
-
-            self.workspaces.removeTab(index)
-
-            workspace.deleteLater()
 
     @property
     def file_controller(self):
@@ -1296,3 +1194,30 @@ class MainWindow(QMainWindow):
             return None
 
         return workspace.file_controller
+
+    def get_available_datasets(self):
+
+        datasets = {}
+
+        for i in range(self.workspaces.count()):
+
+            ws = self.workspaces.widget(i)
+            name = self.workspaces.tabText(i)
+
+            if ws.has_data():
+                datasets[f"{name} • Main"] = {
+                    "workspace": ws,
+                    "target": "main",
+                    "dataframe": ws.dataset_manager.get_dataframe(),
+                    "view": ws.main_view
+                }
+
+            if ws.has_result():
+                datasets[f"{name} • Result"] = {
+                    "workspace": ws,
+                    "target": "result",
+                    "dataframe": ws.dataset_manager.get_result_dataframe(),
+                    "view": ws.result_view
+                }
+
+        return datasets
