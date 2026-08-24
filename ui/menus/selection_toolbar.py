@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (
     QLabel,
+    QPushButton,
     QWidget,
     QRadioButton,
     QVBoxLayout,
@@ -33,8 +34,12 @@ class SelectionToolbar(QWidget):
         self.columns_button = QRadioButton(
             "Columns"
         )
-
-
+        self.select_all_button = QPushButton(
+            "Select All"
+        )
+        self.clear_all_button = QPushButton(
+            "Clear Selection"
+        )
         layout.addWidget(
             self.cells_button
         )
@@ -45,6 +50,12 @@ class SelectionToolbar(QWidget):
 
         layout.addWidget(
             self.columns_button
+        )
+        layout.addWidget(
+            self.select_all_button
+        )
+        layout.addWidget(
+            self.clear_all_button
         )
 
         self.setLayout(layout)
@@ -60,6 +71,12 @@ class SelectionToolbar(QWidget):
 
         self.columns_button.clicked.connect(
             self.select_columns
+        )
+        self.select_all_button.clicked.connect(
+            self.select_all
+        )
+        self.clear_all_button.clicked.connect(
+            self.clear_selection
         )
 
 
@@ -82,3 +99,9 @@ class SelectionToolbar(QWidget):
         self.table.setSelectionBehavior(
             QAbstractItemView.SelectColumns
         )
+
+    def select_all(self):
+        self.table.selectAll()
+
+    def clear_selection(self):
+        self.table.clearSelection()

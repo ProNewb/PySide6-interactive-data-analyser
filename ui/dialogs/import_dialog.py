@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFileDialog,
     QLabel,
@@ -84,7 +85,12 @@ class ImportDialog(QDialog):
         ):
             self.button_group.addButton(button)
             layout.addWidget(button)
+        self.use_selection = QCheckBox("Use selection")
 
+
+        layout.addWidget(
+            self.use_selection
+        )
 
 ## header
 
@@ -142,7 +148,9 @@ class ImportDialog(QDialog):
 
         # Connect manual button to show inputs
         self.manual_button.toggled.connect(self.show_manual_inputs)
+        self.show_all_rows = QCheckBox("Show all rows")
 
+        layout.addWidget(self.show_all_rows)
         # Buttons
         buttons = QHBoxLayout()
         import_button = QPushButton("Import")
@@ -175,6 +183,9 @@ class ImportDialog(QDialog):
         self.file_button.toggled.connect(
             self.update_preview
         )
+        self.show_all_rows.toggled.connect(self.update_preview)
+        self.delimiter_box.currentIndexChanged.connect(self.update_preview)
+
     def show_manual_inputs(self, checked):
         '''Manual inputs for column headers'''
         if checked:
@@ -295,7 +306,8 @@ class ImportDialog(QDialog):
 
 
     def update_preview(self):
-        
+        full = self.show_all_rows.isChecked()
+
         self.update_options_from_ui()
 
         df = self.reader.read(
@@ -304,7 +316,7 @@ class ImportDialog(QDialog):
             preview=True
         )
 
-        self.preview_table.display_dataframe(df)
+        self.preview_table.display_dataframe(df, full = full)
 
 
 

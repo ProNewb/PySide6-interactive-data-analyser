@@ -348,9 +348,6 @@ class DatasetManager:
             for payload in result_history.get("redo", [])[-self.MAX_HISTORY:]
         ]
 
-    def get_undo_history(self):
-
-        return list(self.undo_stack)
     def can_redo(self, target="main"):
 
         if target == "main":

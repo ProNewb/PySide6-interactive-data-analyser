@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QVBoxLayout,
     QLabel,
@@ -50,7 +51,15 @@ class DataDialog(QDialog):
         self.target_combo.currentIndexChanged.connect(
             self.change_target
         )
+        self.use_selection = QCheckBox("Use selection")
 
+
+        layout.addWidget(
+            self.use_selection
+        )
+        self.show_all_rows = QCheckBox("Show all rows")
+        self.show_all_rows.toggled.connect(self.update_preview)
+        layout.addWidget(self.show_all_rows)
         # --------------------------------
         # Conditions
         # --------------------------------
@@ -192,7 +201,9 @@ class DataDialog(QDialog):
         self.update_preview()
 
     def update_preview(self):
-        self.preview_table.display_dataframe(self.dataframe)
+        full = self.show_all_rows.isChecked()
+        self.preview_table.display_dataframe(self.dataframe, full=full)
+
         try:
             filtered = self.dataframe[
                 self.get_conditions().evaluate(self.dataframe)
@@ -203,7 +214,7 @@ class DataDialog(QDialog):
             self.apply_button.setEnabled(False)
             return
 
-        self.filtered_preview_table.display_dataframe(filtered)
+        self.filtered_preview_table.display_dataframe(filtered, full = full)
         self.apply_button.setEnabled(True)
 
     def accept_dialog(self):

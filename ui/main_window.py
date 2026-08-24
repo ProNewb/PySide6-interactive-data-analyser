@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QHBoxLayout,
     QMainWindow,
@@ -19,7 +20,7 @@ from PySide6.QtGui import QFont
 
 from controllers.file_controller import FileController
 from controllers.analysis_controller import AnalysisController
-
+from ui.workspace import Workspace
 from core import settings_manager, theme_manager
 from core.condition_group import ConditionGroup
 from core.conditions import Condition
@@ -37,6 +38,7 @@ from ui.dataset_view import DatasetView
 from ui.dialogs.join_dialog import JoinDialog
 from ui.dialogs.settings_dialog import SettingsDialog
 from ui.graph.graph_widget import GraphWidget
+from ui.helpers.target_combo import TargetCombo
 from ui.stats.statistics_widget import StatisticsWidget
 from ui.menus.control_panel import ControlPanel
 from ui.menus.main_menu import MainMenu
@@ -61,7 +63,7 @@ class MainWindow(QMainWindow):
         self.file_controller = FileController(
             self.dataset_manager
         )
-
+        self.t_combo = TargetCombo()
         self.data_processor = DataProcessor()
 
         self.main_menu = MainMenu(self)
@@ -166,6 +168,23 @@ class MainWindow(QMainWindow):
             self.toggle_result_dataset
         )
         self.main_menu.clean_action.triggered.connect(
+            self.open_cleaning_dialog
+        )
+
+        #####context menu
+        self.main_view.filter_requested.connect(
+            self.open_filter_dialog
+        )
+        self.main_view.aggregate_requested.connect(
+            self.open_aggregation_dialog
+        )
+        self.main_view.join_requested.connect(
+            self.open_join_dialog
+        )
+        self.main_view.transform_requested.connect(
+            self.open_transform_dialog
+        )
+        self.main_view.clean_requested.connect(
             self.open_cleaning_dialog
         )
         self.status = StatusBar()
@@ -306,20 +325,14 @@ class MainWindow(QMainWindow):
             "result"
         )
 
-        self.target_combo.addItem(
-            "Main Selection",
-            "main_selection"
-        )
-
-        self.target_combo.addItem(
-            "Result Selection",
-            "result_selection"
-        )
+        self.use_selection = QCheckBox("Use selection")
 
         target_layout.addWidget(
             self.target_combo
         )
-
+        target_layout.addWidget(
+            self.use_selection
+        )
         target_layout.addStretch()
 
         data_layout.addLayout(
@@ -368,23 +381,13 @@ class MainWindow(QMainWindow):
 
     def open_filter_dialog(self):
 
-        target = self.target_combo.currentData()
-        dataframes = {
-            "main": self.dataset_manager.get_dataframe()
-        }
-        if self.dataset_manager.get_result_dataframe() is not None:
-            dataframes["result"] = self.dataset_manager.get_result_dataframe()
-
-        dataframe = dataframes.get(target)
-
-        if dataframe is None:
-            return
+        target, dataframe = self.get_dialog_dataframe()
 
         dialog = DataDialog(
             dataframe,
             self,
-            dataframes,
-            target if target in dataframes else "main"
+            self.get_target_dataframes(),
+            target
         )
 
         if not dialog.exec():
@@ -538,29 +541,21 @@ class MainWindow(QMainWindow):
 
     def open_aggregation_dialog(self):
 
-        target = self.target_combo.currentData()
-        dataframes = {
-            "main": self.dataset_manager.get_dataframe()
-        }
-        if self.dataset_manager.get_result_dataframe() is not None:
-            dataframes["result"] = self.dataset_manager.get_result_dataframe()
-        dataframe = dataframes.get(target)
-
-        if dataframe is None:
-            return
+        target, dataframe = self.get_dialog_dataframe()
 
         dialog = AggregationDialog(
             dataframe,
             self,
-            dataframes,
-            target if target in dataframes else "main"
+            self.get_target_dataframes(),
+            target
         )
+
 
         if not dialog.exec():
             return
 
         aggregation = dialog.get_aggregation()
-        dataframe = dataframes[dialog.get_target()]
+        #dataframe = dataframes[dialog.get_target()]
 
         try:
 
@@ -627,57 +622,17 @@ class MainWindow(QMainWindow):
 
 
     def get_target_dataframe(self):
-
         target = self.target_combo.currentData()
 
         if target == "main":
+            view = self.main_view
+        else:
+            view = self.result_view
 
-            return (
-                self.dataset_manager
-                .get_dataframe()
-            )
+        if self.use_selection.isChecked():
+            return view.get_analysis_dataframe()
 
-        if target == "result":
-
-            dataframe = (
-                self.dataset_manager
-                .get_result_dataframe()
-            )
-
-            if dataframe is None:
-
-                QMessageBox.warning(
-                    self,
-                    "No Result",
-                    "There is no result dataset available."
-                )
-
-                return None
-
-            return dataframe
-
-        if target == "main_selection":
-
-            return self.main_view.get_analysis_dataframe()
-
-        if target == "result_selection":
-
-            dataframe = (
-                self.result_view
-                .get_analysis_dataframe()
-            )
-
-            if dataframe is None:
-
-                QMessageBox.warning(
-                    self,
-                    "No Selection",
-                    "No data is currently selected."
-                )
-
-                return None
-
-            return dataframe
+        return view.get_dataframe()
 
     def hide_main_view(self):
 
@@ -753,15 +708,16 @@ class MainWindow(QMainWindow):
 
     def open_cleaning_dialog(self):
 
-        dataframe = self.get_target_dataframe()
-
-        if dataframe is None:
-            return
+        target, dataframe = self.get_dialog_dataframe()
 
         dialog = CleaningDialog(
             dataframe,
-            self
+            self,
+            self.get_target_dataframes(),
+            target
         )
+
+        dialog.set_dataframe(dataframe)
 
         if dialog.exec():
 
@@ -961,6 +917,7 @@ class MainWindow(QMainWindow):
     def join_operation(self):
         """Backward-compatible entry point for the Join menu action."""
         self.open_join_dialog()
+
     def open_join_dialog(self):
 
         dataframe = self.dataset_manager.get_dataframe()
@@ -973,22 +930,21 @@ class MainWindow(QMainWindow):
             )
             return
 
-        imported_dataframe = self.file_controller.import_dataset_for_join(self)
+        imported_dataframe = (
+            self.file_controller.import_dataset_for_join(self)
+        )
 
         if imported_dataframe is None:
             return
+
+        target, dataframe = self.get_dialog_dataframe()
 
         dialog = JoinDialog(
             dataframe,
             imported_dataframe,
             self,
-            {
-                "main": dataframe,
-                **({"result": self.dataset_manager.get_result_dataframe()}
-                   if self.dataset_manager.get_result_dataframe() is not None
-                   else {})
-            },
-            "main"
+            self.get_target_dataframes(),
+            target
         )
 
         if not dialog.exec():
@@ -996,11 +952,11 @@ class MainWindow(QMainWindow):
 
         config = dialog.get_config()
         target = dialog.get_target()
-        target_dataframe = (
-            self.dataset_manager.get_result_dataframe()
-            if target == "result"
-            else self.dataset_manager.get_dataframe()
-        )
+
+        target_dataframe = self.get_dataframe_for_target(target)
+
+        if target_dataframe is None:
+            return
 
         try:
             joined = self.data_processor.join(
@@ -1008,21 +964,29 @@ class MainWindow(QMainWindow):
                 imported_dataframe,
                 config
             )
+
         except (KeyError, TypeError, ValueError) as error:
-            QMessageBox.warning(self, "Join", str(error))
+            QMessageBox.warning(
+                self,
+                "Join",
+                str(error)
+            )
             return
 
         if dialog.get_output() == "target":
+
             if target == "main":
                 self.dataset_manager.set_dataframe(
                     joined,
                     "Main: add columns; " + config.describe()
                 )
+
             else:
                 self.dataset_manager.set_result_dataframe(
                     joined,
                     "Result: add columns; " + config.describe()
                 )
+
         else:
             self.dataset_manager.set_result_dataframe(
                 joined,
@@ -1035,22 +999,13 @@ class MainWindow(QMainWindow):
 
     def open_transform_dialog(self):
 
-        target = self.target_combo.currentData()
-        dataframes = {
-            "main": self.dataset_manager.get_dataframe()
-        }
-        if self.dataset_manager.get_result_dataframe() is not None:
-            dataframes["result"] = self.dataset_manager.get_result_dataframe()
-        dataframe = dataframes.get(target)
-
-        if dataframe is None:
-            return
+        target, dataframe = self.get_dialog_dataframe()
 
         dialog = TransformDialog(
             dataframe,
             self,
-            dataframes,
-            target if target in dataframes else "main"
+            self.get_target_dataframes(),
+            target
         )
 
         if not dialog.exec():
@@ -1058,7 +1013,12 @@ class MainWindow(QMainWindow):
 
         config = dialog.get_transform()
         target = dialog.get_target()
-        dataframe = dataframes[target]
+
+        if target == "main":
+            dataframe = self.dataset_manager.get_dataframe()
+        else:
+            dataframe = self.dataset_manager.get_result_dataframe()
+
 
         try:
             transformed = self.data_processor.transform(
@@ -1089,3 +1049,51 @@ class MainWindow(QMainWindow):
 
         self.refresh_views()
         self.status.showMessage("Transform completed")
+
+
+    def get_target_dataframes(self):
+        """Return all available datasets respecting Use Selection."""
+
+        dataframes = {}
+
+        main = self.get_dataframe_for_target("main")
+
+        if main is not None:
+            dataframes["main"] = main
+
+        result = self.get_dataframe_for_target("result")
+
+        if result is not None:
+            dataframes["result"] = result
+
+        return dataframes
+
+    def get_dataframe_for_target(self, target, use_selection=None):
+        """Return a dataset, optionally restricted to the current selection."""
+
+        if target == "main":
+            dataframe = self.dataset_manager.get_dataframe()
+            view = self.main_view
+        else:
+            dataframe = self.dataset_manager.get_result_dataframe()
+            view = self.result_view
+
+        if dataframe is None:
+            return None
+
+        if use_selection is None:
+            use_selection = self.use_selection.isChecked()
+
+        if use_selection:
+            return view.get_analysis_dataframe()
+
+        return dataframe
+    
+    def get_dialog_dataframe(self):
+        """Return the current target dataframe."""
+
+        target = self.target_combo.currentData()
+
+        dataframe = self.get_dataframe_for_target(target)
+
+        return target, dataframe

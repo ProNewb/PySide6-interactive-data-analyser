@@ -5,6 +5,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QGridLayout,
+    QGroupBox,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -34,7 +35,8 @@ class JoinDialog(QDialog):
         self.result_preview = PreviewTable()
         self.column_checks = []
         self.filter_rows = []
-
+        self.left_column_checks = []
+        self.right_column_checks = []
         self.setWindowTitle("Join Data")
         layout = QVBoxLayout(self)
 
@@ -49,7 +51,12 @@ class JoinDialog(QDialog):
             max(0, self.target_combo.findData(target))
         )
         controls.addWidget(self.target_combo)
+        self.use_selection = QCheckBox("Use selection")
 
+
+        controls.addWidget(
+            self.use_selection
+        )
         controls.addWidget(QLabel("Output"))
         self.output_combo = QComboBox()
         self.output_combo.addItem("Create result dataset", "result")
@@ -91,16 +98,46 @@ class JoinDialog(QDialog):
         controls.addWidget(self.join_type_combo)
         layout.addLayout(controls)
 
-        layout.addWidget(QLabel("Imported columns to include"))
-        self.columns_layout = QGridLayout()
-        columns_widget = QWidget()
-        columns_widget.setLayout(self.columns_layout)
-        columns_scroll = QScrollArea()
-        columns_scroll.setWidgetResizable(True)
-        columns_scroll.setMaximumHeight(100)
-        columns_scroll.setWidget(columns_widget)
-        layout.addWidget(columns_scroll)
-        self._build_column_checks()
+        layout.addWidget(QLabel("Columns to include"))
+
+        columns_layout = QHBoxLayout()
+
+        # =====================================
+        # Main dataset
+        # =====================================
+
+        main_group = QGroupBox("Main Dataset")
+
+        self.main_columns_layout = QGridLayout()
+        main_group.setLayout(
+            self.main_columns_layout
+        )
+
+        main_scroll = QScrollArea()
+        main_scroll.setWidgetResizable(True)
+        main_scroll.setWidget(main_group)
+
+        # =====================================
+        # Imported dataset
+        # =====================================
+
+        imported_group = QGroupBox("Imported Dataset")
+
+        self.imported_columns_layout = QGridLayout()
+        imported_group.setLayout(
+            self.imported_columns_layout
+        )
+
+        imported_scroll = QScrollArea()
+        imported_scroll.setWidgetResizable(True)
+        imported_scroll.setWidget(imported_group)
+
+        columns_layout.addWidget(main_scroll)
+        columns_layout.addWidget(imported_scroll)
+
+        layout.addLayout(columns_layout)
+
+        #self._build_column_checks()
 
         self.filter_toggle = QCheckBox("Filter imported rows")
         layout.addWidget(self.filter_toggle)
@@ -123,6 +160,9 @@ class JoinDialog(QDialog):
         preview_labels.addWidget(QLabel("Main dataset"))
         preview_labels.addWidget(QLabel("Imported dataset"))
         preview_labels.addWidget(QLabel("Joined preview"))
+        self.show_all_rows = QCheckBox("Show all rows")
+        self.show_all_rows.toggled.connect(self.update_preview)
+        preview_labels.addWidget(self.show_all_rows)
         layout.insertLayout(layout.indexOf(previews), preview_labels)
 
         buttons = QHBoxLayout()
@@ -156,14 +196,15 @@ class JoinDialog(QDialog):
 
     def get_config(self):
         return JoinConfig(
-            self.left_key_combo.currentData(),
-            self.right_key_combo.currentData(),
-            self.join_type_combo.currentData(),
-            self.output_combo.currentData(),
-            self.ignore_index_check.isChecked(),
-            self.group_key_combo.currentData(),
-            self.get_selected_columns(),
-            self.get_filter_conditions()
+            left_key=self.left_key_combo.currentData(),
+            right_key=self.right_key_combo.currentData(),
+            join_type=self.join_type_combo.currentData(),
+            mode=self.output_combo.currentData(),
+            ignore_index=self.ignore_index_check.isChecked(),
+            group_key=self.group_key_combo.currentData(),
+            left_columns=self.get_selected_left_columns(),
+            right_columns=self.get_selected_right_columns(),
+            filter_conditions=self.get_filter_conditions()
         )
 
     def get_target(self):
@@ -180,28 +221,95 @@ class JoinDialog(QDialog):
         self.group_key_combo.setEnabled(not is_concat)
 
     def _build_column_checks(self):
-        while self.columns_layout.count():
-            item = self.columns_layout.takeAt(0)
-            if item.widget():
-                item.widget().deleteLater()
-        self.column_checks.clear()
-        for index, column in enumerate(self.right_dataframe.columns):
+        """Build the column selectors for both datasets."""
+
+        self._clear_column_layout(
+            self.main_columns_layout
+        )
+
+        self._clear_column_layout(
+            self.imported_columns_layout
+        )
+
+        self.left_column_checks.clear()
+        self.right_column_checks.clear()
+
+        # =====================================
+        # Main dataset
+        # =====================================
+
+        for index, column in enumerate(
+            self.left_dataframe.columns
+        ):
+
             checkbox = QCheckBox(str(column))
             checkbox.setChecked(True)
-            checkbox.stateChanged.connect(self.update_preview)
-            self.columns_layout.addWidget(
-                checkbox,
-                index // 3,
-                index % 3
+
+            checkbox.stateChanged.connect(
+                self.update_preview
             )
-            self.column_checks.append((column, checkbox))
+
+            row = index // 3
+            column_index = index % 3
+
+            self.main_columns_layout.addWidget(
+                checkbox,
+                row,
+                column_index
+            )
+
+            self.left_column_checks.append(
+                (column, checkbox)
+            )
+
+        # =====================================
+        # Imported dataset
+        # =====================================
+
+        for index, column in enumerate(
+            self.right_dataframe.columns
+        ):
+
+            checkbox = QCheckBox(str(column))
+            checkbox.setChecked(True)
+
+            checkbox.stateChanged.connect(
+                self.update_preview
+            )
+
+            row = index // 3
+            column_index = index % 3
+
+            self.imported_columns_layout.addWidget(
+                checkbox,
+                row,
+                column_index
+            )
+
+            self.right_column_checks.append(
+                (column, checkbox)
+            )
+
         self.ensure_key_selected()
 
     def ensure_key_selected(self):
-        key = self.right_key_combo.currentData()
-        for column, checkbox in self.column_checks:
-            checkbox.setEnabled(column != key)
-            if column == key:
+        """Ensure both join keys remain selected."""
+
+        left_key = self.left_key_combo.currentData()
+        right_key = self.right_key_combo.currentData()
+
+        for column, checkbox in self.left_column_checks:
+            is_key = column == left_key
+            checkbox.setEnabled(not is_key)
+
+            if is_key:
+                checkbox.setChecked(True)
+
+        for column, checkbox in self.right_column_checks:
+            is_key = column == right_key
+            checkbox.setEnabled(not is_key)
+
+            if is_key:
                 checkbox.setChecked(True)
 
     def get_selected_columns(self):
@@ -260,42 +368,137 @@ class JoinDialog(QDialog):
         self.update_preview()
 
     def update_preview(self):
-        self.preview.display_dataframe(self.left_dataframe)
+
+        full = self.show_all_rows.isChecked()
+
         try:
+            # ==================================
+            # Main dataset
+            # ==================================
+
+            left_dataframe = self.left_dataframe
+
+            selected_left = self.get_selected_left_columns()
+
+            if selected_left:
+                left_dataframe = left_dataframe.loc[
+                    :,
+                    selected_left
+                ]
+
+            self.preview.display_dataframe(
+                left_dataframe,
+                full=full
+            )
+
+            # ==================================
+            # Imported dataset
+            # ==================================
+
             right_dataframe = self.right_dataframe
+
             conditions = self.get_filter_conditions()
+
             if conditions is not None:
                 right_dataframe = right_dataframe[
                     conditions.evaluate(right_dataframe)
                 ]
+
             group_key = self.group_key_combo.currentData()
+
             if group_key is not None:
                 right_dataframe = right_dataframe.drop_duplicates(
                     subset=[group_key],
                     keep="first"
                 )
 
-            selected_columns = self.get_selected_columns()
-            right_dataframe = right_dataframe.loc[:, selected_columns]
-            self.imported_preview.display_dataframe(right_dataframe)
+            selected_right = self.get_selected_right_columns()
+
+            if selected_right:
+                right_dataframe = right_dataframe.loc[
+                    :,
+                    selected_right
+                ]
+
+            self.imported_preview.display_dataframe(
+                right_dataframe,
+                full=full
+            )
+
+            # ==================================
+            # Joined preview
+            # ==================================
 
             if self.output_combo.currentData() == "concat":
+
                 result = pd.concat(
-                    [self.left_dataframe, right_dataframe],
+                    [
+                        left_dataframe,
+                        right_dataframe
+                    ],
                     ignore_index=self.ignore_index_check.isChecked()
                 )
+
             else:
-                result = self.left_dataframe.merge(
+
+                result = left_dataframe.merge(
                     right_dataframe,
                     left_on=self.left_key_combo.currentData(),
                     right_on=self.right_key_combo.currentData(),
                     how=self.join_type_combo.currentData()
                 )
+
+            self.result_preview.display_dataframe(
+                result,
+                full=full
+            )
+
+            self.apply_button.setEnabled(True)
+
         except (KeyError, TypeError, ValueError):
+
             self.result_preview.clearContents()
             self.result_preview.setRowCount(0)
-            self.apply_button.setEnabled(False)
-            return
 
-        self.result_preview.display_dataframe(result)
-        self.apply_button.setEnabled(True)
+            self.apply_button.setEnabled(False)
+
+    def _clear_column_layout(self, layout):
+        """Remove all widgets from a column layout."""
+
+        while layout.count():
+
+            item = layout.takeAt(0)
+
+            widget = item.widget()
+
+            if widget is not None:
+                widget.deleteLater()
+
+    def get_selected_left_columns(self):
+        selected = [
+            column
+            for column, checkbox in self.left_column_checks
+            if checkbox.isChecked()
+        ]
+
+        key = self.left_key_combo.currentData()
+
+        if key is not None and key not in selected:
+            selected.insert(0, key)
+
+        return selected
+
+
+    def get_selected_right_columns(self):
+        selected = [
+            column
+            for column, checkbox in self.right_column_checks
+            if checkbox.isChecked()
+        ]
+
+        key = self.right_key_combo.currentData()
+
+        if key is not None and key not in selected:
+            selected.insert(0, key)
+
+        return selected

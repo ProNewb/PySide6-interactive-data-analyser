@@ -4,6 +4,7 @@ import pandas as pd
 from core.conditions import Condition
 
 
+
 @dataclass
 class JoinConfig:
     left_key: str
@@ -12,7 +13,10 @@ class JoinConfig:
     mode: str = "merge"
     ignore_index: bool = False
     group_key: str | None = None
-    selected_columns: list | None = None
+
+    left_columns: list | None = None
+    right_columns: list | None = None
+
     filter_conditions: object = None
 
     def describe(self):
@@ -20,13 +24,38 @@ class JoinConfig:
         return (
             f"{self.mode.title()} {self.join_type.title()} "
             f"on {self.left_key} = {self.right_key}"
-            + (f" grouped by {self.group_key}" if self.group_key else "")
-            + ("; ignore index" if self.ignore_index else "")
+
             + (
-                "; columns: " + ", ".join(map(str, self.selected_columns))
-                if self.selected_columns else ""
+                f" grouped by {self.group_key}"
+                if self.group_key
+                else ""
             )
-            + ("; filtered imported rows" if self.filter_conditions else "")
+
+            + (
+                "; ignore index"
+                if self.ignore_index
+                else ""
+            )
+
+            + (
+                "; main columns: "
+                + ", ".join(map(str, self.left_columns))
+                if self.left_columns
+                else ""
+            )
+
+            + (
+                "; imported columns: "
+                + ", ".join(map(str, self.right_columns))
+                if self.right_columns
+                else ""
+            )
+
+            + (
+                "; filtered imported rows"
+                if self.filter_conditions
+                else ""
+            )
         )
 
 
@@ -148,6 +177,10 @@ class DataProcessor:
 
     def join(self, left_df, right_df, config):
 
+        # ----------------------------------
+        # Filter imported data
+        # ----------------------------------
+
         if config.filter_conditions is not None:
             try:
                 right_df = right_df[
@@ -158,36 +191,74 @@ class DataProcessor:
                     f"Invalid imported-data filter: {error}"
                 ) from error
 
-        selected_columns = config.selected_columns
-        if selected_columns:
+        # ----------------------------------
+        # Select main dataset columns
+        # ----------------------------------
+
+        if config.left_columns:
             missing = [
-                column for column in selected_columns
+                column
+                for column in config.left_columns
+                if column not in left_df.columns
+            ]
+
+            if missing:
+                raise ValueError(
+                    "Unknown main column(s): "
+                    + ", ".join(map(str, missing))
+                )
+
+            left_df = left_df.loc[:, config.left_columns]
+
+        # ----------------------------------
+        # Select imported dataset columns
+        # ----------------------------------
+
+        if config.right_columns:
+            missing = [
+                column
+                for column in config.right_columns
                 if column not in right_df.columns
             ]
+
             if missing:
                 raise ValueError(
                     "Unknown imported column(s): "
                     + ", ".join(map(str, missing))
                 )
-            right_df = right_df.loc[:, selected_columns]
 
-        # Grouping keeps one imported row per key before either merge mode.
+            right_df = right_df.loc[:, config.right_columns]
+
+        # ----------------------------------
+        # Group imported data
+        # ----------------------------------
+
         if config.group_key is not None:
+
             if config.group_key not in right_df.columns:
                 raise ValueError(
                     f"Unknown group key: '{config.group_key}'"
                 )
+
             right_df = right_df.drop_duplicates(
                 subset=[config.group_key],
                 keep="first"
             )
 
+        # ----------------------------------
+        # Concatenate
+        # ----------------------------------
+
         if config.mode == "concat":
-            # Concatenation combines rows; merge keys are intentionally ignored.
+
             return pd.concat(
                 [left_df, right_df],
                 ignore_index=config.ignore_index
             )
+
+        # ----------------------------------
+        # Merge
+        # ----------------------------------
 
         return left_df.merge(
             right_df,

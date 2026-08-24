@@ -1,4 +1,4 @@
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QTableWidget,
@@ -36,7 +36,8 @@ class DataTable(QTableWidget):
         self.itemSelectionChanged.connect(
             self.selection_changed.emit
         )
-
+        self.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.customContextMenuRequested.connect(self.show_menu)
     # ==================================================
     # DISPLAY
     # ==================================================
@@ -140,3 +141,6 @@ class DataTable(QTableWidget):
             rows,
             columns
         ]
+
+    def show_menu(self):
+        pass

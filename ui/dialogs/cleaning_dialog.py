@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QMessageBox,
     QScrollArea,
+    QSplitter,
     QVBoxLayout,
     QLabel,
     QComboBox,
@@ -32,8 +33,8 @@ from analysis.data_summary import DataSummary
 class CleaningDialog(QDialog):
     """Dialog for configuring and previewing data-cleaning operations."""
 
-    def __init__(self, dataframe, parent=None):
-
+    def __init__(self, dataframe, parent=None, target_dataframes=None,
+                 target="main"):
         super().__init__(parent)
         self.summary = DataSummary()
         self.dataframe = dataframe.copy()
@@ -119,18 +120,14 @@ class CleaningDialog(QDialog):
             QLabel("Preview")
         )
 
-        self.preview_table = PreviewTable()
-        self.preview_table.setAlternatingRowColors(True)
-        self.preview_table.setVerticalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
-        self.preview_table.setHorizontalScrollBarPolicy(
-            Qt.ScrollBarPolicy.ScrollBarAsNeeded
-        )
+        self.before_preview = PreviewTable()
+        self.after_preview = PreviewTable()
 
-        layout.addWidget(
-            self.preview_table
-        )
+        splitter = QSplitter(Qt.Horizontal)
+        splitter.addWidget(self.before_preview)
+        splitter.addWidget(self.after_preview)
+
+        layout.addWidget(splitter)
 
         layout.addWidget(
             self.cleaning_stats
@@ -206,43 +203,24 @@ class CleaningDialog(QDialog):
 
     def update_preview(self):
 
+        self.before_preview.display_dataframe(self.dataframe)
+
         operation = self.get_operation()
 
-        if operation is None:
-            return
-
-        try:
-
-            if isinstance(operation, MissingValueOptions):
-                self.cleaning_result = self.cleaner.clean_missing(
-                    self.dataframe,
-                    operation
-                )
-            else:
-                self.cleaning_result = self.cleaner.remove_duplicates(
-                    self.dataframe,
-                    operation
-                )
-
-        except ValueError as error:
-
-            QMessageBox.warning(
-                self,
-                "Cleaning Error",
-                str(error)
+        if isinstance(operation, MissingValueOptions):
+            result = self.cleaner.clean_missing(
+                self.dataframe,
+                operation
+            )
+        else:
+            result = self.cleaner.remove_duplicates(
+                self.dataframe,
+                operation
             )
 
-            return
+        self.cleaning_result = result
 
-        self.preview_table.display_dataframe(
-            self.cleaning_result
-        )
-
-        self.update_cleaning_statistics()
-
-        self.preview_table.display_dataframe(
-            self.cleaning_result
-        )
+        self.after_preview.display_dataframe(result)
 
     def duplicate_operations(self):
         self.operation_layout.addWidget(
@@ -709,3 +687,6 @@ class CleaningDialog(QDialog):
                 columns,
                 "duplicates"
             )
+    def set_dataframe(self, dataframe):
+        self.dataframe = dataframe.copy()
+        self.update_preview()

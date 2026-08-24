@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QCheckBox,
     QComboBox,
     QDialog,
     QHBoxLayout,
@@ -23,7 +24,10 @@ class AggregationDialog(QDialog):
                  target="main"):
         super().__init__(parent)
         self.dataframe = dataframe
-        self.target_dataframes = target_dataframes or {target: dataframe}
+        if target_dataframes is None:
+            self.target_dataframes = {target: dataframe}
+        else:
+            self.target_dataframes = target_dataframes
         self.groupby_rows = []
         self.aggregation_rows = []
         self.processor = DataProcessor()
@@ -42,6 +46,12 @@ class AggregationDialog(QDialog):
                 self.target_combo.addItem(label, key)
         self.target_combo.setCurrentIndex(
             max(0, self.target_combo.findData(target))
+        )
+        self.use_selection = QCheckBox("Use selection")
+
+
+        target_layout.addWidget(
+            self.use_selection
         )
         target_layout.addWidget(self.target_combo)
         layout.addLayout(target_layout)
@@ -65,8 +75,11 @@ class AggregationDialog(QDialog):
         labels = QHBoxLayout()
         labels.addWidget(QLabel("Target data"))
         labels.addWidget(QLabel("Aggregation result"))
+        
         layout.insertLayout(layout.indexOf(previews), labels)
-
+        self.show_all_rows = QCheckBox("Show all rows")
+        self.show_all_rows.toggled.connect(self.update_preview)
+        layout.addWidget(self.show_all_rows)
         buttons = QHBoxLayout()
         cancel_button = QPushButton("Cancel")
         self.apply_button = QPushButton("Apply")
@@ -147,7 +160,9 @@ class AggregationDialog(QDialog):
     def update_preview(self):
         # Preview uses the same processor validation as Apply, so the dialog
         # cannot display a result that the main window would later reject.
-        self.source_preview.display_dataframe(self.dataframe)
+        full = self.show_all_rows.isChecked()
+        
+        self.source_preview.display_dataframe(self.dataframe,full = full)
         try:
             result = self.processor.aggregate(
                 self.dataframe,
@@ -159,5 +174,5 @@ class AggregationDialog(QDialog):
             self.apply_button.setEnabled(False)
             return
 
-        self.result_preview.display_dataframe(result)
+        self.result_preview.display_dataframe(result, full=full)
         self.apply_button.setEnabled(True)

@@ -333,17 +333,13 @@ class MainMenu:
         # CLEAN MENU
         # ==================================================
 
-        self.clean_menu = (
-            window.menuBar()
-            .addMenu("Clean")
-        )
 
         self.clean_action = QAction(
             "Clean",
             window
         )
 
-        self.clean_menu.addAction(
+        self.data_menu.addAction(
             self.clean_action
         )
 

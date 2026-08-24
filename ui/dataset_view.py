@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import (
+    QMenu,
     QStyle,
     QWidget,
     QVBoxLayout,
@@ -12,13 +13,19 @@ from ui.stats.statistics_widget import StatisticsWidget
 from ui.graph.graph_tab import GraphTab
 from core.dataset_table import DataTable
 from ui.menus.selection_toolbar import SelectionToolbar
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
 from ui.model_tab import ModelTab
 
 
 class DatasetView(QWidget):
     '''Top level container class'''
     close_requested = Signal()
+    filter_requested = Signal()
+    transform_requested = Signal()
+    aggregate_requested = Signal()
+    join_requested = Signal()
+    clean_requested = Signal()
+
     def __init__(self, title, parent=None):
 
         super().__init__(parent)
@@ -158,6 +165,11 @@ class DatasetView(QWidget):
         self.close_button.clicked.connect(
             self.close_requested.emit
         )
+
+        self.table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.table.customContextMenuRequested.connect(
+            self.show_context_menu
+)
             # ======================================
     # DATA
     # ======================================
@@ -227,3 +239,43 @@ class DatasetView(QWidget):
         self.model_tab.set_dataframe(
             dataframe
         )
+
+    def show_context_menu(self, pos):
+
+        menu = QMenu(self)
+
+        copy_action = menu.addAction("Copy")
+        menu.addSeparator()
+
+        filter_action = menu.addAction("Filter selected")
+        aggregate_action = menu.addAction("Aggregate selected")
+        transform_action = menu.addAction("Transform selected")
+        join_action = menu.addAction("join selected")
+        clean_action = menu.addAction("clean selected")
+        menu.addSeparator()
+
+        clear_action = menu.addAction("Clear selection")
+
+        action = menu.exec(
+            self.table.viewport().mapToGlobal(pos)
+        )
+
+        if action == clear_action:
+            self.table.clearSelection()
+
+        elif action == copy_action:
+            self.copy_selection()
+
+        elif action == filter_action:
+            self.filter_requested.emit()
+
+        elif action == aggregate_action:
+            self.aggregate_requested.emit()
+
+        elif action == transform_action:
+            self.transform_requested.emit()
+
+        elif action == join_action:
+            self.join_requested.emit()
+        elif action == clean_action:
+            self.clean_requested.emit()

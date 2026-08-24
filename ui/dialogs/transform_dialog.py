@@ -42,7 +42,12 @@ class TransformDialog(QDialog):
         )
         target_layout.addWidget(self.target_combo)
         layout.addLayout(target_layout)
+        self.use_selection = QCheckBox("Use selection")
 
+
+        layout.addWidget(
+            self.use_selection
+        )
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Column"))
         self.column_combo = QComboBox()
