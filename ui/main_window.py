@@ -156,9 +156,7 @@ class MainWindow(QMainWindow):
         self.main_menu.reset_action.triggered.connect(
             self.reset_operation
         )
-        self.main_menu.redo_button.setEnabled(
-            self.dataset_manager.can_redo()
-        )
+        self.main_menu.redo_button.setEnabled(False)
         self.main_menu.aggregate_action.triggered.connect(
             self.open_aggregation_dialog
         )
@@ -351,22 +349,116 @@ class MainWindow(QMainWindow):
         )
 
         if not filename:
-            return
+            return False
 
-        workspace = Workspace(self)
+        try:
 
-        if not workspace.load_project():
-            workspace.deleteLater()
-            return
+            with open(
+                filename,
+                "r",
+                encoding="utf-8"
+            ) as project_file:
 
-        project_name = QFileInfo(filename).baseName()
+                project = json.load(project_file)
 
-        index = self.workspaces.addTab(
-            workspace,
-            project_name
+        except (
+            OSError,
+            json.JSONDecodeError
+        ) as error:
+
+            QMessageBox.warning(
+                self,
+                "Open Project",
+                f"Could not open project:\n{error}"
+            )
+
+            return False
+
+        saved_workspaces = project.get(
+            "workspaces",
+            []
         )
 
-        self.workspaces.setCurrentIndex(index)
+        if not saved_workspaces:
+
+            QMessageBox.warning(
+                self,
+                "Open Project",
+                "The project contains no workspaces."
+            )
+
+            return False
+
+        # Remove the current workspaces
+        while self.workspaces.count() > 0:
+
+            widget = self.workspaces.widget(0)
+
+            self.workspaces.removeTab(0)
+
+            if widget is not None:
+                widget.deleteLater()
+
+        # Recreate every saved workspace
+        for saved_workspace in saved_workspaces:
+
+            name = saved_workspace.get(
+                "name",
+                "Untitled"
+            )
+
+            data = saved_workspace.get(
+                "data"
+            )
+
+            if data is None:
+                continue
+
+            workspace = Workspace(self)
+
+            if not workspace.load_project_data(data):
+                workspace.deleteLater()
+                continue
+
+            index = self.workspaces.addTab(
+                workspace,
+                name
+            )
+
+            self.workspaces.setCurrentIndex(index)
+
+        # Make sure we always have a workspace
+        if self.workspaces.count() == 0:
+
+            self.create_workspace(
+                "Untitled"
+            )
+
+            return False
+
+        # Restore previously active workspace
+        current_index = project.get(
+            "current_workspace",
+            0
+        )
+
+        if 0 <= current_index < self.workspaces.count():
+
+            self.workspaces.setCurrentIndex(
+                current_index
+            )
+
+        else:
+
+            self.workspaces.setCurrentIndex(0)
+
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            f"Project loaded: {Path(filename).name}"
+        )
+
+        return True
 
     def close_file(self):
 
@@ -1082,7 +1174,12 @@ class MainWindow(QMainWindow):
 
         workspaces = []
 
-        for index, workspace in enumerate(self.workspaces):
+        for index in range(self.workspaces.count()):
+
+            workspace = self.workspaces.widget(index)
+
+            if workspace is None:
+                continue
 
             data = workspace.get_project_data()
 
@@ -1090,7 +1187,7 @@ class MainWindow(QMainWindow):
                 continue
 
             workspaces.append({
-                "name": self.tab_widget.tabText(index),
+                "name": self.workspaces.tabText(index),
                 "data": data
             })
 
@@ -1117,7 +1214,7 @@ class MainWindow(QMainWindow):
 
         project = {
             "version": 4,
-            "current_workspace": self.tab_widget.currentIndex(),
+            "current_workspace": self.workspaces.currentIndex(),
             "workspaces": workspaces
         }
 
@@ -1145,6 +1242,10 @@ class MainWindow(QMainWindow):
             )
 
             return False
+
+        self.status.showMessage(
+            f"Project saved: {Path(filename).name}"
+        )
 
         return True
 

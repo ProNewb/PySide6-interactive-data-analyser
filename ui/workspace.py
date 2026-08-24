@@ -318,12 +318,37 @@ class Workspace(QWidget):
         if data is None:
             return None
 
+        columns = data.get(
+            "columns",
+            []
+        )
+
+        json_data = data.get(
+            "data",
+            "[]"
+        )
+
+        # Empty dataframe
+        if not json_data or json_data == "[]":
+
+            return pd.DataFrame(
+                columns=columns
+            )
+
         df = pd.read_json(
-            StringIO(data["data"]),
+            StringIO(json_data),
             orient="records"
         )
 
-        df.columns = data["columns"]
+        # Restore the original column names
+        if len(df.columns) == len(columns):
+            df.columns = columns
+
+        else:
+            raise ValueError(
+                "Saved dataframe column count does not "
+                "match the loaded dataframe."
+            )
 
         return df
 
@@ -372,47 +397,69 @@ class Workspace(QWidget):
             }
         }
 
-    def load_project(self):
-        """Load a saved workspace project."""
-
-        filename, _ = QFileDialog.getOpenFileName(
-            None,
-            "Open Project",
-            "",
-            "Project Files (*.json);;All Files (*)"
-        )
-
-        if not filename:
-            return False
+    def load_project_data(self, project):
+        """Load a single workspace from saved project data."""
 
         try:
-            with open(filename, "r", encoding="utf-8") as project_file:
-                project = json.load(project_file)
 
             main = project.get("main", {})
             result = project.get("result", {})
 
             self.dataset_manager.load_project(
                 filename=project.get("source_file"),
+
                 original=self._dataframe_from_json(
                     main.get("original")
                 ),
+
                 current=self._dataframe_from_json(
                     main.get("current")
                 ),
-                operations=main.get("operations", []),
+
+                operations=main.get(
+                    "operations",
+                    []
+                ),
+
                 result_dataframe=self._dataframe_from_json(
                     result.get("current")
                 ),
-                result_operations=result.get("operations", []),
-                main_history=project.get("history", {}).get("main"),
-                result_history=project.get("history", {}).get("result"),
+
+                result_operations=result.get(
+                    "operations",
+                    []
+                ),
+
+                main_history=project.get(
+                    "history",
+                    {}
+                ).get("main"),
+
+                result_history=project.get(
+                    "history",
+                    {}
+                ).get("result"),
+
                 dataframe_from_json=self._dataframe_from_json
             )
 
             self.refresh()
 
             return True
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ) as error:
+
+            QMessageBox.warning(
+                self,
+                "Open Project",
+                f"Could not load workspace:\n{error}"
+            )
+
+            return False
 
         except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
 
