@@ -1,9 +1,11 @@
+import json
 from pathlib import Path
 
 from PySide6.QtCore import QFileInfo, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
@@ -341,20 +343,30 @@ class MainWindow(QMainWindow):
 
     def load_project(self):
 
-        if self.file_controller.open_project():
+        filename, _ = QFileDialog.getOpenFileName(
+            self,
+            "Open Project",
+            "",
+            "Project Files (*.json);;All Files (*)"
+        )
 
-            self.main_menu.main_dataset_action.setChecked(
-                self.dataset_manager.has_data()
-            )
-            self.main_menu.result_dataset_action.setChecked(
-                self.dataset_manager.has_result()
-            )
+        if not filename:
+            return
 
-            self.refresh_views()
+        workspace = Workspace(self)
 
-            self.status.showMessage(
-                "Project loaded successfully"
-            )
+        if not workspace.load_project():
+            workspace.deleteLater()
+            return
+
+        project_name = QFileInfo(filename).baseName()
+
+        index = self.workspaces.addTab(
+            workspace,
+            project_name
+        )
+
+        self.workspaces.setCurrentIndex(index)
 
     def close_file(self):
 
@@ -1068,10 +1080,73 @@ class MainWindow(QMainWindow):
     
     def save_project(self):
 
-        if self.workspace is None:
-            return
+        workspaces = []
 
-        self.workspace.save_project()
+        for index, workspace in enumerate(self.workspaces):
+
+            data = workspace.get_project_data()
+
+            if data is None:
+                continue
+
+            workspaces.append({
+                "name": self.tab_widget.tabText(index),
+                "data": data
+            })
+
+        if not workspaces:
+            QMessageBox.information(
+                self,
+                "Save Project",
+                "There are no datasets to save."
+            )
+            return False
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save Project",
+            "",
+            "Project Files (*.json);;All Files (*)"
+        )
+
+        if not filename:
+            return False
+
+        if not filename.lower().endswith(".json"):
+            filename += ".json"
+
+        project = {
+            "version": 4,
+            "current_workspace": self.tab_widget.currentIndex(),
+            "workspaces": workspaces
+        }
+
+        try:
+
+            with open(
+                filename,
+                "w",
+                encoding="utf-8"
+            ) as project_file:
+
+                json.dump(
+                    project,
+                    project_file,
+                    indent=2,
+                    default=str
+                )
+
+        except OSError as error:
+
+            QMessageBox.warning(
+                self,
+                "Save Project",
+                f"Could not save the project:\n{error}"
+            )
+
+            return False
+
+        return True
 
 
     def export_data(self):

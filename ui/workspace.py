@@ -150,11 +150,10 @@ class Workspace(QWidget):
     # ==================================================
 
     def save_project(self):
-        """Save the current dataframe and applied operations as JSON."""
 
-        dataframe = self.dataset_manager.get_dataframe()
+        project = self.get_project_data()
 
-        if dataframe is None:
+        if project is None:
             QMessageBox.information(
                 None,
                 "Save Project",
@@ -175,54 +174,28 @@ class Workspace(QWidget):
         if not filename.lower().endswith(".json"):
             filename += ".json"
 
-        result = self.dataset_manager.get_result_dataframe()
-
-        project = {
-
-            "version": 3,
-            "source_file": self.dataset_manager.filename,
-
-            "main": {
-
-                "original": self._dataframe_json(
-                    self.dataset_manager.original_dataframe
-                ),
-                "current": self._dataframe_json(dataframe),
-                "operations": self.dataset_manager.get_operation_log()
-            },
-
-            "result": {
-
-                "visible": result is not None,
-
-                "current": None if result is None else self._dataframe_json(result),
-                "operations": self.dataset_manager.get_result_operation_log()
-            }
-        }
-
-        project["history"] = {
-            # Keep the complete descriptions above and the bounded state
-            # snapshots here so saved projects preserve both auditability and
-            # the existing five-entry undo/redo behavior.
-            "main": self.dataset_manager.get_history_snapshot(
-                "main",
-                self._dataframe_json
-            ),
-            "result": self.dataset_manager.get_history_snapshot(
-                "result",
-                self._dataframe_json
-            )
-        }
-
         try:
-            with open(filename, "w", encoding="utf-8") as project_file:
-                json.dump(project, project_file, indent=2, default=str)
+            with open(
+                filename,
+                "w",
+                encoding="utf-8"
+            ) as project_file:
+
+                json.dump(
+                    project,
+                    project_file,
+                    indent=2,
+                    default=str
+                )
+
         except OSError as error:
+
             QMessageBox.warning(
                 None,
                 "Save Project",
                 f"Could not save the project:\n{error}"
             )
+
             return False
 
         return True
@@ -353,3 +326,100 @@ class Workspace(QWidget):
         df.columns = data["columns"]
 
         return df
+
+    def get_project_data(self):
+
+        dataframe = self.dataset_manager.get_dataframe()
+
+        if dataframe is None:
+            return None
+
+        result = self.dataset_manager.get_result_dataframe()
+
+        return {
+            "version": 3,
+            "source_file": self.dataset_manager.filename,
+
+            "main": {
+                "original": self._dataframe_json(
+                    self.dataset_manager.original_dataframe
+                ),
+                "current": self._dataframe_json(
+                    dataframe
+                ),
+                "operations": self.dataset_manager.get_operation_log()
+            },
+
+            "result": {
+                "visible": result is not None,
+                "current": (
+                    None
+                    if result is None
+                    else self._dataframe_json(result)
+                ),
+                "operations": self.dataset_manager.get_result_operation_log()
+            },
+
+            "history": {
+                "main": self.dataset_manager.get_history_snapshot(
+                    "main",
+                    self._dataframe_json
+                ),
+                "result": self.dataset_manager.get_history_snapshot(
+                    "result",
+                    self._dataframe_json
+                )
+            }
+        }
+
+    def load_project(self):
+        """Load a saved workspace project."""
+
+        filename, _ = QFileDialog.getOpenFileName(
+            None,
+            "Open Project",
+            "",
+            "Project Files (*.json);;All Files (*)"
+        )
+
+        if not filename:
+            return False
+
+        try:
+            with open(filename, "r", encoding="utf-8") as project_file:
+                project = json.load(project_file)
+
+            main = project.get("main", {})
+            result = project.get("result", {})
+
+            self.dataset_manager.load_project(
+                filename=project.get("source_file"),
+                original=self._dataframe_from_json(
+                    main.get("original")
+                ),
+                current=self._dataframe_from_json(
+                    main.get("current")
+                ),
+                operations=main.get("operations", []),
+                result_dataframe=self._dataframe_from_json(
+                    result.get("current")
+                ),
+                result_operations=result.get("operations", []),
+                main_history=project.get("history", {}).get("main"),
+                result_history=project.get("history", {}).get("result"),
+                dataframe_from_json=self._dataframe_from_json
+            )
+
+            self.refresh()
+
+            return True
+
+        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
+
+            QMessageBox.warning(
+                None,
+                "Open Project",
+                f"Could not load the project:\n{error}"
+            )
+
+            return False
