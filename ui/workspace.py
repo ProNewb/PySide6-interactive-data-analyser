@@ -8,24 +8,18 @@ from PySide6.QtWidgets import (
 from core.dataset_manager import DatasetManager
 from ui.dataset_view import DatasetView
 from controllers.file_controller import FileController
+from PySide6.QtCore import Qt, QFileInfo
 
 class Workspace(QWidget):
-    """Container for one open dataset/project."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
 
-        # ----------------------------------
-        # Workspace data
-        # ----------------------------------
-
         self.dataset_manager = DatasetManager()
+
         self.file_controller = FileController(
             self.dataset_manager
-)
-        # ----------------------------------
-        # Dataset views
-        # ----------------------------------
+        )
 
         self.main_view = DatasetView(
             "Main Dataset"
@@ -36,10 +30,6 @@ class Workspace(QWidget):
         )
 
         self.result_view.hide()
-
-        # ----------------------------------
-        # Layout
-        # ----------------------------------
 
         self.splitter = QSplitter(
             Qt.Horizontal
@@ -64,63 +54,41 @@ class Workspace(QWidget):
             self.splitter
         )
 
-        self.update_views()
+        self.refresh()
 
     # ======================================
-    # DATA
+    # REFRESH
     # ======================================
 
     def refresh(self):
 
         self.update_views()
+        self.update_comparison_layout()
+
+    # ======================================
+    # VIEWS
+    # ======================================
 
     def update_views(self):
 
         main = self.dataset_manager.get_dataframe()
         result = self.dataset_manager.get_result_dataframe()
 
-        # Main
         if main is not None:
             self.main_view.set_dataframe(main)
         else:
             self.main_view.clear()
 
-        # Result
         if result is not None:
             self.result_view.set_dataframe(result)
         else:
             self.result_view.clear()
 
-        self.main_view.setVisible(
-            main is not None
-        )
-
-        self.result_view.setVisible(
-            result is not None
-        )
+        self.update_comparison_layout()
 
     # ======================================
-    # DATA ACCESS
+    # LAYOUT
     # ======================================
-
-    def get_main_dataframe(self):
-        return self.dataset_manager.get_dataframe()
-
-    def get_result_dataframe(self):
-        return self.dataset_manager.get_result_dataframe()
-
-    def has_data(self):
-        return self.dataset_manager.has_data()
-
-    def has_result(self):
-        return self.dataset_manager.has_result()
-
-    # ======================================
-    # FILE
-    # ======================================
-
-    def filename(self):
-        return self.dataset_manager.filename
 
     def update_comparison_layout(self):
 
@@ -162,8 +130,3 @@ class Workspace(QWidget):
                 0,
                 1200
             ])
-
-    def refresh(self):
-
-        self.update_views()
-        self.update_comparison_layout()

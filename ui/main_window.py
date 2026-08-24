@@ -1,4 +1,4 @@
-from PySide6.QtCore import Qt
+from PySide6.QtCore import QFileInfo, Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -49,56 +49,60 @@ from ui.model_tab import ModelTab
 class MainWindow(QMainWindow):
     """Main application window."""
 
-    def __init__(    self,settings_manager,theme_manager):
+    def __init__(self, settings_manager, theme_manager):
 
         super().__init__()
 
-        self.dataset_manager = DatasetManager()
         self.settings_manager = settings_manager
         self.theme_manager = theme_manager
 
+        # Workspace container
+        self.workspaces = QTabWidget()
+
+        self.workspaces.setTabsClosable(True)
+
+        self.workspaces.setStyleSheet("""
+            QTabBar::tab {
+                min-width: 100px;
+                max-width: 180px;
+            }
+        """)
+
+        self.workspaces.tabCloseRequested.connect(
+            self.close_workspace
+        )
         self.theme_manager.apply_theme(
             self.settings_manager.settings
         )
-        self.file_controller = FileController(
-            self.dataset_manager
-        )
+
         self.t_combo = TargetCombo()
         self.data_processor = DataProcessor()
 
         self.main_menu = MainMenu(self)
         self.controls = ControlPanel()
 
+        # UI
+        self.initialise_window()
+        self.build_ui()
 
-      
-        # ----------------------------------
-        # Dataset views
-        # ----------------------------------
+        # Create initial workspace
+        self.create_workspace()
 
-        self.main_view = DatasetView(
-            "Main Dataset"
+        self.status = StatusBar()
+        self.setStatusBar(self.status)
+
+        # Workspace changes
+        self.workspaces.currentChanged.connect(
+            self.workspace_changed
         )
 
-        self.result_view = DatasetView(
-            "Result Dataset"
-        )
 
-        # Result starts hidden
-        self.result_view.hide()
-
-        # ----------------------------------
-        # Main tabs
-        # ----------------------------------
-
-        self.tabs = QTabWidget()
       
 
         # ----------------------------------
         # Window
         # ----------------------------------
 
-        self.initialise_window()
-        self.build_ui()
 
 
         # ----------------------------------
@@ -116,7 +120,7 @@ class MainWindow(QMainWindow):
             self.load_project
         )
         self.main_menu.save_project_action.triggered.connect(
-            self.file_controller.save_project
+            self.save_project
         )
         self.main_menu.export_data_action.triggered.connect(
             self.file_controller.export_csv
@@ -228,24 +232,88 @@ class MainWindow(QMainWindow):
 
     def create_content_area(self):
 
-        self.build_tabs()
+        self.create_operation_controls()
 
         self.main_layout.addWidget(
-            self.tabs
+            self.workspaces
         )
-   
+    def create_operation_controls(self):
+
+        target_layout = QHBoxLayout()
+
+        target_layout.addWidget(
+            QLabel("Operate on:")
+        )
+
+        self.target_combo = QComboBox()
+
+        self.target_combo.addItem(
+            "Main Dataset",
+            "main"
+        )
+
+        self.target_combo.addItem(
+            "Result Dataset",
+            "result"
+        )
+
+        self.use_selection = QCheckBox(
+            "Use selection"
+        )
+
+        target_layout.addWidget(
+            self.target_combo
+        )
+
+        target_layout.addWidget(
+            self.use_selection
+        )
+
+        target_layout.addStretch()
+
+        self.main_layout.addLayout(
+            target_layout
+        )
     # retrieve data
     def load_dataset(self):
 
-        self.file_controller.open_file()
+        workspace = self.create_workspace()
 
-        if self.dataset_manager.has_data():
+        workspace.file_controller.open_file()
 
-            self.refresh_views()
+        if workspace.dataset_manager.has_data():
+
+            workspace.refresh()
+
+            filename = workspace.dataset_manager.filename
+
+            if filename:
+                title = QFileInfo(filename).fileName()
+            else:
+                title = "Untitled"
+
+            index = self.workspaces.indexOf(
+                workspace
+            )
+
+            self.workspaces.setTabText(
+                index,
+                title
+            )
 
             self.status.showMessage(
                 "Dataset loaded successfully"
             )
+
+        else:
+
+            index = self.workspaces.indexOf(
+                workspace
+            )
+
+            self.workspaces.removeTab(index)
+
+            workspace.deleteLater()
 
     def load_project(self):
 
@@ -266,25 +334,12 @@ class MainWindow(QMainWindow):
 
     def close_file(self):
 
-        if not self.dataset_manager.has_data():
+        index = self.workspaces.currentIndex()
+
+        if index < 0:
             return
 
-        answer = QMessageBox.question(
-            self,
-            "Close File",
-            "Close the current file and discard its loaded state?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if answer != QMessageBox.Yes:
-            return
-
-        self.file_controller.close_project()
-        self.refresh_views()
-        self.main_menu.main_dataset_action.setChecked(False)
-        self.main_menu.result_dataset_action.setChecked(False)
-        self.status.showMessage("File closed")
+        self.close_workspace(index)
 
 
 
@@ -343,34 +398,8 @@ class MainWindow(QMainWindow):
         # Dataset views
         # ----------------------------------
 
-        self.splitter = QSplitter(
-            Qt.Horizontal
-        )
-
-        self.splitter.addWidget(
-            self.main_view
-        )
-
-        self.splitter.addWidget(
-            self.result_view
-        )
-
-        self.splitter.setSizes([
-            600,
-            600
-        ])
-
         data_layout.addWidget(
-            self.splitter
-        )
-
-        # ----------------------------------
-        # Add tab
-        # ----------------------------------
-
-        self.tabs.addTab(
-            data_page,
-            "Data"
+            self.workspaces
         )
 
 
@@ -440,24 +469,14 @@ class MainWindow(QMainWindow):
 
     def refresh_views(self):
 
-        dataframe = self.dataset_manager.get_dataframe()
-        result = self.dataset_manager.get_result_dataframe()
+        workspace = self.workspace
 
-        # Main dataset
-        if dataframe is not None:
-            self.main_view.set_dataframe(dataframe)
-        else:
-            self.main_view.clear()
+        if workspace is None:
+            return
 
-        # Result dataset
-        if result is not None:
-            self.result_view.set_dataframe(result)
-        else:
-            self.result_view.clear()
+        workspace.refresh()
 
-        self.update_comparison_layout()
-        self.update_data_actions()
-        self.update_history_menus()
+        self.update_workspace_controls()
         
     def undo_operation(self):
 
@@ -636,11 +655,10 @@ class MainWindow(QMainWindow):
 
     def hide_main_view(self):
 
-        self.main_menu.main_dataset_action.setChecked(
-            False
-        )
+        self.main_menu.main_dataset_action.setChecked(False)
 
-        self.update_comparison_layout()
+        if self.workspace:
+            self.workspace.main_view.hide()
 
     def hide_result_view(self):
 
@@ -648,16 +666,31 @@ class MainWindow(QMainWindow):
             False
         )
 
-        self.update_comparison_layout()
+        if self.workspace:
+            self.workspace.result_view.hide()
 
     def toggle_main_dataset(self, checked):
 
-        self.update_comparison_layout()
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        workspace.main_view.setVisible(
+            checked
+        )
 
 
     def toggle_result_dataset(self, checked):
 
-        self.update_comparison_layout()
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        workspace.result_view.setVisible(
+            checked
+        )
 
     def update_comparison_layout(self):
         '''creates a split layout when new views are created/removed'''
@@ -1097,3 +1130,169 @@ class MainWindow(QMainWindow):
         dataframe = self.get_dataframe_for_target(target)
 
         return target, dataframe
+
+    def create_workspace(self, title="Untitled"):
+
+        workspace = Workspace(self)
+
+        index = self.workspaces.addTab(
+            workspace,
+            title
+        )
+
+        self.workspaces.setCurrentIndex(index)
+
+        return workspace
+    
+    def save_project(self):
+        if self.file_controller:
+            self.file_controller.save_project()
+
+    @property
+    def workspace(self):
+        """Return the currently active workspace."""
+
+        return self.workspaces.currentWidget()
+
+
+    @property
+    def dataset_manager(self):
+        """Return the active workspace's DatasetManager."""
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return None
+
+        return workspace.dataset_manager
+
+
+    @property
+    def main_view(self):
+        """Return the active workspace's main view."""
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return None
+
+        return workspace.main_view
+
+
+    @property
+    def result_view(self):
+        """Return the active workspace's result view."""
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return None
+
+        return workspace.result_view
+
+    def workspace_changed(self, index):
+
+        if index < 0:
+            return
+
+        workspace = self.workspaces.widget(index)
+
+        if workspace is None:
+            return
+
+        self.update_workspace_controls()
+
+    def close_workspace(self, index):
+
+        workspace = self.workspaces.widget(index)
+
+        if workspace is None:
+            return
+
+        # If there is data, ask before closing
+        if workspace.dataset_manager.has_data():
+
+            answer = QMessageBox.question(
+                self,
+                "Close Dataset",
+                "Close this dataset?",
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.No
+            )
+
+            if answer != QMessageBox.Yes:
+                return
+
+        self.workspaces.removeTab(index)
+
+        workspace.deleteLater()
+
+        # Keep at least one empty workspace
+        if self.workspaces.count() == 0:
+            self.create_workspace("Untitled")
+
+    def update_workspace_controls(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        manager = workspace.dataset_manager
+
+        self.main_menu.main_dataset_action.setChecked(
+            manager.has_data()
+        )
+
+        self.main_menu.result_dataset_action.setChecked(
+            manager.has_result()
+        )
+
+        self.update_data_actions()
+        self.update_history_menus()
+
+    def load_dataset(self):
+
+        workspace = self.create_workspace()
+
+        workspace.file_controller.open_file()
+
+        if workspace.dataset_manager.has_data():
+
+            workspace.refresh()
+
+            filename = workspace.dataset_manager.filename
+
+            if filename:
+                title = QFileInfo(filename).fileName()
+            else:
+                title = "Untitled"
+
+            index = self.workspaces.indexOf(workspace)
+
+            self.workspaces.setTabText(
+                index,
+                title
+            )
+
+            self.status.showMessage(
+                "Dataset loaded successfully"
+            )
+
+        else:
+
+            index = self.workspaces.indexOf(workspace)
+
+            self.workspaces.removeTab(index)
+
+            workspace.deleteLater()
+
+    @property
+    def file_controller(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return None
+
+        return workspace.file_controller
