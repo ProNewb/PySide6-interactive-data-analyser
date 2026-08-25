@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QFileDialog
 from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QInputDialog
 
-from ui.dialogs.import_dialog import ImportDialog
+
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QFileDialog,
@@ -20,11 +20,22 @@ from PySide6.QtWidgets import (
 )
 
 from core.dataset_manager import DatasetManager
-from ui.dataset_view import DatasetView
+from ui.table.dataset_view import DatasetView
 from controllers.file_controller import FileController
-from PySide6.QtCore import Qt, QFileInfo
+from PySide6.QtCore import Qt
 
 class Workspace(QWidget):
+
+    """Represents a single analysis workspace.
+
+        Each workspace owns:
+            - one DatasetManager
+            - one FileController
+            - one main DatasetView
+            - one result DatasetView
+
+        The MainWindow manages multiple Workspace instances as tabs.
+        """
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -77,7 +88,7 @@ class Workspace(QWidget):
     def refresh(self):
 
         self.update_views()
-        self.update_comparison_layout()
+        
 
     # ======================================
     # VIEWS
@@ -106,6 +117,13 @@ class Workspace(QWidget):
 
     def update_comparison_layout(self):
 
+        """
+        Automatically resize the splitter based on which datasets exist.
+
+        Main only   -> full width main
+        Result only -> full width result
+        Both        -> 50/50 comparison
+        """
         main_available = (
             self.dataset_manager.get_dataframe()
             is not None

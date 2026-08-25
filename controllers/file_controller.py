@@ -108,66 +108,6 @@ class FileController:
             )
             return None
 
-    def open_project(self):
-        """Open a saved project and restore its operations."""
-
-        filename, _ = QFileDialog.getOpenFileName(
-            None,
-            "Open Project",
-            "",
-            "Project Files (*.json);;All Files (*)"
-        )
-
-        if not filename:
-            return False
-
-        try:
-            with open(filename, "r", encoding="utf-8") as project_file:
-                project = json.load(project_file)
-
-            main = project["main"]
-            result = project["result"]
-
-            self.dataset_manager.load_project(
-                filename=project.get("source_file", filename),
-                original=self._project_dataframe(main["original"]),
-                current=self._project_dataframe(main["current"]),
-                operations=main["operations"],
-                result_dataframe=(
-                    None if not result["visible"]
-                    else self._project_dataframe(result["current"])
-                ),
-                result_operations=result.get("operations", []),
-                main_history=project.get("history", {}).get("main", {}),
-                result_history=project.get("history", {}).get("result", {}),
-                dataframe_from_json=self._project_dataframe
-            )
-        except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
-            QMessageBox.warning(
-                None,
-                "Open Project",
-                f"Could not open the project:\n{error}"
-            )
-            return False
-
-        return True
-
-    @staticmethod
-    def _project_dataframe(data):
-        return pd.read_json(
-            StringIO(json.dumps(data)),
-            orient="table"
-        )
-
-    @staticmethod
-    def _dataframe_json(dataframe):
-        return json.loads(
-            dataframe.to_json(
-                orient="table",
-                date_format="iso"
-            )
-        )
-
     @staticmethod
     def _read_dataset(filename):
         extension = filename.lower().rsplit(".", 1)[-1]
@@ -187,83 +127,6 @@ class FileController:
     # PROJECT AND EXPORT OPERATIONS
     # ==================================================
 
-    def save_project(self):
-        """Save the current dataframe and applied operations as JSON."""
-
-        dataframe = self.dataset_manager.get_dataframe()
-
-        if dataframe is None:
-            QMessageBox.information(
-                None,
-                "Save Project",
-                "There is no dataset to save."
-            )
-            return False
-
-        filename, _ = QFileDialog.getSaveFileName(
-            None,
-            "Save Project",
-            "",
-            "Project Files (*.json);;All Files (*)"
-        )
-
-        if not filename:
-            return False
-
-        if not filename.lower().endswith(".json"):
-            filename += ".json"
-
-        result = self.dataset_manager.get_result_dataframe()
-
-        project = {
-
-            "version": 3,
-            "source_file": self.dataset_manager.filename,
-
-            "main": {
-
-                "original": self._dataframe_json(
-                    self.dataset_manager.original_dataframe
-                ),
-                "current": self._dataframe_json(dataframe),
-                "operations": self.dataset_manager.get_operation_log()
-            },
-
-            "result": {
-
-                "visible": result is not None,
-
-                "current": None if result is None else self._dataframe_json(result),
-                "operations": self.dataset_manager.get_result_operation_log()
-            }
-        }
-
-        project["history"] = {
-            # Keep the complete descriptions above and the bounded state
-            # snapshots here so saved projects preserve both auditability and
-            # the existing five-entry undo/redo behavior.
-            "main": self.dataset_manager.get_history_snapshot(
-                "main",
-                self._dataframe_json
-            ),
-            "result": self.dataset_manager.get_history_snapshot(
-                "result",
-                self._dataframe_json
-            )
-        }
-
-        try:
-            with open(filename, "w", encoding="utf-8") as project_file:
-                json.dump(project, project_file, indent=2, default=str)
-        except OSError as error:
-            QMessageBox.warning(
-                None,
-                "Save Project",
-                f"Could not save the project:\n{error}"
-            )
-            return False
-
-        return True
 
     def export_csv(self):
         """Export the selected Main or Result dataframe."""
@@ -397,16 +260,3 @@ class FileController:
 
         return columns
 
-    @staticmethod
-    def _project_dataframe(data):
-        if data is None:
-            return None
-
-        df = pd.read_json(
-            StringIO(data["data"]),
-            orient="records"
-        )
-
-        df.columns = data["columns"]
-
-        return df

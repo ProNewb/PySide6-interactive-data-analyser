@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from PySide6.QtCore import QFileInfo, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -9,55 +9,37 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QMainWindow,
     QMessageBox,
-    QPushButton,
+
     QTabWidget,
-    QTextEdit,
-    QToolButton,
+
     QWidget,
     QLabel,
     QVBoxLayout
 )
-from PySide6.QtWidgets import QSplitter
-from PySide6.QtGui import QAction, QIcon
 
-from PySide6.QtGui import QFont
 
-from controllers.file_controller import FileController
-from controllers.analysis_controller import AnalysisController
+
 from ui.workspace import Workspace
-from core import settings_manager, theme_manager
-from core.condition_group import ConditionGroup
-from core.conditions import Condition
 from core.data_processor import DataProcessor
-from core.dataset_manager import DatasetManager
-from core.dataset_table import DataTable
-from core.settings_manager import SettingsManager
-from core.theme_manager import ThemeManager
-from ui.dialogs import data_dialog
 from ui.dialogs.transform_dialog import TransformDialog
 from ui.dialogs.aggregation_dialog import AggregationDialog
 from ui.dialogs.cleaning_dialog import CleaningDialog
 from ui.dialogs.data_dialog import DataDialog
-from ui.dataset_view import DatasetView
 from ui.dialogs.join_dialog import JoinDialog
 from ui.dialogs.settings_dialog import SettingsDialog
-from ui.graph.graph_widget import GraphWidget
-from ui.helpers.target_combo import TargetCombo
-from ui.stats.statistics_widget import StatisticsWidget
-from ui.menus.control_panel import ControlPanel
 from ui.menus.main_menu import MainMenu
 from ui.menus.status_bar import StatusBar
-from ui.menus.selection_toolbar import SelectionToolbar
-from ui.graph.graph_tab import GraphTab
-from ui.model_tab import ModelTab
+
 class MainWindow(QMainWindow):
-    """Main application window."""
+    """Main application window.
+        All data modifications are delegated to DatasetManager.
+         MainWindow is responsible only for dialogs and UI updates."""
 
     def __init__(self, settings_manager, theme_manager):
 
         super().__init__()
 
-        self.settings_manager = settings_manager
+        self.settings_manager = settings_manager 
         self.theme_manager = theme_manager
 
         # Workspace container
@@ -65,7 +47,7 @@ class MainWindow(QMainWindow):
         self.workspaces.setTabsClosable(True)
         self.workspaces.tabCloseRequested.connect(self.close_workspace)
 
-        #self.create_workspace("Untitled")
+        # workspace formatting
 
         self.workspaces.setStyleSheet("""
             QTabBar::tab {
@@ -79,11 +61,9 @@ class MainWindow(QMainWindow):
             self.settings_manager.settings
         )
 
-        self.t_combo = TargetCombo()
+        # underlying operations
         self.data_processor = DataProcessor()
-
         self.main_menu = MainMenu(self)
-        self.controls = ControlPanel()
 
         # UI
         self.initialise_window()
@@ -91,9 +71,6 @@ class MainWindow(QMainWindow):
 
         # Create initial workspace
         self.create_workspace()
-
-        self.status = StatusBar()
-        self.setStatusBar(self.status)
 
         # Workspace changes
         self.workspaces.currentChanged.connect(
@@ -112,10 +89,6 @@ class MainWindow(QMainWindow):
         # ----------------------------------
         # Signals
         # ----------------------------------
-
-        self.controls.load_button.clicked.connect(
-            self.load_dataset
-        )
 
         self.main_menu.open_action.triggered.connect(
             self.load_dataset
@@ -661,20 +634,6 @@ class MainWindow(QMainWindow):
             "Aggregation created result dataset"
         )
 
-
-    def get_target_dataframe(self):
-        target = self.target_combo.currentData()
-
-        if target == "main":
-            view = self.main_view
-        else:
-            view = self.result_view
-
-        if self.use_selection.isChecked():
-            return view.get_analysis_dataframe()
-
-        return view.get_dataframe()
-
     def hide_main_view(self):
 
         self.main_menu.main_dataset_action.setChecked(False)
@@ -713,53 +672,6 @@ class MainWindow(QMainWindow):
         workspace.result_view.setVisible(
             checked
         )
-
-    def update_comparison_layout(self):
-        '''creates a split layout when new views are created/removed'''
-        main_available = (
-            self.dataset_manager.get_dataframe()
-            is not None
-        )
-
-        result_available = (
-            self.dataset_manager.get_result_dataframe()
-            is not None
-        )
-
-        main_checked = (
-            self.main_menu.main_dataset_action.isChecked()
-        )
-
-        result_checked = (
-            self.main_menu.result_dataset_action.isChecked()
-        )
-
-        main_visible = main_available and main_checked
-        result_visible = result_available and result_checked
-
-        self.main_view.setVisible(main_visible)
-        self.result_view.setVisible(result_visible)
-
-        if main_visible and result_visible:
-
-            self.splitter.setSizes([
-                600,
-                600
-            ])
-
-        elif main_visible:
-
-            self.splitter.setSizes([
-                1200,
-                0
-            ])
-
-        elif result_visible:
-
-            self.splitter.setSizes([
-                0,
-                1200
-            ])
 
     def open_cleaning_dialog(self):
 
@@ -853,31 +765,7 @@ class MainWindow(QMainWindow):
 
         return answer == QMessageBox.Yes
 
-    def update_undo_menu(self):
 
-        menu = self.main_menu.undo_history_menu
-        menu.clear()
-
-        target = self.target_combo.currentData()
-
-        if target not in ("main", "result"):
-            return
-
-        history = self.dataset_manager.get_undo_history(
-            target
-        )
-
-        for operation in reversed(history):
-
-            action = menu.addAction(
-                operation.description
-            )
-
-            action.triggered.connect(
-                lambda checked=False,
-                op=operation:
-                self.undo_to_operation(op)
-            )
 
     def redo_operation(self):
 
@@ -908,31 +796,6 @@ class MainWindow(QMainWindow):
                 f"Redid: {description}"
             )
 
-    def update_redo_menu(self):
-
-        menu = self.main_menu.redo_history_menu
-        menu.clear()
-
-        target = self.target_combo.currentData()
-
-        if target not in ("main", "result"):
-            return
-
-        history = self.dataset_manager.get_redo_history(
-            target
-        )
-
-        for operation in reversed(history):
-
-            action = menu.addAction(
-                operation.description
-            )
-
-            action.triggered.connect(
-                lambda checked=False,
-                op=operation:
-                self.redo_to_operation(op)
-            )
 
     def update_history_menus(self):
 
@@ -988,14 +851,6 @@ class MainWindow(QMainWindow):
 
         for _ in range(steps):
             self.redo_operation()
-
-    def transform_operation(self):
-        """Backward-compatible entry point for the Transform menu action."""
-        self.open_transform_dialog()
-
-    def join_operation(self):
-        """Backward-compatible entry point for the Join menu action."""
-        self.open_join_dialog()
 
     def open_join_dialog(self):
 
@@ -1109,23 +964,6 @@ class MainWindow(QMainWindow):
 
         workspace.refresh()
 
-
-    def get_target_dataframes(self):
-        """Return all available datasets respecting Use Selection."""
-
-        dataframes = {}
-
-        main = self.get_dataframe_for_target("main")
-
-        if main is not None:
-            dataframes["main"] = main
-
-        result = self.get_dataframe_for_target("result")
-
-        if result is not None:
-            dataframes["result"] = result
-
-        return dataframes
 
     def get_dataframe_for_target(self, target, use_selection=None):
         """Return a dataset, optionally restricted to the current selection."""

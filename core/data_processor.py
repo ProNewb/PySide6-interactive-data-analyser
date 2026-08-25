@@ -123,7 +123,6 @@ class JoinConfig:
     join_type: str
     mode: str = "merge"
     ignore_index: bool = False
-    group_key: str | None = None
     left_columns: list | None = None
     right_columns: list | None = None
     filter_conditions: object = None
@@ -137,9 +136,6 @@ class JoinConfig:
                 f" {self.join_type.title()} "
                 f"on {self.left_key} = {self.right_key}"
             )
-
-        if self.group_key:
-            description += f" grouped by {self.group_key}"
 
         if self.ignore_index:
             description += "; ignore index"
@@ -270,22 +266,6 @@ class DataProcessor:
                 raise ValueError(
                     f"Invalid right-dataset filter: {error}"
                 ) from error
-
-        # ----------------------------------
-        # Group right dataset
-        # ----------------------------------
-
-        if config.group_key is not None:
-
-            if config.group_key not in right_df.columns:
-                raise ValueError(
-                    f"Unknown group key: '{config.group_key}'"
-                )
-
-            right_df = right_df.drop_duplicates(
-                subset=[config.group_key],
-                keep="first"
-            )
 
         # ----------------------------------
         # Concatenate

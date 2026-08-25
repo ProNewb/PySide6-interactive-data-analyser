@@ -4,7 +4,7 @@ from ui.stats.statistics_widget import StatisticsWidget
 
 
 class AnalysisController:
-    """OBSOLETE Coordinate analysis operations performed on dataset selections."""
+    """Coordinate analysis operations performed on dataset selections."""
 
     def __init__(self, dataset_manager, table):
 

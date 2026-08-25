@@ -10,7 +10,6 @@ from PySide6.QtWidgets import (
     QVBoxLayout
 )
 
-from core.aggregation import Aggregation
 from core.data_processor import AggregationConfig, DataProcessor
 from ui.helpers.aggregation_row import AggregationRow
 from ui.helpers.groupby_row import GroupbyRow
@@ -177,11 +176,7 @@ class AggregationDialog(QDialog):
         row.deleteLater()
         self.update_preview()
 
-    def get_aggregation(self):
-        return Aggregation(
-            [row.get_column() for row in self.groupby_rows],
-            [row.get_aggregation() for row in self.aggregation_rows]
-        )
+
 
     def update_preview(self):
         # Preview uses the same processor validation as Apply, so the dialog

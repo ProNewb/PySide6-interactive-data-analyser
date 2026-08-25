@@ -206,22 +206,7 @@ class JoinDialog(QDialog):
             self.ignore_index_check
         )
 
-        # Group key
-        controls.addWidget(
-            QLabel("Group key")
-        )
-
-        self.group_key_combo = QComboBox()
-
-        self.group_key_combo.addItem(
-            "None",
-            None
-        )
-
-        controls.addWidget(
-            self.group_key_combo
-        )
-
+       
         # Left key
         controls.addWidget(
             QLabel("Left key")
@@ -494,10 +479,6 @@ class JoinDialog(QDialog):
             self.update_preview
         )
 
-        self.group_key_combo.currentIndexChanged.connect(
-            self.update_preview
-        )
-
         self.filter_toggle.toggled.connect(
             self.update_filter_controls
         )
@@ -731,16 +712,11 @@ class JoinDialog(QDialog):
 
         self.left_key_combo.blockSignals(True)
         self.right_key_combo.blockSignals(True)
-        self.group_key_combo.blockSignals(True)
+
 
         self.left_key_combo.clear()
         self.right_key_combo.clear()
-        self.group_key_combo.clear()
 
-        self.group_key_combo.addItem(
-            "None",
-            None
-        )
 
         # --------------------------------------------------
         # Left keys
@@ -764,14 +740,9 @@ class JoinDialog(QDialog):
                 column
             )
 
-            self.group_key_combo.addItem(
-                str(column),
-                column
-            )
-
         self.left_key_combo.blockSignals(False)
         self.right_key_combo.blockSignals(False)
-        self.group_key_combo.blockSignals(False)
+
 
     # ======================================================
     # Selected columns
@@ -950,10 +921,6 @@ class JoinDialog(QDialog):
             not is_concat
         )
 
-        self.group_key_combo.setEnabled(
-            not is_concat
-        )
-
     # ======================================================
     # Preview
     # ======================================================
@@ -1023,18 +990,6 @@ class JoinDialog(QDialog):
                     ]
                 )
 
-            group_key = (
-                self.group_key_combo.currentData()
-            )
-
-            if group_key is not None:
-
-                right_dataframe = (
-                    right_dataframe.drop_duplicates(
-                        subset=[group_key],
-                        keep="first"
-                    )
-                )
 
             selected_right = (
                 self.get_selected_right_columns()
@@ -1137,8 +1092,6 @@ class JoinDialog(QDialog):
             ignore_index=(
                 self.ignore_index_check.isChecked()
             ),
-
-            group_key=self.group_key_combo.currentData(),
 
             left_columns=(
                 self.get_selected_left_columns()

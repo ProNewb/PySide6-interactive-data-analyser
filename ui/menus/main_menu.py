@@ -157,7 +157,7 @@ class MainMenu:
         # ----------------------------------
 
         self.reset_action = QAction(
-            "Reset",
+            "Revert to original",
             window
         )
 
@@ -165,9 +165,6 @@ class MainMenu:
             False
         )
 
-        self.data_menu.addAction(
-            self.reset_action
-        )
 
         # ==================================================
         # UNDO
@@ -343,3 +340,9 @@ class MainMenu:
             self.clean_action
         )
 
+ 
+        self.data_menu.addSeparator()
+
+        self.data_menu.addAction(
+            self.reset_action
+        )

@@ -1,7 +1,7 @@
 import pandas as pd
 import plotly.graph_objects as go
 
-from PySide6.QtCore import Qt
+
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -10,8 +10,6 @@ from PySide6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QMessageBox,
     QPushButton,
     QScrollArea,
     QSpinBox,

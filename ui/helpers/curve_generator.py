@@ -3,22 +3,6 @@ import pandas as pd
 from sklearn.linear_model import LinearRegression
 import plotly.graph_objects as go 
 
-from ui.menus.graph_controls import GraphControls
-from ui.graph.graph_widget import GraphWidget
-from PySide6.QtWidgets import QHBoxLayout, QWidget, QVBoxLayout
-
-from PySide6.QtWidgets import (
-    QWidget,
-    QHBoxLayout,
-    QVBoxLayout,
-    QLabel,
-    QComboBox,
-    QPushButton,
-    QLineEdit
-)
-
-
-
 class CurveGenerator:
        
     def add_trendline(self, figure, dataframe, x, y):
@@ -152,35 +136,4 @@ class CurveGenerator:
             )
         )
 
-        return figure
-
-    def add_3d_fit(self, figure, dataframe, x, y, z, enabled):
-        if not enabled or any(column is None for column in (x, y, z)):
-            return figure
-        values = dataframe[[x, y, z]].apply(
-            pd.to_numeric,
-            errors="coerce"
-        ).dropna()
-        if len(values) < 3:
-            return figure
-        matrix = np.column_stack([
-            np.ones(len(values)), values[x], values[y]
-        ]).astype(float)
-        target = values[z].to_numpy(dtype=float)
-        coefficients, _, _, _ = np.linalg.lstsq(
-            matrix,
-            target,
-            rcond=None
-        )
-        x_grid = np.linspace(values[x].min(), values[x].max(), 20)
-        y_grid = np.linspace(values[y].min(), values[y].max(), 20)
-        x_mesh, y_mesh = np.meshgrid(x_grid, y_grid)
-        z_mesh = coefficients[0] + coefficients[1] * x_mesh + coefficients[2] * y_mesh
-        figure.add_surface(
-            x=x_mesh,
-            y=y_mesh,
-            z=z_mesh,
-            opacity=0.45,
-            name="Best-fit plane"
-        )
         return figure

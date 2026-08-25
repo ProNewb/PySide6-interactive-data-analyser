@@ -1,38 +1,20 @@
 from copy import deepcopy
 
 from PySide6.QtWidgets import (
-    QButtonGroup,
     QCheckBox,
     QDialog,
-    QGridLayout,
     QHBoxLayout,
-    QMessageBox,
-    QScrollArea,
     QVBoxLayout,
     QLabel,
     QComboBox,
-    QLineEdit,
-    QPushButton,
-    QSizePolicy,
-    QWidget
+    QPushButton
 )
 
-from PySide6.QtCore import Qt
 
-from core.column_selector import ColumnSelector
-from core.data_clearner import DataCleaner, MissingValueOptions, DuplicateOptions
-from core.condition_group import ConditionGroup
-from core.conditions import Condition
-from core.csv_reader import CSVReader
-from core.dataset_table import DataTable
 from ui.helpers.font_delegate import FontDelegate
-from ui.stats.cleaning_stats import CleaningStats
-from ui.helpers.condition_row import ConditionRow
-from ui.dialogs.import_dialog import ImportOptions
-from ui.table.preview_table import PreviewTable
-from analysis.data_summary import DataSummary
+
 from PySide6.QtWidgets import QFormLayout, QSpinBox
-from PySide6.QtGui import QFontDatabase, QStyleHints
+
 class SettingsDialog(QDialog):
 
     THEMES = {

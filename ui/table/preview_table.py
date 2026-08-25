@@ -20,35 +20,3 @@ class PreviewTable(DataTable):
         self.setEditTriggers(
             QTableWidget.NoEditTriggers
         )
-
-
-    def old_display_dataframe(self, df, rows=20, full=False):
-
-        preview = df if full else df.head(rows)
-
-        self.setRowCount(
-            len(preview)
-        )
-
-        self.setColumnCount(
-            len(preview.columns)
-        )
-
-        self.setHorizontalHeaderLabels(
-            [
-                str(col)
-                for col in preview.columns
-            ]
-        )
-
-        for row in range(len(preview)):
-
-            for col in range(len(preview.columns)):
-
-                self.setItem(
-                    row,
-                    col,
-                    QTableWidgetItem(
-                        str(preview.iat[row,col])
-                    )
-                )

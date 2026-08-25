@@ -417,35 +417,3 @@ class DatasetManager:
 
         return list(self.result_operation_log)
 
-    def numeric_columns(self, dataframe):
-        return [
-            column
-            for column in dataframe.columns
-            if (
-                pd.api.types.is_numeric_dtype(dataframe[column])
-                and not pd.api.types.is_bool_dtype(dataframe[column])
-            )
-        ]
-
-    def text_columns(self, dataframe):
-        return [
-            column
-            for column in dataframe.columns
-            if not pd.api.types.is_numeric_dtype(dataframe[column])
-            and not pd.api.types.is_datetime64_any_dtype(dataframe[column])
-            and (
-                pd.api.types.is_object_dtype(dataframe[column])
-                or pd.api.types.is_string_dtype(dataframe[column])
-                or isinstance(dataframe[column].dtype, pd.CategoricalDtype)
-            )
-        ]
-
-    def date_columns(self, dataframe):
-        return [
-            column
-            for column in dataframe.columns
-            if (
-                pd.api.types.is_datetime64_any_dtype(dataframe[column])
-                or pd.api.types.is_datetime64_dtype(dataframe[column])
-            )
-        ]

@@ -1,9 +1,6 @@
-import numpy as np
-import pandas as pd
-from sklearn.linear_model import LinearRegression
-import plotly.graph_objects as go 
+
 from core.graph_generator import GraphGenerator
-from ui.menus.graph_controls import GraphControls
+
 from ui.graph.graph_widget import GraphWidget
 from PySide6.QtWidgets import QCheckBox, QHBoxLayout, QMessageBox, QSpinBox, QWidget, QVBoxLayout
 
@@ -750,6 +747,3 @@ class GraphTab(QWidget):
             )
 
 
-    def current_dataframe(self):
-
-        return self.dataframe_provider()
