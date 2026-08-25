@@ -5,11 +5,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDialog,
     QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QMainWindow,
     QMessageBox,
+    QSpinBox,
 
     QTabWidget,
 
@@ -20,8 +22,11 @@ from PySide6.QtWidgets import (
 
 
 
+from ui.dialogs.add_column_dialog import AddColumnDialog
+from ui.dialogs.add_row_dialog import AddRowDialog
+from ui.dialogs.calculated_column_dialog import CalculatedColumnDialog
 from ui.workspace import Workspace
-from core.data_processor import AddColumnConfig, AddRowConfig, DataProcessor, DeleteColumnConfig, DeleteRowsConfig, DuplicateColumnConfig, DuplicateRowConfig, RenameColumnConfig
+from core.data_processor import AddColumnConfig, AddRowConfig, DataProcessor, DeleteColumnConfig, DeleteRowsConfig, DuplicateColumnConfig, DuplicateRowConfig, RenameColumnConfig, CalculatedColumnConfig
 from ui.dialogs.transform_dialog import TransformDialog
 from ui.dialogs.aggregation_dialog import AggregationDialog
 from ui.dialogs.cleaning_dialog import CleaningDialog
@@ -91,12 +96,18 @@ class MainWindow(QMainWindow):
         # Signals
         # ----------------------------------
 
+        # ==================================================
+        # MAIN MENU CONNECTIONS
+        # ==================================================
+
         self.main_menu.open_action.triggered.connect(
             self.load_dataset
         )
+
         self.main_menu.open_project_action.triggered.connect(
             self.load_project
         )
+
         self.main_menu.save_project_action.triggered.connect(
             self.save_project
         )
@@ -104,12 +115,15 @@ class MainWindow(QMainWindow):
         self.main_menu.export_data_action.triggered.connect(
             self.export_data
         )
+
         self.main_menu.close_file_action.triggered.connect(
             self.close_file
         )
+
         self.main_menu.settings_action.triggered.connect(
             self.open_options
         )
+
         self.main_menu.exit_action.triggered.connect(
             self.close
         )
@@ -118,68 +132,31 @@ class MainWindow(QMainWindow):
             self.open_filter_dialog
         )
 
-        self.main_menu.undo_button.triggered.connect(
-            self.undo_operation
-        )
-        self.main_menu.transform_action.triggered.connect(
-            self.open_transform_dialog
-        )
-        self.main_menu.join_action.triggered.connect(
-            self.open_join_dialog
-        )
-        self.main_menu.reset_action.triggered.connect(
-            self.reset_operation
-        )
-        self.main_menu.redo_button.setEnabled(False)
         self.main_menu.aggregate_action.triggered.connect(
             self.open_aggregation_dialog
         )
-        self.main_view.close_requested.connect(
-            self.hide_main_view
+
+        self.main_menu.join_action.triggered.connect(
+            self.open_join_dialog
         )
 
-        self.result_view.close_requested.connect(
-            self.hide_result_view
-        )
-        self.main_menu.main_dataset_action.triggered.connect(
-            self.toggle_main_dataset
+        self.main_menu.transform_action.triggered.connect(
+            self.open_transform_dialog
         )
 
-        self.main_menu.result_dataset_action.triggered.connect(
-            self.toggle_result_dataset
-        )
         self.main_menu.clean_action.triggered.connect(
             self.open_cleaning_dialog
         )
 
-        #####context menu
-        self.main_view.filter_requested.connect(
-            self.open_filter_dialog
-        )
-        self.main_view.aggregate_requested.connect(
-            self.open_aggregation_dialog
-        )
-        self.main_view.join_requested.connect(
-            self.open_join_dialog
-        )
-        self.main_view.transform_requested.connect(
-            self.open_transform_dialog
-        )
-        self.main_view.clean_requested.connect(
-            self.open_cleaning_dialog
-        )
-        self.main_view.rename_column_requested.connect(
-            self.rename_column
+        self.main_menu.calculated_column_action.triggered.connect(
+            self.calculated_column
         )
 
-        self.main_view.duplicate_column_requested.connect(
-            self.duplicate_column
-        )
 
-        self.main_view.delete_row_requested.connect(
-            self.delete_rows
-        )
-        # Edit menu
+        # ==================================================
+        # MAIN MENU EDIT CONNECTIONS
+        # ==================================================
+
         self.main_menu.rename_column_action.triggered.connect(
             self.rename_column
         )
@@ -207,6 +184,29 @@ class MainWindow(QMainWindow):
         self.main_menu.delete_row_action.triggered.connect(
             self.delete_rows
         )
+        # ==================================================
+        # MAIN VIEW CONTEXT MENU CONNECTIONS
+        # ==================================================
+
+        self.main_view.filter_requested.connect(
+            self.open_filter_dialog
+        )
+
+        self.main_view.aggregate_requested.connect(
+            self.open_aggregation_dialog
+        )
+
+        self.main_view.join_requested.connect(
+            self.open_join_dialog
+        )
+
+        self.main_view.transform_requested.connect(
+            self.open_transform_dialog
+        )
+
+        self.main_view.clean_requested.connect(
+            self.open_cleaning_dialog
+        )
 
         self.main_view.rename_column_requested.connect(
             self.rename_column
@@ -224,6 +224,10 @@ class MainWindow(QMainWindow):
             self.delete_column
         )
 
+        self.main_view.calculated_column_requested.connect(
+            self.calculated_column
+        )
+
         self.main_view.add_row_requested.connect(
             self.add_row
         )
@@ -235,12 +239,21 @@ class MainWindow(QMainWindow):
         self.main_view.delete_row_requested.connect(
             self.delete_rows
         )
+        self.main_menu.reset_action.triggered.connect(
+            self.reset_operation
+        )
+        self.main_menu.undo_button.triggered.connect(
+            self.undo_operation
+        )
+        self.main_menu.result_dataset_action.triggered.connect(
+            self.toggle_result_dataset
+        )
+        self.main_menu.redo_button.setEnabled(False)
         self.status = StatusBar()
 
         self.setStatusBar(
             self.status
         )
-
     # Display
     def initialise_window(self):
             if self.settings_manager.settings.start_maximized:
@@ -1304,7 +1317,7 @@ class MainWindow(QMainWindow):
 
         return datasets
 
-    def rename_column(self):
+    def rename_column(self, column=None):
 
         workspace = self.workspace
 
@@ -1314,10 +1327,12 @@ class MainWindow(QMainWindow):
         target = self.target_combo.currentData()
 
         if target == "main":
+
             view = workspace.main_view
             dataframe = workspace.dataset_manager.get_dataframe()
 
         elif target == "result":
+
             view = workspace.result_view
             dataframe = workspace.dataset_manager.get_result_dataframe()
 
@@ -1327,7 +1342,8 @@ class MainWindow(QMainWindow):
         if dataframe is None:
             return
 
-        column = view.table.selected_column()
+        if column is None:
+            column = view.table.selected_column()
 
         if column is None:
             QMessageBox.warning(
@@ -1371,7 +1387,6 @@ class MainWindow(QMainWindow):
                 "Rename Column",
                 str(error)
             )
-
             return
 
         if target == "main":
@@ -1395,7 +1410,7 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def duplicate_column(self):
+    def duplicate_column(self, column=None):
 
         workspace = self.workspace
 
@@ -1428,7 +1443,8 @@ class MainWindow(QMainWindow):
         if dataframe is None:
             return
 
-        column = view.table.selected_column()
+        if column is None:
+            column = view.table.selected_column()
 
         if column is None:
 
@@ -1498,7 +1514,7 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def delete_rows(self):
+    def delete_rows(self, row=None):
 
         workspace = self.workspace
 
@@ -1531,7 +1547,10 @@ class MainWindow(QMainWindow):
         if dataframe is None:
             return
 
-        rows = view.table.selected_rows()
+        if row is None:
+            rows = view.table.selected_rows()
+        else:
+            rows = [row]
 
         if not rows:
 
@@ -1598,6 +1617,11 @@ class MainWindow(QMainWindow):
 
     def add_column(self):
 
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
         target = self.target_combo.currentData()
 
         dataframe = self.get_dataframe_for_target(
@@ -1613,33 +1637,23 @@ class MainWindow(QMainWindow):
             )
             return
 
-        name, ok = QInputDialog.getText(
-            self,
-            "Add Column",
-            "Column name:"
-        )
+        dialog = AddColumnDialog(self)
 
-        if not ok:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
             return
 
-        name = name.strip()
+        try:
 
-        if not name:
+            config = dialog.get_config()
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Add Column",
+                str(error)
+            )
             return
-
-        value, ok = QInputDialog.getText(
-            self,
-            "Add Column",
-            "Default value:"
-        )
-
-        if not ok:
-            return
-
-        config = AddColumnConfig(
-            name=name,
-            value=value
-        )
 
         try:
 
@@ -1659,25 +1673,26 @@ class MainWindow(QMainWindow):
 
         if target == "main":
 
-            self.dataset_manager.set_dataframe(
+            workspace.dataset_manager.set_dataframe(
                 result,
                 config.describe()
             )
 
         else:
 
-            self.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.set_result_dataframe(
                 result,
                 config.describe()
             )
 
-        self.refresh_views()
+        workspace.refresh()
+        self.update_workspace_controls()
 
         self.status.showMessage(
             config.describe()
         )
 
-    def delete_column(self):
+    def delete_column(self, column=None):
 
         workspace = self.workspace
 
@@ -1710,7 +1725,10 @@ class MainWindow(QMainWindow):
         if dataframe is None:
             return
 
-        columns = view.table.selected_columns()
+        if column is None:
+            columns = view.table.selected_columns()
+        else:
+            columns = [column]
 
         if not columns:
 
@@ -1775,7 +1793,7 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def duplicate_row(self):
+    def duplicate_row(self, row=None):
 
         workspace = self.workspace
 
@@ -1808,7 +1826,10 @@ class MainWindow(QMainWindow):
         if dataframe is None:
             return
 
-        rows = view.table.selected_rows()
+        if row is None:
+            rows = view.table.selected_rows()
+        else:
+            rows = [row]
 
         if not rows:
 
@@ -1896,20 +1917,15 @@ class MainWindow(QMainWindow):
             )
             return
 
-        values = {}
+        dialog = AddRowDialog(
+            dataframe,
+            self
+        )
 
-        for column in dataframe.columns:
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
 
-            value, ok = QInputDialog.getText(
-                self,
-                "Add Row",
-                f"Value for '{column}':"
-            )
-
-            if not ok:
-                return
-
-            values[column] = value
+        values = dialog.get_values()
 
         config = AddRowConfig(
             values=values
@@ -1926,7 +1942,7 @@ class MainWindow(QMainWindow):
 
             QMessageBox.warning(
                 self,
-                "Add Row",
+                "Add Row Failed",
                 str(error)
             )
             return
@@ -1947,6 +1963,71 @@ class MainWindow(QMainWindow):
 
         workspace.refresh()
         self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def calculated_column(self, view=None):
+
+        if view is None:
+
+            workspace = self.workspace
+            target = self.target_combo.currentData()
+
+            dataframe = self.get_dataframe_for_target(
+                target,
+                use_selection=False
+            )
+
+        else:
+
+            workspace, target, dataframe = self.resolve_view(view)
+
+        if dataframe is None:
+            return
+
+        dialog = CalculatedColumnDialog(
+            dataframe,
+            self
+        )
+
+        if dialog.exec() != QDialog.Accepted:
+            return
+
+        try:
+
+            config = dialog.get_config()
+
+            result = self.data_processor.add_calculated_column(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Calculated Column",
+                str(error)
+            )
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
 
         self.status.showMessage(
             config.describe()

@@ -141,11 +141,15 @@ class MainMenu:
             "Delete Row(s)",
             window
         )
-
+        self.calculated_column_action = QAction(
+            "Calculated Column",
+            window
+        )
         self.edit_menu.addAction(self.rename_column_action)
         self.edit_menu.addAction(self.duplicate_column_action)
         self.edit_menu.addSeparator()
         self.edit_menu.addAction(self.add_column_action)
+        self.edit_menu.addAction(self.calculated_column_action)
         self.edit_menu.addAction(self.delete_column_action)
         self.edit_menu.addSeparator()
         self.edit_menu.addAction(self.add_row_action)

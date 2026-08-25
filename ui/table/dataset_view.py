@@ -18,23 +18,27 @@ from ui.model_tab import ModelTab
 
 
 class DatasetView(QWidget):
-    '''Top level container class'''
+
     close_requested = Signal()
 
+    # Data operations
     filter_requested = Signal()
     transform_requested = Signal()
     aggregate_requested = Signal()
     join_requested = Signal()
     clean_requested = Signal()
 
-    rename_column_requested = Signal()
-    duplicate_column_requested = Signal()
+    # Column operations
+    rename_column_requested = Signal(object)
+    duplicate_column_requested = Signal(object)
     add_column_requested = Signal()
-    delete_column_requested = Signal()
-
+    delete_column_requested = Signal(object)
+    calculated_column_requested = Signal()
+    calculated_column_requested = Signal(object)
+    # Row operations
     add_row_requested = Signal()
-    duplicate_row_requested = Signal()
-    delete_row_requested = Signal()
+    duplicate_row_requested = Signal(object)
+    delete_row_requested = Signal(object)
 
     def __init__(self, title, parent=None):
 
@@ -252,21 +256,57 @@ class DatasetView(QWidget):
 
     def show_context_menu(self, pos):
 
+        index = self.table.indexAt(pos)
+
+        if not index.isValid():
+            return
+
+        row_position = index.row()
+        column_position = index.column()
+
+        column_name = self.table.model().headerData(
+            column_position,
+            Qt.Horizontal,
+            Qt.DisplayRole
+        )
+
+        row_index = self.dataframe.index[row_position]
+
         menu = QMenu(self)
 
+        # -----------------------------
+        # Clipboard
+        # -----------------------------
+
         copy_action = menu.addAction("Copy")
+
         menu.addSeparator()
 
-        column_menu = menu.addMenu("Column")
-        rename_column = column_menu.addAction("Rename")
-        duplicate_column = column_menu.addAction("Duplicate")
-        add_column = column_menu.addAction("Add")
-        delete_column = column_menu.addAction("Delete")
+        # -----------------------------
+        # Edit
+        # -----------------------------
 
-        row_menu = menu.addMenu("Row")
-        add_row = row_menu.addAction("Add")
-        duplicate_row = row_menu.addAction("Duplicate")
-        delete_row = row_menu.addAction("Delete")
+        edit_menu = menu.addMenu("Edit")
+
+        column_menu = edit_menu.addMenu("Column")
+
+        rename_column = column_menu.addAction("Rename")
+        duplicate_column = column_menu.addAction("Duplicate column")
+        add_column = column_menu.addAction("Add column")
+        calculated_column = column_menu.addAction(
+            "Calculated column"
+        )
+        delete_column = column_menu.addAction("Delete column")
+
+        row_menu = edit_menu.addMenu("Row")
+
+        add_row = row_menu.addAction("Add row")
+        duplicate_row = row_menu.addAction("Duplicate row")
+        delete_row = row_menu.addAction("Delete row")
+
+        # -----------------------------
+        # Data operations
+        # -----------------------------
 
         menu.addSeparator()
 
@@ -288,25 +328,28 @@ class DatasetView(QWidget):
             self.table.copy_selection()
 
         elif action == rename_column:
-            self.rename_column_requested.emit()
+            self.rename_column_requested.emit(self, column_name)
 
         elif action == duplicate_column:
-            self.duplicate_column_requested.emit()
+            self.duplicate_column_requested.emit(column_name)
 
         elif action == add_column:
             self.add_column_requested.emit()
 
+        elif action == calculated_column:
+            self.calculated_column_requested.emit(self)
+
         elif action == delete_column:
-            self.delete_column_requested.emit()
+            self.delete_column_requested.emit(column_name)
 
         elif action == add_row:
             self.add_row_requested.emit()
 
         elif action == duplicate_row:
-            self.duplicate_row_requested.emit()
+            self.duplicate_row_requested.emit(row_index)
 
         elif action == delete_row:
-            self.delete_row_requested.emit()
+            self.delete_row_requested.emit(self, row_index)
 
         elif action == filter_action:
             self.filter_requested.emit()
@@ -322,7 +365,7 @@ class DatasetView(QWidget):
 
         elif action == clean_action:
             self.clean_requested.emit()
-
+              
         elif action == clear_action:
             self.table.clearSelection()
 

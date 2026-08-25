@@ -37,8 +37,7 @@ class DataTable(QTableWidget):
         self.itemSelectionChanged.connect(
             self.selection_changed.emit
         )
-        self.setContextMenuPolicy(Qt.CustomContextMenu)
-        self.customContextMenuRequested.connect(self.show_menu)
+
     # ==================================================
     # DISPLAY
     # ==================================================
@@ -143,8 +142,7 @@ class DataTable(QTableWidget):
             columns
         ]
 
-    def show_menu(self):
-        pass
+
 
     def copy_selection(self):
         """Copy the currently selected cells to the clipboard."""

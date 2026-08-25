@@ -25,6 +25,7 @@ class AddRowConfig:
         return "Add row"
 
 
+
 @dataclass
 class DuplicateRowConfig:
     rows: list
@@ -36,9 +37,13 @@ class DuplicateRowConfig:
 class AddColumnConfig:
     name: str
     value: Any = None
+    dtype: str = "string"
 
     def describe(self):
-        return f"Add column '{self.name}'"
+        return (
+            f"Add column '{self.name}' "
+            f"({self.dtype})"
+        )
     
 @dataclass
 class RenameColumnConfig:
@@ -173,6 +178,20 @@ class TransformConfig:
 
         return f"Transform: {self.operation} {self.column}"
 
+@dataclass
+class CalculatedColumnConfig:
+    name: str
+    operation: str
+    columns: list
+    value: Any = None
+
+    def describe(self):
+        columns = ", ".join(map(str, self.columns))
+
+        return (
+            f"Calculate column '{self.name}' "
+            f"using {self.operation} ({columns})"
+        )
 
 @dataclass
 class JoinConfig:
@@ -231,40 +250,49 @@ class DataProcessor:
 
         result = dataframe.copy()
 
-        result[config.name] = config.value
+        try:
+
+            value = self.convert_value(
+                config.value,
+                config.dtype
+            )
+
+        except (TypeError, ValueError) as error:
+
+            raise ValueError(
+                f"Value '{config.value}' cannot be converted "
+                f"to {config.dtype}."
+            ) from error
+
+        if config.dtype == "category":
+
+            result[config.name] = pd.Series(
+                [value] * len(result),
+                index=result.index,
+                dtype="category"
+            )
+
+        elif config.dtype == "date":
+
+            result[config.name] = pd.Series(
+                [value] * len(result),
+                index=result.index,
+                dtype="object"
+            )
+
+        elif config.dtype == "datetime":
+
+            result[config.name] = pd.Series(
+                [value] * len(result),
+                index=result.index,
+                dtype="datetime64[ns]"
+            )
+
+        else:
+
+            result[config.name] = value
 
         return result
-
-    def rename_column(self, dataframe, config):
-
-        if config.old_name not in dataframe.columns:
-            raise ValueError(
-                f"Column '{config.old_name}' does not exist."
-            )
-
-        if not config.new_name:
-            raise ValueError(
-                "The new column name cannot be empty."
-            )
-
-        if (
-            config.new_name != config.old_name
-            and config.new_name in dataframe.columns
-        ):
-            raise ValueError(
-                f"A column named '{config.new_name}' already exists."
-            )
-
-        result = dataframe.copy()
-
-        result = result.rename(
-            columns={
-                config.old_name: config.new_name
-            }
-        )
-
-        return result
-
 
     def duplicate_column(self, dataframe, config):
 
@@ -602,13 +630,44 @@ class DataProcessor:
 
         elif config.operation == "astype":
 
-            df[config.column] = (
-                df[config.column]
-                .astype(config.value)
-            )
+            target_dtype = config.value
 
-        else:
-            raise ValueError("Unknown transform")
+            if target_dtype == "date":
+
+                df[config.column] = pd.to_datetime(
+                    df[config.column],
+                    errors="raise"
+                ).dt.normalize()
+
+            elif target_dtype == "datetime":
+
+                df[config.column] = pd.to_datetime(
+                    df[config.column],
+                    errors="raise"
+                )
+
+            elif target_dtype == "category":
+
+                df[config.column] = (
+                    df[config.column]
+                    .astype("category")
+                )
+
+            else:
+
+                try:
+
+                    df[config.column] = (
+                        df[config.column]
+                        .astype(target_dtype)
+                    )
+
+                except (TypeError, ValueError) as error:
+
+                    raise ValueError(
+                        f"Cannot convert '{config.column}' "
+                        f"to {target_dtype}."
+                    ) from error
 
         return df
 
@@ -640,19 +699,83 @@ class DataProcessor:
         )
 
         return result
+
     def add_row(self, dataframe, config):
+
+        if dataframe is None:
+            raise ValueError(
+                "No dataset is available."
+            )
+
+        if not config.values:
+            raise ValueError(
+                "No row values were provided."
+            )
 
         result = dataframe.copy()
 
         row = {}
 
         for column in dataframe.columns:
-            row[column] = config.values.get(
+
+            value = config.values.get(
                 column,
                 None
             )
 
-        result.loc[len(result)] = row
+            series = dataframe[column]
+
+            if pd.api.types.is_bool_dtype(series):
+
+                value = self.convert_value(
+                    value,
+                    "boolean"
+                )
+
+            elif pd.api.types.is_integer_dtype(series):
+
+                value = self.convert_value(
+                    value,
+                    "integer"
+                )
+
+            elif pd.api.types.is_float_dtype(series):
+
+                value = self.convert_value(
+                    value,
+                    "float"
+                )
+
+            elif pd.api.types.is_datetime64_any_dtype(series):
+
+                value = self.convert_value(
+                    value,
+                    "datetime"
+                )
+
+            elif pd.api.types.is_categorical_dtype(series):
+
+                if value is not None:
+                    value = str(value)
+
+                    if value not in series.cat.categories:
+
+                        result[column] = (
+                            result[column]
+                            .cat.add_categories([value])
+                        )
+
+            row[column] = value
+
+        new_row = pd.DataFrame(
+            [row],
+            columns=dataframe.columns
+        )
+
+        result = pd.concat(
+            [result, new_row],
+            ignore_index=True
+        )
 
         return result
 
@@ -686,3 +809,186 @@ class DataProcessor:
         )
 
         return result
+
+    def add_calculated_column(self, dataframe, config):
+
+        if not config.name:
+            raise ValueError(
+                "Column name cannot be empty."
+            )
+
+        if config.name in dataframe.columns:
+            raise ValueError(
+                f"A column named '{config.name}' already exists."
+            )
+
+        if not config.columns:
+            raise ValueError(
+                "At least one source column is required."
+            )
+
+        missing = [
+            column
+            for column in config.columns
+            if column not in dataframe.columns
+        ]
+
+        if missing:
+            raise ValueError(
+                f"Column(s) do not exist: {missing}"
+            )
+
+        result = dataframe.copy()
+
+        if config.operation == "add":
+
+            if len(config.columns) != 2:
+                raise ValueError(
+                    "Add requires two columns."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]]
+                + result[config.columns[1]]
+            )
+
+        elif config.operation == "subtract":
+
+            if len(config.columns) != 2:
+                raise ValueError(
+                    "Subtract requires two columns."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]]
+                - result[config.columns[1]]
+            )
+
+        elif config.operation == "multiply":
+
+            if len(config.columns) != 2:
+                raise ValueError(
+                    "Multiply requires two columns."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]]
+                * result[config.columns[1]]
+            )
+
+        elif config.operation == "divide":
+
+            if len(config.columns) != 2:
+                raise ValueError(
+                    "Divide requires two columns."
+                )
+
+            if (result[config.columns[1]] == 0).any():
+                raise ValueError(
+                    "Cannot divide by zero."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]]
+                / result[config.columns[1]]
+            )
+
+        elif config.operation == "absolute":
+
+            if len(config.columns) != 1:
+                raise ValueError(
+                    "Absolute requires one column."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]].abs()
+            )
+
+        elif config.operation == "round":
+
+            if len(config.columns) != 1:
+                raise ValueError(
+                    "Round requires one column."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]]
+                .round(config.value)
+            )
+
+        elif config.operation == "concatenate":
+
+            if len(config.columns) != 2:
+                raise ValueError(
+                    "Concatenate requires two columns."
+                )
+
+            result[config.name] = (
+                result[config.columns[0]].astype("string")
+                + result[config.columns[1]].astype("string")
+            )
+
+        else:
+
+            raise ValueError(
+                f"Unknown calculated column operation: "
+                f"{config.operation}"
+            )
+
+        return result
+    def convert_value(self, value, dtype):
+        """Convert a single value to the requested application dtype."""
+
+        if value is None:
+            return None
+
+        if dtype == "string":
+            return str(value)
+
+        if dtype == "integer":
+            return int(value)
+
+        if dtype == "float":
+            return float(value)
+
+        if dtype == "boolean":
+
+            if isinstance(value, bool):
+                return value
+
+            if isinstance(value, str):
+
+                text = value.strip().lower()
+
+                if text in ("true", "yes", "1"):
+                    return True
+
+                if text in ("false", "no", "0"):
+                    return False
+
+            raise ValueError(
+                f"Value '{value}' cannot be converted to boolean."
+            )
+
+        if dtype == "date":
+
+            converted = pd.to_datetime(
+                value,
+                errors="raise"
+            )
+
+            return converted.date()
+
+        if dtype == "datetime":
+
+            return pd.to_datetime(
+                value,
+                errors="raise"
+            )
+
+        if dtype == "category":
+            return str(value)
+
+        raise ValueError(
+            f"Unsupported data type: {dtype}"
+        )
