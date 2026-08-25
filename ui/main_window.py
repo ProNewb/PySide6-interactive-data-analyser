@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QHBoxLayout,
+    QInputDialog,
     QMainWindow,
     QMessageBox,
 
@@ -20,7 +21,7 @@ from PySide6.QtWidgets import (
 
 
 from ui.workspace import Workspace
-from core.data_processor import DataProcessor
+from core.data_processor import AddColumnConfig, AddRowConfig, DataProcessor, DeleteColumnConfig, DeleteRowsConfig, DuplicateColumnConfig, DuplicateRowConfig, RenameColumnConfig
 from ui.dialogs.transform_dialog import TransformDialog
 from ui.dialogs.aggregation_dialog import AggregationDialog
 from ui.dialogs.cleaning_dialog import CleaningDialog
@@ -166,6 +167,73 @@ class MainWindow(QMainWindow):
         )
         self.main_view.clean_requested.connect(
             self.open_cleaning_dialog
+        )
+        self.main_view.rename_column_requested.connect(
+            self.rename_column
+        )
+
+        self.main_view.duplicate_column_requested.connect(
+            self.duplicate_column
+        )
+
+        self.main_view.delete_row_requested.connect(
+            self.delete_rows
+        )
+        # Edit menu
+        self.main_menu.rename_column_action.triggered.connect(
+            self.rename_column
+        )
+
+        self.main_menu.duplicate_column_action.triggered.connect(
+            self.duplicate_column
+        )
+
+        self.main_menu.add_column_action.triggered.connect(
+            self.add_column
+        )
+
+        self.main_menu.delete_column_action.triggered.connect(
+            self.delete_column
+        )
+
+        self.main_menu.add_row_action.triggered.connect(
+            self.add_row
+        )
+
+        self.main_menu.duplicate_row_action.triggered.connect(
+            self.duplicate_row
+        )
+
+        self.main_menu.delete_row_action.triggered.connect(
+            self.delete_rows
+        )
+
+        self.main_view.rename_column_requested.connect(
+            self.rename_column
+        )
+
+        self.main_view.duplicate_column_requested.connect(
+            self.duplicate_column
+        )
+
+        self.main_view.add_column_requested.connect(
+            self.add_column
+        )
+
+        self.main_view.delete_column_requested.connect(
+            self.delete_column
+        )
+
+        self.main_view.add_row_requested.connect(
+            self.add_row
+        )
+
+        self.main_view.duplicate_row_requested.connect(
+            self.duplicate_row
+        )
+
+        self.main_view.delete_row_requested.connect(
+            self.delete_rows
         )
         self.status = StatusBar()
 
@@ -1235,3 +1303,651 @@ class MainWindow(QMainWindow):
                 }
 
         return datasets
+
+    def rename_column(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+            view = workspace.main_view
+            dataframe = workspace.dataset_manager.get_dataframe()
+
+        elif target == "result":
+            view = workspace.result_view
+            dataframe = workspace.dataset_manager.get_result_dataframe()
+
+        else:
+            return
+
+        if dataframe is None:
+            return
+
+        column = view.table.selected_column()
+
+        if column is None:
+            QMessageBox.warning(
+                self,
+                "Rename Column",
+                "Please select a column first."
+            )
+            return
+
+        new_name, ok = QInputDialog.getText(
+            self,
+            "Rename Column",
+            "New name:",
+            text=str(column)
+        )
+
+        if not ok:
+            return
+
+        new_name = new_name.strip()
+
+        if not new_name:
+            return
+
+        config = RenameColumnConfig(
+            old_name=column,
+            new_name=new_name
+        )
+
+        try:
+
+            result = self.data_processor.rename_column(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Rename Column",
+                str(error)
+            )
+
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def duplicate_column(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            view = workspace.main_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_dataframe()
+            )
+
+        elif target == "result":
+
+            view = workspace.result_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_result_dataframe()
+            )
+
+        else:
+            return
+
+        if dataframe is None:
+            return
+
+        column = view.table.selected_column()
+
+        if column is None:
+
+            QMessageBox.warning(
+                self,
+                "Duplicate Column",
+                "Please select a column first."
+            )
+
+            return
+
+        new_name, ok = QInputDialog.getText(
+            self,
+            "Duplicate Column",
+            "New column name:",
+            text=f"{column}_copy"
+        )
+
+        if not ok:
+            return
+
+        new_name = new_name.strip()
+
+        if not new_name:
+            return
+
+        config = DuplicateColumnConfig(
+            source=column,
+            new_name=new_name
+        )
+
+        try:
+
+            result = self.data_processor.duplicate_column(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Duplicate Column",
+                str(error)
+            )
+
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def delete_rows(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            view = workspace.main_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_dataframe()
+            )
+
+        elif target == "result":
+
+            view = workspace.result_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_result_dataframe()
+            )
+
+        else:
+            return
+
+        if dataframe is None:
+            return
+
+        rows = view.table.selected_rows()
+
+        if not rows:
+
+            QMessageBox.warning(
+                self,
+                "Delete Rows",
+                "Please select one or more rows first."
+            )
+
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Delete Rows",
+            f"Delete {len(rows)} selected row(s)?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        config = DeleteRowsConfig(
+            rows=rows
+        )
+
+        try:
+
+            result = self.data_processor.delete_rows(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Delete Rows",
+                str(error)
+            )
+
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def add_column(self):
+
+        target = self.target_combo.currentData()
+
+        dataframe = self.get_dataframe_for_target(
+            target,
+            use_selection=False
+        )
+
+        if dataframe is None:
+            QMessageBox.warning(
+                self,
+                "Add Column",
+                "There is no dataset available."
+            )
+            return
+
+        name, ok = QInputDialog.getText(
+            self,
+            "Add Column",
+            "Column name:"
+        )
+
+        if not ok:
+            return
+
+        name = name.strip()
+
+        if not name:
+            return
+
+        value, ok = QInputDialog.getText(
+            self,
+            "Add Column",
+            "Default value:"
+        )
+
+        if not ok:
+            return
+
+        config = AddColumnConfig(
+            name=name,
+            value=value
+        )
+
+        try:
+
+            result = self.data_processor.add_column(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Add Column",
+                str(error)
+            )
+            return
+
+        if target == "main":
+
+            self.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            self.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        self.refresh_views()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def delete_column(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            view = workspace.main_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_dataframe()
+            )
+
+        elif target == "result":
+
+            view = workspace.result_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_result_dataframe()
+            )
+
+        else:
+            return
+
+        if dataframe is None:
+            return
+
+        columns = view.table.selected_columns()
+
+        if not columns:
+
+            QMessageBox.warning(
+                self,
+                "Delete Columns",
+                "Please select one or more columns first."
+            )
+
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Delete Columns",
+            f"Delete {len(columns)} selected column(s)?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        config = DeleteColumnConfig(
+            columns=columns
+        )
+
+        try:
+
+            result = self.data_processor.delete_column(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Delete Columns",
+                str(error)
+            )
+
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def duplicate_row(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            view = workspace.main_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_dataframe()
+            )
+
+        elif target == "result":
+
+            view = workspace.result_view
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_result_dataframe()
+            )
+
+        else:
+            return
+
+        if dataframe is None:
+            return
+
+        rows = view.table.selected_rows()
+
+        if not rows:
+
+            QMessageBox.warning(
+                self,
+                "Duplicate Rows",
+                "Please select one or more rows first."
+            )
+
+            return
+
+        config = DuplicateRowConfig(
+            rows=rows
+        )
+
+        try:
+
+            result = self.data_processor.duplicate_rows(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Duplicate Rows",
+                str(error)
+            )
+
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def add_row(self):
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_dataframe()
+            )
+
+        elif target == "result":
+
+            dataframe = (
+                workspace.dataset_manager
+                .get_result_dataframe()
+            )
+
+        else:
+            return
+
+        if dataframe is None:
+            QMessageBox.warning(
+                self,
+                "Add Row",
+                "There is no dataset available."
+            )
+            return
+
+        values = {}
+
+        for column in dataframe.columns:
+
+            value, ok = QInputDialog.getText(
+                self,
+                "Add Row",
+                f"Value for '{column}':"
+            )
+
+            if not ok:
+                return
+
+            values[column] = value
+
+        config = AddRowConfig(
+            values=values
+        )
+
+        try:
+
+            result = self.data_processor.add_row(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Add Row",
+                str(error)
+            )
+            return
+
+        if target == "main":
+
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+
+        else:
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )

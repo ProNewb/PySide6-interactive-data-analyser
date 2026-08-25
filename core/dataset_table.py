@@ -1,6 +1,7 @@
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QTableWidget,
     QTableWidgetItem
 )
@@ -144,3 +145,70 @@ class DataTable(QTableWidget):
 
     def show_menu(self):
         pass
+
+    def copy_selection(self):
+        """Copy the currently selected cells to the clipboard."""
+
+        selected = self.selectedItems()
+
+        if not selected:
+            return
+
+        rows = sorted({
+            item.row()
+            for item in selected
+        })
+
+        columns = sorted({
+            item.column()
+            for item in selected
+        })
+
+        # Build tab-separated text
+        lines = []
+
+        for row in rows:
+
+            values = []
+
+            for column in columns:
+
+                item = self.item(row, column)
+
+                if item is None:
+                    values.append("")
+                else:
+                    values.append(item.text())
+
+            lines.append("\t".join(values))
+
+        text = "\n".join(lines)
+
+        QApplication.clipboard().setText(text)
+
+    def selected_rows(self):
+
+        rows = self.get_selected_rows()
+
+        return [
+            self.dataframe.index[row]
+            for row in rows
+        ]
+
+    def selected_column(self):
+
+        columns = self.get_selected_columns()
+
+        if len(columns) != 1:
+            return None
+
+        return self.dataframe.columns[columns[0]]
+
+    def selected_columns(self):
+
+        columns = self.get_selected_columns()
+
+        return [
+            self.dataframe.columns[column]
+            for column in columns
+        ]

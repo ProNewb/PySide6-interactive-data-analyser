@@ -6,6 +6,64 @@ from core.conditions import Condition
 from dataclasses import dataclass
 from typing import Any
 
+@dataclass
+class DeleteColumnConfig:
+    columns: list
+
+    def describe(self):
+        return (
+            f"Delete column(s): "
+            + ", ".join(map(str, self.columns))
+        )
+
+
+@dataclass
+class AddRowConfig:
+    values: dict
+
+    def describe(self):
+        return "Add row"
+
+
+@dataclass
+class DuplicateRowConfig:
+    rows: list
+
+    def describe(self):
+        return f"Duplicate {len(self.rows)} row(s)"
+    
+@dataclass
+class AddColumnConfig:
+    name: str
+    value: Any = None
+
+    def describe(self):
+        return f"Add column '{self.name}'"
+    
+@dataclass
+class RenameColumnConfig:
+    old_name: object
+    new_name: str
+
+    def describe(self):
+        return f"Rename '{self.old_name}' to '{self.new_name}'"
+
+
+@dataclass
+class DuplicateColumnConfig:
+    source: object
+    new_name: str
+
+    def describe(self):
+        return f"Duplicate '{self.source}' as '{self.new_name}'"
+
+
+@dataclass
+class DeleteRowsConfig:
+    rows: list
+
+    def describe(self):
+        return f"Delete {len(self.rows)} row(s)"
 
 @dataclass
 class FilterConfig:
@@ -158,7 +216,105 @@ class JoinConfig:
         return description
     
 class DataProcessor:
-    '''lass responsible for data operations'''
+    """Class responsible for data operations."""
+    def add_column(self, dataframe, config):
+
+        if not config.name:
+            raise ValueError(
+                "Column name cannot be empty."
+            )
+
+        if config.name in dataframe.columns:
+            raise ValueError(
+                f"A column named '{config.name}' already exists."
+            )
+
+        result = dataframe.copy()
+
+        result[config.name] = config.value
+
+        return result
+
+    def rename_column(self, dataframe, config):
+
+        if config.old_name not in dataframe.columns:
+            raise ValueError(
+                f"Column '{config.old_name}' does not exist."
+            )
+
+        if not config.new_name:
+            raise ValueError(
+                "The new column name cannot be empty."
+            )
+
+        if (
+            config.new_name != config.old_name
+            and config.new_name in dataframe.columns
+        ):
+            raise ValueError(
+                f"A column named '{config.new_name}' already exists."
+            )
+
+        result = dataframe.copy()
+
+        result = result.rename(
+            columns={
+                config.old_name: config.new_name
+            }
+        )
+
+        return result
+
+
+    def duplicate_column(self, dataframe, config):
+
+        if config.source not in dataframe.columns:
+            raise ValueError(
+                f"Column '{config.source}' does not exist."
+            )
+
+        if not config.new_name:
+            raise ValueError(
+                "The new column name cannot be empty."
+            )
+
+        if config.new_name in dataframe.columns:
+            raise ValueError(
+                f"A column named '{config.new_name}' already exists."
+            )
+
+        result = dataframe.copy()
+
+        result[config.new_name] = result[config.source].copy()
+
+        return result
+
+
+    def delete_rows(self, dataframe, config):
+
+        if not config.rows:
+            raise ValueError(
+                "No rows were selected."
+            )
+
+        result = dataframe.copy()
+
+        missing_rows = [
+            row for row in config.rows
+            if row not in result.index
+        ]
+
+        if missing_rows:
+            raise ValueError(
+                "One or more selected rows no longer exist."
+            )
+
+        result = result.drop(
+            index=config.rows
+        )
+
+        return result
+    
     def filter(self, dataframe, conditions):
 
         try:
@@ -455,3 +611,78 @@ class DataProcessor:
             raise ValueError("Unknown transform")
 
         return df
+
+    def delete_column(self, dataframe, config):
+
+        if not config.columns:
+            raise ValueError(
+                "No columns were selected."
+            )
+
+        missing = [
+            column
+            for column in config.columns
+            if column not in dataframe.columns
+        ]
+
+        if missing:
+            raise ValueError(
+                f"Column(s) do not exist: {missing}"
+            )
+
+        if len(config.columns) >= len(dataframe.columns):
+            raise ValueError(
+                "You cannot delete all columns."
+            )
+
+        result = dataframe.drop(
+            columns=config.columns
+        )
+
+        return result
+    def add_row(self, dataframe, config):
+
+        result = dataframe.copy()
+
+        row = {}
+
+        for column in dataframe.columns:
+            row[column] = config.values.get(
+                column,
+                None
+            )
+
+        result.loc[len(result)] = row
+
+        return result
+
+    def duplicate_rows(self, dataframe, config):
+
+        if not config.rows:
+            raise ValueError(
+                "No rows were selected."
+            )
+
+        missing = [
+            row
+            for row in config.rows
+            if row not in dataframe.index
+        ]
+
+        if missing:
+            raise ValueError(
+                "One or more selected rows no longer exist."
+            )
+
+        rows_to_duplicate = dataframe.loc[
+            config.rows
+        ]
+
+        result = pd.concat(
+            [
+                dataframe,
+                rows_to_duplicate
+            ]
+        )
+
+        return result

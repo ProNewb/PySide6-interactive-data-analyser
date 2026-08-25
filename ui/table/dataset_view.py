@@ -20,11 +20,21 @@ from ui.model_tab import ModelTab
 class DatasetView(QWidget):
     '''Top level container class'''
     close_requested = Signal()
+
     filter_requested = Signal()
     transform_requested = Signal()
     aggregate_requested = Signal()
     join_requested = Signal()
     clean_requested = Signal()
+
+    rename_column_requested = Signal()
+    duplicate_column_requested = Signal()
+    add_column_requested = Signal()
+    delete_column_requested = Signal()
+
+    add_row_requested = Signal()
+    duplicate_row_requested = Signal()
+    delete_row_requested = Signal()
 
     def __init__(self, title, parent=None):
 
@@ -247,24 +257,56 @@ class DatasetView(QWidget):
         copy_action = menu.addAction("Copy")
         menu.addSeparator()
 
-        filter_action = menu.addAction("Filter selected")
-        aggregate_action = menu.addAction("Aggregate selected")
-        transform_action = menu.addAction("Transform selected")
-        join_action = menu.addAction("join selected")
-        clean_action = menu.addAction("clean selected")
+        column_menu = menu.addMenu("Column")
+        rename_column = column_menu.addAction("Rename")
+        duplicate_column = column_menu.addAction("Duplicate")
+        add_column = column_menu.addAction("Add")
+        delete_column = column_menu.addAction("Delete")
+
+        row_menu = menu.addMenu("Row")
+        add_row = row_menu.addAction("Add")
+        duplicate_row = row_menu.addAction("Duplicate")
+        delete_row = row_menu.addAction("Delete")
+
         menu.addSeparator()
 
-        clear_action = menu.addAction("Clear selection")
+        filter_action = menu.addAction("Filter")
+        aggregate_action = menu.addAction("Aggregate")
+        transform_action = menu.addAction("Transform")
+        join_action = menu.addAction("Join")
+        clean_action = menu.addAction("Clean")
+
+        menu.addSeparator()
+
+        clear_action = menu.addAction("Clear Selection")
 
         action = menu.exec(
             self.table.viewport().mapToGlobal(pos)
         )
 
-        if action == clear_action:
-            self.table.clearSelection()
+        if action == copy_action:
+            self.table.copy_selection()
 
-        elif action == copy_action:
-            self.copy_selection()
+        elif action == rename_column:
+            self.rename_column_requested.emit()
+
+        elif action == duplicate_column:
+            self.duplicate_column_requested.emit()
+
+        elif action == add_column:
+            self.add_column_requested.emit()
+
+        elif action == delete_column:
+            self.delete_column_requested.emit()
+
+        elif action == add_row:
+            self.add_row_requested.emit()
+
+        elif action == duplicate_row:
+            self.duplicate_row_requested.emit()
+
+        elif action == delete_row:
+            self.delete_row_requested.emit()
 
         elif action == filter_action:
             self.filter_requested.emit()
@@ -277,5 +319,37 @@ class DatasetView(QWidget):
 
         elif action == join_action:
             self.join_requested.emit()
+
         elif action == clean_action:
             self.clean_requested.emit()
+
+        elif action == clear_action:
+            self.table.clearSelection()
+
+    def selected_column(self):
+
+        columns = self.get_selected_columns()
+
+        if len(columns) != 1:
+            return None
+
+        return self.dataframe.columns[columns[0]]
+
+
+    def selected_columns(self):
+
+        return [
+            self.dataframe.columns[i]
+            for i in self.get_selected_columns()
+        ]
+
+
+    def selected_rows(self):
+        """Return dataframe index values, not table positions."""
+
+        rows = self.get_selected_rows()
+
+        return [
+            self.dataframe.index[i]
+            for i in rows
+    ]

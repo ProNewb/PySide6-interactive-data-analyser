@@ -102,11 +102,61 @@ class MainMenu:
         )
 
         # ----------------------------------
+        # Edit submenu
+        # ----------------------------------
+
+        self.edit_menu = self.data_menu.addMenu("Edit")
+
+        self.rename_column_action = QAction(
+            "Rename Column",
+            window
+        )
+
+        self.duplicate_column_action = QAction(
+            "Duplicate Column",
+            window
+        )
+
+        self.add_column_action = QAction(
+            "Add Column",
+            window
+        )
+
+        self.delete_column_action = QAction(
+            "Delete Column",
+            window
+        )
+
+        self.add_row_action = QAction(
+            "Add Row",
+            window
+        )
+
+        self.duplicate_row_action = QAction(
+            "Duplicate Row",
+            window
+        )
+
+        self.delete_row_action = QAction(
+            "Delete Row(s)",
+            window
+        )
+
+        self.edit_menu.addAction(self.rename_column_action)
+        self.edit_menu.addAction(self.duplicate_column_action)
+        self.edit_menu.addSeparator()
+        self.edit_menu.addAction(self.add_column_action)
+        self.edit_menu.addAction(self.delete_column_action)
+        self.edit_menu.addSeparator()
+        self.edit_menu.addAction(self.add_row_action)
+        self.edit_menu.addAction(self.duplicate_row_action)
+        self.edit_menu.addAction(self.delete_row_action)
+        # ----------------------------------
         # Filter
         # ----------------------------------
 
         self.filter_action = QAction(
-            "Filter",
+            "Filter", 
             window
         )
 
