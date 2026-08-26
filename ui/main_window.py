@@ -288,7 +288,7 @@ class MainWindow(QMainWindow):
     def load_dataset(self):
 
         current_workspace = self.workspace
-
+        
         # Reuse the initial empty Untitled tab
         if (
             self.workspaces.count() == 1
@@ -410,58 +410,23 @@ class MainWindow(QMainWindow):
                 "Untitled"
             )
 
-            data = saved_workspace.get(
-                "data"
-            )
+            data = saved_workspace.get("data")
 
             if data is None:
                 continue
 
-            workspace = Workspace(self)
+            workspace = self.create_workspace(name)
 
             if not workspace.load_project_data(data):
+
+                index = self.workspaces.indexOf(workspace)
+
+                if index >= 0:
+                    self.workspaces.removeTab(index)
+
                 workspace.deleteLater()
+
                 continue
-
-            index = self.workspaces.addTab(
-                workspace,
-                name
-            )
-
-            self.workspaces.setCurrentIndex(index)
-
-        # Make sure we always have a workspace
-        if self.workspaces.count() == 0:
-
-            self.create_workspace(
-                "Untitled"
-            )
-
-            return False
-
-        # Restore previously active workspace
-        current_index = project.get(
-            "current_workspace",
-            0
-        )
-
-        if 0 <= current_index < self.workspaces.count():
-
-            self.workspaces.setCurrentIndex(
-                current_index
-            )
-
-        else:
-
-            self.workspaces.setCurrentIndex(0)
-
-        self.update_workspace_controls()
-
-        self.status.showMessage(
-            f"Project loaded: {Path(filename).name}"
-        )
-
-        return True
 
     def close_file(self):
 
@@ -1886,118 +1851,63 @@ class MainWindow(QMainWindow):
 
     def connect_workspace_signals(self, workspace):
 
-        # -----------------------------
-        # Main view
-        # -----------------------------
+        for view in (
+            workspace.main_view,
+            workspace.result_view
+        ):
 
-        workspace.main_view.filter_requested.connect(
-            self.open_filter_dialog
-        )
+            view.filter_requested.connect(
+                self.open_filter_dialog
+            )
 
-        workspace.main_view.aggregate_requested.connect(
-            self.open_aggregation_dialog
-        )
+            view.aggregate_requested.connect(
+                self.open_aggregation_dialog
+            )
 
-        workspace.main_view.join_requested.connect(
-            self.open_join_dialog
-        )
+            view.join_requested.connect(
+                self.open_join_dialog
+            )
 
-        workspace.main_view.transform_requested.connect(
-            self.open_transform_dialog
-        )
+            view.transform_requested.connect(
+                self.open_transform_dialog
+            )
 
-        workspace.main_view.clean_requested.connect(
-            self.open_cleaning_dialog
-        )
+            view.clean_requested.connect(
+                self.open_cleaning_dialog
+            )
 
-        workspace.main_view.rename_column_requested.connect(
-            self.rename_column
-        )
+            view.rename_column_requested.connect(
+                self.rename_column
+            )
 
-        workspace.main_view.duplicate_column_requested.connect(
-            self.duplicate_column
-        )
+            view.duplicate_column_requested.connect(
+                self.duplicate_column
+            )
 
-        workspace.main_view.add_column_requested.connect(
-            self.add_column
-        )
+            view.add_column_requested.connect(
+                self.add_column
+            )
 
-        workspace.main_view.delete_column_requested.connect(
-            self.delete_column
-        )
+            view.delete_column_requested.connect(
+                self.delete_column
+            )
 
-        workspace.main_view.calculated_column_requested.connect(
-            self.calculated_column
-        )
+            view.calculated_column_requested.connect(
+                self.calculated_column
+            )
 
-        workspace.main_view.add_row_requested.connect(
-            self.add_row
-        )
+            view.add_row_requested.connect(
+                self.add_row
+            )
 
-        workspace.main_view.duplicate_row_requested.connect(
-            self.duplicate_row
-        )
+            view.duplicate_row_requested.connect(
+                self.duplicate_row
+            )
 
-        workspace.main_view.delete_row_requested.connect(
-            self.delete_rows
-        )
+            view.delete_row_requested.connect(
+                self.delete_rows
+            )
 
-        # -----------------------------
-        # Result view
-        # -----------------------------
-
-        workspace.result_view.filter_requested.connect(
-            self.open_filter_dialog
-        )
-
-        workspace.result_view.aggregate_requested.connect(
-            self.open_aggregation_dialog
-        )
-
-        workspace.result_view.join_requested.connect(
-            self.open_join_dialog
-        )
-
-        workspace.result_view.transform_requested.connect(
-            self.open_transform_dialog
-        )
-
-        workspace.result_view.clean_requested.connect(
-            self.open_cleaning_dialog
-        )
-
-        workspace.result_view.rename_column_requested.connect(
-            self.rename_column
-        )
-
-        workspace.result_view.duplicate_column_requested.connect(
-            self.duplicate_column
-        )
-
-        workspace.result_view.add_column_requested.connect(
-            self.add_column
-        )
-
-        workspace.result_view.delete_column_requested.connect(
-            self.delete_column
-        )
-
-        workspace.result_view.calculated_column_requested.connect(
-            self.calculated_column
-        )
-
-        workspace.result_view.add_row_requested.connect(
-            self.add_row
-        )
-
-        workspace.result_view.duplicate_row_requested.connect(
-            self.duplicate_row
-        )
-
-        workspace.result_view.delete_row_requested.connect(
-            self.delete_rows
-        )
-        
     def get_current_dataset_label(self, workspace, target):
 
 
@@ -2016,3 +1926,23 @@ class MainWindow(QMainWindow):
 
         return f"{name} • {label}"
 
+    def get_context_dataset(self, context):
+
+        workspace = context["workspace"]
+        target = context["target"]
+
+        if target == "main":
+            dataframe = workspace.dataset_manager.get_dataframe()
+        elif target == "result":
+            dataframe = workspace.dataset_manager.get_result_dataframe()
+        else:
+            raise ValueError(
+                f"Invalid dataset target: {target}"
+            )
+
+        if dataframe is None:
+            raise ValueError(
+                "The selected dataset is no longer available."
+            )
+
+        return workspace, target, dataframe
