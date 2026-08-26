@@ -6,6 +6,7 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
+    QMessageBox,
     QPushButton,
     QSpinBox,
     QSplitter,
@@ -43,16 +44,32 @@ class TransformDialog(QDialog):
 
         self.target_combo.setCurrentText(current)
 
-        self.use_selection = QCheckBox("Use selection")
-        self.use_selection.setChecked(use_selection)
-        target_layout.addWidget(self.target_combo)
-        layout.addLayout(target_layout)
+        self.use_selection = QCheckBox(
+    "Use selection"
+)
 
+        self.use_selection.setChecked(
+            use_selection
+        )
 
+        self.preserve_unselected = QCheckBox(
+            "Preserve unselected data"
+        )
 
-        layout.addWidget(
+        self.preserve_unselected.setChecked(True)
+
+        self.preserve_unselected.setEnabled(
+            self.use_selection.isChecked()
+        )
+
+        target_layout.addWidget(
             self.use_selection
         )
+
+        target_layout.addWidget(
+            self.preserve_unselected
+        )
+        layout.addLayout(target_layout)
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Column"))
         controls.addWidget(QLabel("Column"))
@@ -113,9 +130,10 @@ class TransformDialog(QDialog):
         buttons.addWidget(cancel_button)
         buttons.addWidget(self.apply_button)
         layout.addLayout(buttons)
-
+        self.dataframe = self.get_dataframe()
+        self.operation_dataframe = self.get_operation_dataframe()
         cancel_button.clicked.connect(self.reject)
-        self.apply_button.clicked.connect(self.accept)
+        self.apply_button.clicked.connect(self.apply)
         self.column_combo.currentIndexChanged.connect(self.update_operation_options)
         self.operation_combo.currentIndexChanged.connect(self.update_preview)
         self.operation_combo.currentIndexChanged.connect(
@@ -127,6 +145,13 @@ class TransformDialog(QDialog):
         self.change_target()
         self.update_operation_options()
         self.use_selection.toggled.connect(self.change_target)
+        self.use_selection.toggled.connect(
+            self.update_selection_options
+        )
+
+        self.preserve_unselected.toggled.connect(
+            self.update_preview
+        )
 
     def get_dataset_key(self):
         return self.target_combo.currentText()
@@ -134,14 +159,42 @@ class TransformDialog(QDialog):
 
     def get_dataframe(self):
 
-        info = self.datasets[self.get_dataset_key()]
-        df = info["dataframe"]
+        info = self.datasets[
+            self.get_dataset_key()
+        ]
 
-        if self.use_selection.isChecked():
-            return info["view"].get_analysis_dataframe()
+        return info["dataframe"].copy()
 
-        return df
+    def get_operation_dataframe(self):
 
+        info = self.datasets[
+            self.get_dataset_key()
+        ]
+
+        full_df = info["dataframe"].copy()
+
+        if not self.use_selection.isChecked():
+            return full_df
+
+        return info["view"].get_analysis_dataframe().copy()
+
+
+    def change_target(self):
+
+        self.dataframe = self.get_dataframe()
+
+        self.operation_dataframe = self.get_operation_dataframe()
+
+        self.column_combo.clear()
+
+        for column in self.operation_dataframe.columns:
+            self.column_combo.addItem(
+                str(column),
+                column
+            )
+
+        self.update_operation_options()
+        self.update_preview()
 
     def get_workspace(self):
         return self.datasets[self.get_dataset_key()]["workspace"]
@@ -150,19 +203,6 @@ class TransformDialog(QDialog):
     def get_target(self):
         return self.datasets[self.get_dataset_key()]["target"]
 
-    def change_target(self):
-
-        self.dataframe = self.get_dataframe()
-
-        self.column_combo.clear()
-
-        for column in self.dataframe.columns:
-            self.column_combo.addItem(
-                str(column),
-                column
-            )
-
-        self.update_operation_options()
 
     def update_operation_options(self):
         column = self.column_combo.currentData()
@@ -170,7 +210,7 @@ class TransformDialog(QDialog):
             self.apply_button.setEnabled(False)
             return
 
-        series = self.dataframe[column]
+        series = self.operation_dataframe[column]
         numeric = (
             pd.api.types.is_numeric_dtype(series)
             and not pd.api.types.is_bool_dtype(series)
@@ -221,41 +261,193 @@ class TransformDialog(QDialog):
             operation,
             value
         )
+    def transform_dataframe(self, dataframe):
 
-    def update_preview(self):
-        full = self.show_all_rows.isChecked()
-        self.preview.display_dataframe(self.dataframe, full=full)
-        try:
-            config = self.get_transform()
-            result = self.dataframe.copy()
-            column = config.column
-            if config.operation == "round":
-                result[column] = result[column].round(config.value)
-            elif config.operation == "uppercase":
-                result[column] = result[column].str.upper()
-            elif config.operation == "lowercase":
-                result[column] = result[column].str.lower()
-            elif config.operation == "trim":
-                result[column] = result[column].str.strip()
-            elif config.operation == "remove_whitespace":
-                result[column] = result[column].str.replace(
-                    r"\s+", "", regex=True
-                )
-            elif config.operation == "capitalize_first":
-                result[column] = result[column].str.replace(
-                    r"^(\s*)(\S)",
-                    lambda match: (
-                        match.group(1) + match.group(2).upper()
-                    ),
+        config = self.get_transform()
+
+        result = dataframe.copy()
+
+        column = config.column
+
+        if config.operation == "round":
+
+            result[column] = (
+                result[column].round(config.value)
+            )
+
+        elif config.operation == "uppercase":
+
+            result[column] = (
+                result[column].str.upper()
+            )
+
+        elif config.operation == "lowercase":
+
+            result[column] = (
+                result[column].str.lower()
+            )
+
+        elif config.operation == "trim":
+
+            result[column] = (
+                result[column].str.strip()
+            )
+
+        elif config.operation == "remove_whitespace":
+
+            result[column] = (
+                result[column].str.replace(
+                    r"\s+",
+                    "",
                     regex=True
                 )
-            elif config.operation == "astype":
-                result[column] = result[column].astype(config.value)
-        except (KeyError, TypeError, ValueError):
+            )
+
+        elif config.operation == "capitalize_first":
+
+            result[column] = (
+                result[column].str.replace(
+                    r"^(\s*)(\S)",
+                    lambda match:
+                        match.group(1)
+                        + match.group(2).upper(),
+                    regex=True
+                )
+            )
+
+        elif config.operation == "astype":
+
+            result[column] = (
+                result[column].astype(config.value)
+            )
+
+        return result
+
+    def update_preview(self):
+
+        full = self.show_all_rows.isChecked()
+
+        self.preview.display_dataframe(
+            self.operation_dataframe,
+            full=full
+        )
+
+        try:
+
+            operation_result = (
+                self.transform_dataframe(
+                    self.operation_dataframe
+                )
+            )
+
+            if (
+                self.use_selection.isChecked()
+                and self.preserve_unselected.isChecked()
+            ):
+
+                result = self.merge_selection_result(
+                    self.dataframe,
+                    self.operation_dataframe,
+                    operation_result
+                )
+
+            else:
+
+                result = operation_result
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ):
+
             self.result_preview.clearContents()
             self.result_preview.setRowCount(0)
+
             self.apply_button.setEnabled(False)
+
             return
 
-        self.result_preview.display_dataframe(result, full=full)
+        self.result_preview.display_dataframe(
+            result,
+            full=full
+        )
+
+        self.result = result
+
         self.apply_button.setEnabled(True)
+
+    def update_selection_options(self, checked):
+
+        self.preserve_unselected.setEnabled(
+            checked
+        )
+
+        self.change_target()
+
+    def merge_selection_result(
+        self,
+        original,
+        selection,
+        result
+    ):
+
+        merged = original.copy()
+
+        common = result.index.intersection(
+            merged.index
+        )
+
+        merged.loc[
+            common,
+            result.columns
+        ] = result.loc[
+            common,
+            result.columns
+        ]
+
+        return merged
+
+    def apply(self):
+
+        try:
+
+            operation_result = (
+                self.transform_dataframe(
+                    self.operation_dataframe
+                )
+            )
+
+            if (
+                self.use_selection.isChecked()
+                and self.preserve_unselected.isChecked()
+            ):
+
+                result = self.merge_selection_result(
+                    self.dataframe,
+                    self.operation_dataframe,
+                    operation_result
+                )
+
+            else:
+
+                result = operation_result
+
+            self.result = result
+
+            self.accept()
+
+        except (
+            KeyError,
+            TypeError,
+            ValueError
+        ) as error:
+
+            QMessageBox.warning(
+                self,
+                "Transform Failed",
+                str(error)
+            )
+
+    def get_result(self):
+        return self.result

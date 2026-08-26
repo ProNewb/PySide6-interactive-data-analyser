@@ -198,6 +198,7 @@ class MainWindow(QMainWindow):
         self.main_menu.redo_button.setEnabled(False)
         self.status = StatusBar()
 
+
         self.setStatusBar(
             self.status
         )
@@ -264,6 +265,7 @@ class MainWindow(QMainWindow):
         self.use_selection = QCheckBox(
             "Use selection"
         )
+
         self.allow_cross_tab_selection = QCheckBox(
             "cross-tab selection"
         )
@@ -697,23 +699,13 @@ class MainWindow(QMainWindow):
         workspace.result_view.setVisible(
             checked
         )
+        
 
     def open_cleaning_dialog(self, context=None):
 
         workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
-            return
-
-        if self.use_selection.isChecked():
-            dataframe = view.get_analysis_dataframe()
-
-        if dataframe is None:
-            QMessageBox.warning(
-                self,
-                "Clean Data",
-                "There is no dataset available to clean."
-            )
             return
 
         dialog = CleaningDialog(
@@ -725,8 +717,6 @@ class MainWindow(QMainWindow):
             ),
             use_selection=self.use_selection.isChecked()
         )
-
-        dialog.set_dataframe(dataframe)
 
         if not dialog.exec():
             return
@@ -746,14 +736,11 @@ class MainWindow(QMainWindow):
         config = dialog.get_operation()
 
         if target == "main":
-
             workspace.dataset_manager.set_dataframe(
                 result,
                 config.describe()
             )
-
         else:
-
             workspace.dataset_manager.set_result_dataframe(
                 result,
                 config.describe()
@@ -944,35 +931,50 @@ class MainWindow(QMainWindow):
         if dataframe is None:
             return
 
-        if self.use_selection.isChecked():
-            dataframe = view.get_analysis_dataframe()
-
         dialog = TransformDialog(
             self.get_available_datasets(),
             self,
             current=self.get_current_dataset_label(
-    workspace,
-    target
-),
+                workspace,
+                target
+            ),
             use_selection=self.use_selection.isChecked()
         )
+
         if not dialog.exec():
             return
 
         workspace = dialog.get_workspace()
         target = dialog.get_target()
-        dataframe = dialog.get_dataframe()
+        result = dialog.get_result()
+
+        if result is None:
+            QMessageBox.warning(
+                self,
+                "Transform Failed",
+                "No transform result was produced."
+            )
+            return
 
         config = dialog.get_transform()
 
-        result = self.data_processor.transform(dataframe, config)
-
         if target == "main":
-            workspace.dataset_manager.set_dataframe(result, config.describe())
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
         else:
-            workspace.dataset_manager.set_result_dataframe(result, config.describe())
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
 
         workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            "Transform completed"
+        )
 
 
     def get_dataframe_for_target(self, target, use_selection=None):
@@ -1774,7 +1776,7 @@ class MainWindow(QMainWindow):
 
             config = dialog.get_config()
 
-            result = self.data_processor.calculated_column(
+            result = self.data_processor.add_calculated_column(
                 dataframe,
                 config
             )

@@ -992,3 +992,30 @@ class DataProcessor:
         raise ValueError(
             f"Unsupported data type: {dtype}"
         )
+
+    def rename_column(self, dataframe, config):
+
+        if config.old_name not in dataframe.columns:
+            raise ValueError(
+                f"Column '{config.old_name}' does not exist."
+            )
+
+        if not config.new_name:
+            raise ValueError(
+                "The new column name cannot be empty."
+            )
+
+        if config.new_name in dataframe.columns:
+            raise ValueError(
+                f"A column named '{config.new_name}' already exists."
+            )
+
+        result = dataframe.copy()
+
+        result = result.rename(
+            columns={
+                config.old_name: config.new_name
+            }
+        )
+
+        return result

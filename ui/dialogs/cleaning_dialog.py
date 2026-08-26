@@ -41,7 +41,7 @@ class CleaningDialog(QDialog):
         self.datasets = datasets
         self.current = current
         self.use_selection_default = use_selection
-        
+
         self.cleaning_stats = CleaningStats()
         self.cleaning_result = None
         self.cleaner = DataCleaner()
@@ -52,11 +52,13 @@ class CleaningDialog(QDialog):
         self.build_ui()
 
         self.dataframe = self.get_dataframe()
-
+        self.dataframe = self.get_dataframe()
+        self.operation_dataframe = self.get_operation_dataframe()
         self.connect_signals()
 
         self.update_operation_ui()
         self.update_preview()
+
 
     def build_ui(self):
 
@@ -80,16 +82,36 @@ class CleaningDialog(QDialog):
         if self.current:
             self.target_combo.setCurrentText(self.current)
 
-        self.use_selection = QCheckBox("Use selection")
+        self.use_selection = QCheckBox(
+    "Use selection"
+)
 
-        self.use_selection.setChecked(self.use_selection_default)
+        self.use_selection.setChecked(
+            self.use_selection_default
+        )
 
+        self.preserve_unselected = QCheckBox(
+            "Preserve unselected data"
+        )
 
+        self.preserve_unselected.setChecked(True)
+
+        self.preserve_unselected.setEnabled(
+            self.use_selection.isChecked()
+        )
 
         target_layout.addWidget(
             self.use_selection
         )
-        target_layout.addWidget(self.target_combo)
+
+        target_layout.addWidget(
+            self.preserve_unselected
+        )
+
+        target_layout.addWidget(
+            self.target_combo
+        )
+  
         layout.addLayout(target_layout)
         # ----------------------------------
         # Cleaning operation
@@ -213,6 +235,13 @@ class CleaningDialog(QDialog):
         self.apply_button.clicked.connect(
             self.apply
         )
+        self.use_selection.toggled.connect(
+            self.update_selection_options
+        )
+
+        self.preserve_unselected.toggled.connect(
+            self.update_preview
+        )
     def update_operation_ui(self):
 
         self.clear_operation_ui()
@@ -233,24 +262,67 @@ class CleaningDialog(QDialog):
 
     def update_preview(self):
 
-        self.before_preview.display_dataframe(self.dataframe)
+        full_df = self.dataframe
+        operation_df = self.operation_dataframe
+
+        self.before_preview.display_dataframe(
+            full_df
+        )
 
         operation = self.get_operation()
 
-        if isinstance(operation, MissingValueOptions):
-            result = self.cleaner.clean_missing(
-                self.dataframe,
-                operation
+        try:
+
+            if isinstance(
+                operation,
+                MissingValueOptions
+            ):
+
+                operation_result = (
+                    self.cleaner.clean_missing(
+                        operation_df,
+                        operation
+                    )
+                )
+
+            else:
+
+                operation_result = (
+                    self.cleaner.remove_duplicates(
+                        operation_df,
+                        operation
+                    )
+                )
+
+        except ValueError as error:
+
+            self.cleaning_stats.show_error(
+                str(error)
             )
+
+            self.cleaning_result = None
+            return
+
+        if (
+            self.use_selection.isChecked()
+            and self.preserve_unselected.isChecked()
+        ):
+
+            result = self.merge_selection_result(
+                full_df,
+                operation_df,
+                operation_result
+            )
+
         else:
-            result = self.cleaner.remove_duplicates(
-                self.dataframe,
-                operation
-            )
+
+            result = operation_result
 
         self.cleaning_result = result
 
-        self.after_preview.display_dataframe(result)
+        self.after_preview.display_dataframe(
+            result
+        )
 
     def duplicate_operations(self):
         self.operation_layout.addWidget(
@@ -586,76 +658,116 @@ class CleaningDialog(QDialog):
         return self.cleaning_result
 
 
+    def get_operation_dataframe(self):
+
+        info = self.datasets[self.get_dataset_key()]
+
+        full_df = info["dataframe"].copy()
+
+        if not self.use_selection.isChecked():
+            return full_df
+
+        return info["view"].get_analysis_dataframe().copy()
+    
     def get_operation(self):
 
-        operation = (
-            self.cleaning_objective_box
-            .currentData()
-        )
-
-        if operation == "duplicates":
-            columns = [
-                column
-                for column, checkbox in self.dupe_cols
-                if checkbox.isChecked()
-            ]
-
-            return DuplicateOptions(columns=columns)
-
-        if operation == "missing":
-
-            columns = self.selected_preset_columns(
-                self.missing_column_combo.currentData()
-            )
-
-            action = (
-                self.missing_action_combo
+            operation = (
+                self.cleaning_objective_box
                 .currentData()
             )
 
-            method = None
-            value = None
+            if operation == "duplicates":
+                columns = [
+                    column
+                    for column, checkbox in self.dupe_cols
+                    if checkbox.isChecked()
+                ]
 
-            if action == "fill":
+                return DuplicateOptions(columns=columns)
 
-                method = (
-                    self.fill_method_combo
+            if operation == "missing":
+
+                columns = self.selected_preset_columns(
+                    self.missing_column_combo.currentData()
+                )
+
+                action = (
+                    self.missing_action_combo
                     .currentData()
                 )
 
-                if method == "constant":
-                    value = self.fill_value.text()
+                method = None
+                value = None
 
-            return MissingValueOptions(
-                columns=columns,
-                action=action,
-                method=method,
-                value=value
-            )
+                if action == "fill":
 
-        return None
+                    method = (
+                        self.fill_method_combo
+                        .currentData()
+                    )
 
+                    if method == "constant":
+                        value = self.fill_value.text()
+
+                return MissingValueOptions(
+                    columns=columns,
+                    action=action,
+                    method=method,
+                    value=value
+                )
+
+            return None
 
     def apply(self):
 
         try:
+
             operation = self.get_operation()
 
             if operation is None:
                 return
 
-            if isinstance(operation, MissingValueOptions):
-                result = self.cleaner.clean_missing(
-                    self.dataframe,
-                    operation
-                )
-            else:
-                result = self.cleaner.remove_duplicates(
-                    self.dataframe,
-                    operation
+            full_df = self.dataframe
+            operation_df = self.operation_dataframe
+
+            if isinstance(
+                operation,
+                MissingValueOptions
+            ):
+
+                operation_result = (
+                    self.cleaner.clean_missing(
+                        operation_df,
+                        operation
+                    )
                 )
 
+            else:
+
+                operation_result = (
+                    self.cleaner.remove_duplicates(
+                        operation_df,
+                        operation
+                    )
+                )
+
+            if (
+                self.use_selection.isChecked()
+                and self.preserve_unselected.isChecked()
+            ):
+
+                result = self.merge_selection_result(
+                    full_df,
+                    operation_df,
+                    operation_result
+                )
+
+            else:
+
+                result = operation_result
+
             self.cleaning_result = result
+
             self.accept()
 
         except ValueError as error:
@@ -703,44 +815,57 @@ class CleaningDialog(QDialog):
         )
 
         if operation == "missing":
+
             columns = self.selected_preset_columns(
                 self.missing_column_combo.currentData()
             )
+
             selected_operation = self.get_operation()
+
             try:
+
                 result = self.cleaner.clean_missing(
-                    self.dataframe,
+                    self.operation_dataframe,
                     selected_operation
                 )
+
             except ValueError as error:
-                self.cleaning_stats.show_error(str(error))
+
+                self.cleaning_stats.show_error(
+                    str(error)
+                )
                 return
+
             self.cleaning_stats.update_comparison(
-                self.dataframe,
+                self.operation_dataframe,
                 result,
                 columns,
                 "missing"
             )
 
         elif operation == "duplicates":
+
             columns = [
                 column
                 for column, checkbox in self.dupe_cols
                 if checkbox.isChecked()
-            ] or list(self.dataframe.columns)
-            result = self.cleaner.remove_duplicates(
-                self.dataframe,
-                DuplicateOptions(columns=columns)
+            ] or list(
+                self.operation_dataframe.columns
             )
+
+            result = self.cleaner.remove_duplicates(
+                self.operation_dataframe,
+                DuplicateOptions(
+                    columns=columns
+                )
+            )
+
             self.cleaning_stats.update_comparison(
-                self.dataframe,
+                self.operation_dataframe,
                 result,
                 columns,
                 "duplicates"
             )
-    def set_dataframe(self, dataframe):
-        self.dataframe = dataframe.copy()
-        self.update_preview()
 
     def get_dataset_key(self):
         return self.target_combo.currentText()
@@ -749,14 +874,18 @@ class CleaningDialog(QDialog):
     def get_dataframe(self):
 
         info = self.datasets[self.get_dataset_key()]
-        df = info["dataframe"]
 
-        if self.use_selection.isChecked():
-            return info["view"].get_analysis_dataframe()
+        return info["dataframe"].copy()
 
-        return df
+    def get_selection(self):
 
+        info = self.datasets[self.get_dataset_key()]
 
+        if not self.use_selection.isChecked():
+            return None
+
+        return info["view"].get_analysis_dataframe().copy()
+    
     def get_workspace(self):
         return self.datasets[self.get_dataset_key()]["workspace"]
 
@@ -769,7 +898,52 @@ class CleaningDialog(QDialog):
 
         self.dataframe = self.get_dataframe()
 
+        self.operation_dataframe = (
+            self.get_operation_dataframe()
+        )
+
         self.update_operation_ui()
         self.update_preview()
 
-  
+
+    def update_selection_options(self, checked):
+
+        self.preserve_unselected.setEnabled(
+            checked
+        )
+
+        self.change_target()
+
+    def merge_selection_result(
+        self,
+        original,
+        selection,
+        result
+    ):
+
+        merged = original.copy()
+
+        # Rows removed by the operation
+        removed = selection.index.difference(
+            result.index
+        )
+
+        if len(removed):
+            merged = merged.drop(
+                index=removed
+            )
+
+        # Update rows that still exist
+        common = result.index.intersection(
+            merged.index
+        )
+
+        merged.loc[
+            common,
+            result.columns
+        ] = result.loc[
+            common,
+            result.columns
+        ]
+
+        return merged
