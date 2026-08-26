@@ -96,6 +96,7 @@ class MainWindow(QMainWindow):
         # Signals
         # ----------------------------------
 
+
         # ==================================================
         # MAIN MENU CONNECTIONS
         # ==================================================
@@ -184,61 +185,7 @@ class MainWindow(QMainWindow):
         self.main_menu.delete_row_action.triggered.connect(
             self.delete_rows
         )
-        # ==================================================
-        # MAIN VIEW CONTEXT MENU CONNECTIONS
-        # ==================================================
-
-        self.main_view.filter_requested.connect(
-            self.open_filter_dialog
-        )
-
-        self.main_view.aggregate_requested.connect(
-            self.open_aggregation_dialog
-        )
-
-        self.main_view.join_requested.connect(
-            self.open_join_dialog
-        )
-
-        self.main_view.transform_requested.connect(
-            self.open_transform_dialog
-        )
-
-        self.main_view.clean_requested.connect(
-            self.open_cleaning_dialog
-        )
-
-        self.main_view.rename_column_requested.connect(
-            self.rename_column
-        )
-
-        self.main_view.duplicate_column_requested.connect(
-            self.duplicate_column
-        )
-
-        self.main_view.add_column_requested.connect(
-            self.add_column
-        )
-
-        self.main_view.delete_column_requested.connect(
-            self.delete_column
-        )
-
-        self.main_view.calculated_column_requested.connect(
-            self.calculated_column
-        )
-
-        self.main_view.add_row_requested.connect(
-            self.add_row
-        )
-
-        self.main_view.duplicate_row_requested.connect(
-            self.duplicate_row
-        )
-
-        self.main_view.delete_row_requested.connect(
-            self.delete_rows
-        )
+       
         self.main_menu.reset_action.triggered.connect(
             self.reset_operation
         )
@@ -522,15 +469,23 @@ class MainWindow(QMainWindow):
             self.close_workspace(index)
 
 
-    def open_filter_dialog(self):
+    def open_filter_dialog(self, context=None):
 
-        target, dataframe = self.get_dialog_dataframe()
+        workspace, target, view, dataframe = self.resolve_context(context)
 
+        if dataframe is None:
+            return
+
+        if self.use_selection.isChecked():
+            dataframe = view.get_analysis_dataframe()
 
         dialog = DataDialog(
             self.get_available_datasets(),
             self,
-            current=f"{self.workspaces.tabText(self.workspaces.currentIndex())} • Main",
+            current=self.get_current_dataset_label(
+    workspace,
+    target
+),
             use_selection=self.use_selection.isChecked()
         )
         if not dialog.exec():
@@ -661,47 +616,36 @@ class MainWindow(QMainWindow):
         )
 
 
-    def open_aggregation_dialog(self):
+    def open_aggregation_dialog(self, context=None):
 
-        target, dataframe = self.get_dialog_dataframe()
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
-            QMessageBox.warning(
-                self,
-                "Aggregate",
-                "There is no dataset available to aggregate."
-            )
             return
+
+        if self.use_selection.isChecked():
+            dataframe = view.get_analysis_dataframe()
 
         dialog = AggregationDialog(
             self.get_available_datasets(),
             self,
-            current=(
-                f"{self.workspaces.tabText(self.workspaces.currentIndex())}"
-                f" • Main"
-            ),
+            current=self.get_current_dataset_label(
+    workspace,
+    target
+),
             use_selection=self.use_selection.isChecked()
         )
 
         if not dialog.exec():
             return
 
-        workspace = dialog.get_workspace()
-        dataframe = dialog.get_dataframe()
+        # Only use the clicked view's selection
+        if self.use_selection.isChecked():
+            dataframe = view.get_analysis_dataframe()
+
         config = dialog.get_aggregation()
 
-        try:
-            result = self.data_processor.aggregate(
-                dataframe,
-                config
-            )
-        except ValueError as error:
-            QMessageBox.warning(
-                self,
-                "Aggregation Failed",
-                str(error)
-            )
-            return
+        result = self.data_processor.aggregate(dataframe, config)
 
         workspace.dataset_manager.set_result_dataframe(
             result,
@@ -754,9 +698,15 @@ class MainWindow(QMainWindow):
             checked
         )
 
-    def open_cleaning_dialog(self):
+    def open_cleaning_dialog(self, context=None):
 
-        target, dataframe = self.get_dialog_dataframe()
+        workspace, target, view, dataframe = self.resolve_context(context)
+
+        if dataframe is None:
+            return
+
+        if self.use_selection.isChecked():
+            dataframe = view.get_analysis_dataframe()
 
         if dataframe is None:
             QMessageBox.warning(
@@ -769,9 +719,9 @@ class MainWindow(QMainWindow):
         dialog = CleaningDialog(
             self.get_available_datasets(),
             self,
-            current=(
-                f"{self.workspaces.tabText(self.workspaces.currentIndex())}"
-                f" • Main"
+            current=self.get_current_dataset_label(
+                workspace,
+                target
             ),
             use_selection=self.use_selection.isChecked()
         )
@@ -933,81 +883,52 @@ class MainWindow(QMainWindow):
         for _ in range(steps):
             self.redo_operation()
 
-    def open_join_dialog(self):
+    def open_join_dialog(self, context=None):
 
-        if self.workspace is None:
+        workspace, target, view, dataframe = self.resolve_context(context)
+
+        if dataframe is None:
             return
+
+        if self.use_selection.isChecked():
+            dataframe = view.get_analysis_dataframe()
 
         dialog = JoinDialog(
             self.get_available_datasets(),
             self,
-            current=(
-                f"{self.workspaces.tabText(self.workspaces.currentIndex())}"
-                f" • Main"
-            ),
+            current=self.get_current_dataset_label(
+    workspace,
+    target
+),
             use_selection=self.use_selection.isChecked()
         )
 
         if not dialog.exec():
             return
 
-        workspace = dialog.get_workspace()
+        left_df = dialog.get_left_dataframe()
+        right_df = dialog.get_right_dataframe()
 
-        left_dataframe = dialog.get_left_dataframe()
-        right_dataframe = dialog.get_right_dataframe()
+        # Apply selection only to the dataset that launched the dialog
+        if self.use_selection.isChecked():
+            if dialog.get_left_workspace() is workspace:
+                left_df = view.get_analysis_dataframe()
+
+            if dialog.get_right_workspace() is workspace:
+                right_df = view.get_analysis_dataframe()
 
         config = dialog.get_config()
 
-        if (
-            left_dataframe is None
-            or right_dataframe is None
-        ):
-            QMessageBox.warning(
-                self,
-                "Join Failed",
-                "Both datasets must contain data."
-            )
-            return
-
-        try:
-
-            result = self.data_processor.join(
-                left_dataframe,
-                right_dataframe,
-                config
-            )
-
-        except ValueError as error:
-
-            QMessageBox.warning(
-                self,
-                "Join Failed",
-                str(error)
-            )
-
-            return
-
-        if result is None:
-            QMessageBox.warning(
-                self,
-                "Join Failed",
-                "The join did not produce a result."
-            )
-            return
+        result = self.data_processor.join(
+            left_df,
+            right_df,
+            config
+        )
 
         if config.mode == "target":
-
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
-
+            workspace.dataset_manager.set_dataframe(result, config.describe())
         else:
-
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
+            workspace.dataset_manager.set_result_dataframe(result, config.describe())
 
         workspace.refresh()
         self.update_workspace_controls()
@@ -1016,15 +937,23 @@ class MainWindow(QMainWindow):
             "Join completed"
         )
         
-    def open_transform_dialog(self):
+    def open_transform_dialog(self, context=None):
 
-        target, dataframe = self.get_dialog_dataframe()
+        workspace, target, view, dataframe = self.resolve_context(context)
 
+        if dataframe is None:
+            return
+
+        if self.use_selection.isChecked():
+            dataframe = view.get_analysis_dataframe()
 
         dialog = TransformDialog(
             self.get_available_datasets(),
             self,
-            current=f"{self.workspaces.tabText(self.workspaces.currentIndex())} • Main",
+            current=self.get_current_dataset_label(
+    workspace,
+    target
+),
             use_selection=self.use_selection.isChecked()
         )
         if not dialog.exec():
@@ -1079,6 +1008,8 @@ class MainWindow(QMainWindow):
     def create_workspace(self, title="Untitled"):
 
         workspace = Workspace(self)
+
+        self.connect_workspace_signals(workspace)
 
         index = self.workspaces.addTab(
             workspace,
@@ -1317,33 +1248,18 @@ class MainWindow(QMainWindow):
 
         return datasets
 
-    def rename_column(self, column=None):
+    def rename_column(self, context=None):
 
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        target = self.target_combo.currentData()
-
-        if target == "main":
-
-            view = workspace.main_view
-            dataframe = workspace.dataset_manager.get_dataframe()
-
-        elif target == "result":
-
-            view = workspace.result_view
-            dataframe = workspace.dataset_manager.get_result_dataframe()
-
-        else:
-            return
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
             return
 
-        if column is None:
-            column = view.table.selected_column()
+        column = (
+            context.get("column")
+            if isinstance(context, dict)
+            else view.table.selected_column()
+        )
 
         if column is None:
             QMessageBox.warning(
@@ -1360,22 +1276,89 @@ class MainWindow(QMainWindow):
             text=str(column)
         )
 
-        if not ok:
-            return
-
-        new_name = new_name.strip()
-
-        if not new_name:
+        if not ok or not new_name.strip():
             return
 
         config = RenameColumnConfig(
             old_name=column,
-            new_name=new_name
+            new_name=new_name.strip()
+        )
+
+        try:
+            result = self.data_processor.rename_column(
+                dataframe,
+                config
+            )
+        except ValueError as error:
+            QMessageBox.warning(
+                self,
+                "Rename Column",
+                str(error)
+            )
+            return
+
+        if target == "main":
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
+            )
+        else:
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def delete_rows(self, context=None):
+
+        workspace, target, view, dataframe = self.resolve_context(context)
+
+        if dataframe is None:
+            return
+
+        if isinstance(context, dict):
+
+            row = context.get("row")
+            rows = [row] if row is not None else []
+
+        else:
+
+            rows = view.table.selected_rows()
+
+        if not rows:
+
+            QMessageBox.warning(
+                self,
+                "Delete Rows",
+                "Please select one or more rows first."
+            )
+
+            return
+
+        answer = QMessageBox.question(
+            self,
+            "Delete Rows",
+            f"Delete {len(rows)} selected row(s)?",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+
+        if answer != QMessageBox.Yes:
+            return
+
+        config = DeleteRowsConfig(
+            rows=rows
         )
 
         try:
 
-            result = self.data_processor.rename_column(
+            result = self.data_processor.delete_rows(
                 dataframe,
                 config
             )
@@ -1384,9 +1367,10 @@ class MainWindow(QMainWindow):
 
             QMessageBox.warning(
                 self,
-                "Rename Column",
+                "Delete Rows",
                 str(error)
             )
+
             return
 
         if target == "main":
@@ -1410,40 +1394,87 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def duplicate_column(self, column=None):
+    def add_column(self, context=None):
 
-        workspace = self.workspace
+        workspace, target, view, dataframe = self.resolve_context(context)
 
-        if workspace is None:
+        if dataframe is None:
+
+            QMessageBox.warning(
+                self,
+                "Add Column",
+                "There is no dataset available."
+            )
+
             return
 
-        target = self.target_combo.currentData()
+        dialog = AddColumnDialog(self)
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        try:
+
+            config = dialog.get_config()
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Add Column",
+                str(error)
+            )
+
+            return
+
+        try:
+
+            result = self.data_processor.add_column(
+                dataframe,
+                config
+            )
+
+        except ValueError as error:
+
+            QMessageBox.warning(
+                self,
+                "Add Column",
+                str(error)
+            )
+
+            return
 
         if target == "main":
 
-            view = workspace.main_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_dataframe()
-            )
-
-        elif target == "result":
-
-            view = workspace.result_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_result_dataframe()
+            workspace.dataset_manager.set_dataframe(
+                result,
+                config.describe()
             )
 
         else:
-            return
+
+            workspace.dataset_manager.set_result_dataframe(
+                result,
+                config.describe()
+            )
+
+        workspace.refresh()
+        self.update_workspace_controls()
+
+        self.status.showMessage(
+            config.describe()
+        )
+
+    def duplicate_column(self, context=None):
+
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
             return
 
-        if column is None:
+        if isinstance(context, dict):
+            column = context.get("column")
+        else:
             column = view.table.selected_column()
 
         if column is None:
@@ -1513,222 +1544,19 @@ class MainWindow(QMainWindow):
         self.status.showMessage(
             config.describe()
         )
+        
+    def delete_column(self, context=None):
 
-    def delete_rows(self, row=None):
-
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        target = self.target_combo.currentData()
-
-        if target == "main":
-
-            view = workspace.main_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_dataframe()
-            )
-
-        elif target == "result":
-
-            view = workspace.result_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_result_dataframe()
-            )
-
-        else:
-            return
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
             return
 
-        if row is None:
-            rows = view.table.selected_rows()
+        if isinstance(context, dict):
+            columns = [context.get("column")]
+            columns = [c for c in columns if c is not None]
         else:
-            rows = [row]
-
-        if not rows:
-
-            QMessageBox.warning(
-                self,
-                "Delete Rows",
-                "Please select one or more rows first."
-            )
-
-            return
-
-        answer = QMessageBox.question(
-            self,
-            "Delete Rows",
-            f"Delete {len(rows)} selected row(s)?",
-            QMessageBox.Yes | QMessageBox.No,
-            QMessageBox.No
-        )
-
-        if answer != QMessageBox.Yes:
-            return
-
-        config = DeleteRowsConfig(
-            rows=rows
-        )
-
-        try:
-
-            result = self.data_processor.delete_rows(
-                dataframe,
-                config
-            )
-
-        except ValueError as error:
-
-            QMessageBox.warning(
-                self,
-                "Delete Rows",
-                str(error)
-            )
-
-            return
-
-        if target == "main":
-
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
-
-        else:
-
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
-
-        workspace.refresh()
-        self.update_workspace_controls()
-
-        self.status.showMessage(
-            config.describe()
-        )
-
-    def add_column(self):
-
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        target = self.target_combo.currentData()
-
-        dataframe = self.get_dataframe_for_target(
-            target,
-            use_selection=False
-        )
-
-        if dataframe is None:
-            QMessageBox.warning(
-                self,
-                "Add Column",
-                "There is no dataset available."
-            )
-            return
-
-        dialog = AddColumnDialog(self)
-
-        if dialog.exec() != QDialog.DialogCode.Accepted:
-            return
-
-        try:
-
-            config = dialog.get_config()
-
-        except ValueError as error:
-
-            QMessageBox.warning(
-                self,
-                "Add Column",
-                str(error)
-            )
-            return
-
-        try:
-
-            result = self.data_processor.add_column(
-                dataframe,
-                config
-            )
-
-        except ValueError as error:
-
-            QMessageBox.warning(
-                self,
-                "Add Column",
-                str(error)
-            )
-            return
-
-        if target == "main":
-
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
-
-        else:
-
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
-
-        workspace.refresh()
-        self.update_workspace_controls()
-
-        self.status.showMessage(
-            config.describe()
-        )
-
-    def delete_column(self, column=None):
-
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        target = self.target_combo.currentData()
-
-        if target == "main":
-
-            view = workspace.main_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_dataframe()
-            )
-
-        elif target == "result":
-
-            view = workspace.result_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_result_dataframe()
-            )
-
-        else:
-            return
-
-        if dataframe is None:
-            return
-
-        if column is None:
             columns = view.table.selected_columns()
-        else:
-            columns = [column]
 
         if not columns:
 
@@ -1793,43 +1621,21 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def duplicate_row(self, row=None):
+    def duplicate_row(self, context=None):
 
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        target = self.target_combo.currentData()
-
-        if target == "main":
-
-            view = workspace.main_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_dataframe()
-            )
-
-        elif target == "result":
-
-            view = workspace.result_view
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_result_dataframe()
-            )
-
-        else:
-            return
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
             return
 
-        if row is None:
-            rows = view.table.selected_rows()
+        if isinstance(context, dict):
+
+            row = context.get("row")
+            rows = [row] if row is not None else []
+
         else:
-            rows = [row]
+
+            rows = view.table.selected_rows()
 
         if not rows:
 
@@ -1883,38 +1689,18 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def add_row(self):
+    def add_row(self, context=None):
 
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        target = self.target_combo.currentData()
-
-        if target == "main":
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_dataframe()
-            )
-
-        elif target == "result":
-
-            dataframe = (
-                workspace.dataset_manager
-                .get_result_dataframe()
-            )
-
-        else:
-            return
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
+
             QMessageBox.warning(
                 self,
                 "Add Row",
                 "There is no dataset available."
             )
+
             return
 
         dialog = AddRowDialog(
@@ -1945,6 +1731,7 @@ class MainWindow(QMainWindow):
                 "Add Row Failed",
                 str(error)
             )
+
             return
 
         if target == "main":
@@ -1968,21 +1755,9 @@ class MainWindow(QMainWindow):
             config.describe()
         )
 
-    def calculated_column(self, view=None):
+    def calculated_column(self, context=None):
 
-        if view is None:
-
-            workspace = self.workspace
-            target = self.target_combo.currentData()
-
-            dataframe = self.get_dataframe_for_target(
-                target,
-                use_selection=False
-            )
-
-        else:
-
-            workspace, target, dataframe = self.resolve_view(view)
+        workspace, target, view, dataframe = self.resolve_context(context)
 
         if dataframe is None:
             return
@@ -1999,7 +1774,7 @@ class MainWindow(QMainWindow):
 
             config = dialog.get_config()
 
-            result = self.data_processor.add_calculated_column(
+            result = self.data_processor.calculated_column(
                 dataframe,
                 config
             )
@@ -2011,6 +1786,7 @@ class MainWindow(QMainWindow):
                 "Calculated Column",
                 str(error)
             )
+
             return
 
         if target == "main":
@@ -2028,7 +1804,213 @@ class MainWindow(QMainWindow):
             )
 
         workspace.refresh()
+        self.update_workspace_controls()
 
         self.status.showMessage(
             config.describe()
         )
+
+    def resolve_context(self, context=None):
+        """
+        Resolve the workspace, target, view and dataframe.
+
+        Context menu:
+            Uses the DatasetView that generated the context.
+
+        Main menu / toolbar:
+            Uses the currently selected workspace and target_combo.
+        """
+
+        # ----------------------------------------
+        # Context menu
+        # ----------------------------------------
+
+        if isinstance(context, dict):
+
+            workspace = context.get("workspace")
+            target = context.get("target")
+            view = context.get("view")
+
+            if workspace is None:
+                raise ValueError(
+                    "Context menu did not provide a workspace."
+                )
+
+            if target not in ("main", "result"):
+                raise ValueError(
+                    f"Invalid context target: {target}"
+                )
+
+            if view is None:
+                view = (
+                    workspace.main_view
+                    if target == "main"
+                    else workspace.result_view
+                )
+
+            if target == "main":
+                dataframe = workspace.dataset_manager.get_dataframe()
+            else:
+                dataframe = workspace.dataset_manager.get_result_dataframe()
+
+            return workspace, target, view, dataframe
+
+        # ----------------------------------------
+        # Main menu / toolbar
+        # ----------------------------------------
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return None, None, None, None
+
+        target = self.target_combo.currentData()
+
+        if target == "main":
+
+            view = workspace.main_view
+            dataframe = workspace.dataset_manager.get_dataframe()
+
+        elif target == "result":
+
+            view = workspace.result_view
+            dataframe = workspace.dataset_manager.get_result_dataframe()
+
+        else:
+
+            return None, None, None, None
+
+        return workspace, target, view, dataframe
+
+    def connect_workspace_signals(self, workspace):
+
+        # -----------------------------
+        # Main view
+        # -----------------------------
+
+        workspace.main_view.filter_requested.connect(
+            self.open_filter_dialog
+        )
+
+        workspace.main_view.aggregate_requested.connect(
+            self.open_aggregation_dialog
+        )
+
+        workspace.main_view.join_requested.connect(
+            self.open_join_dialog
+        )
+
+        workspace.main_view.transform_requested.connect(
+            self.open_transform_dialog
+        )
+
+        workspace.main_view.clean_requested.connect(
+            self.open_cleaning_dialog
+        )
+
+        workspace.main_view.rename_column_requested.connect(
+            self.rename_column
+        )
+
+        workspace.main_view.duplicate_column_requested.connect(
+            self.duplicate_column
+        )
+
+        workspace.main_view.add_column_requested.connect(
+            self.add_column
+        )
+
+        workspace.main_view.delete_column_requested.connect(
+            self.delete_column
+        )
+
+        workspace.main_view.calculated_column_requested.connect(
+            self.calculated_column
+        )
+
+        workspace.main_view.add_row_requested.connect(
+            self.add_row
+        )
+
+        workspace.main_view.duplicate_row_requested.connect(
+            self.duplicate_row
+        )
+
+        workspace.main_view.delete_row_requested.connect(
+            self.delete_rows
+        )
+
+        # -----------------------------
+        # Result view
+        # -----------------------------
+
+        workspace.result_view.filter_requested.connect(
+            self.open_filter_dialog
+        )
+
+        workspace.result_view.aggregate_requested.connect(
+            self.open_aggregation_dialog
+        )
+
+        workspace.result_view.join_requested.connect(
+            self.open_join_dialog
+        )
+
+        workspace.result_view.transform_requested.connect(
+            self.open_transform_dialog
+        )
+
+        workspace.result_view.clean_requested.connect(
+            self.open_cleaning_dialog
+        )
+
+        workspace.result_view.rename_column_requested.connect(
+            self.rename_column
+        )
+
+        workspace.result_view.duplicate_column_requested.connect(
+            self.duplicate_column
+        )
+
+        workspace.result_view.add_column_requested.connect(
+            self.add_column
+        )
+
+        workspace.result_view.delete_column_requested.connect(
+            self.delete_column
+        )
+
+        workspace.result_view.calculated_column_requested.connect(
+            self.calculated_column
+        )
+
+        workspace.result_view.add_row_requested.connect(
+            self.add_row
+        )
+
+        workspace.result_view.duplicate_row_requested.connect(
+            self.duplicate_row
+        )
+
+        workspace.result_view.delete_row_requested.connect(
+            self.delete_rows
+        )
+        
+    def get_current_dataset_label(self, workspace, target):
+
+
+        index = self.workspaces.indexOf(workspace)
+
+        if index < 0:
+            return None
+
+        name = self.workspaces.tabText(index)
+
+        label = (
+            "Main"
+            if target == "main"
+            else "Result"
+        )
+
+        return f"{name} • {label}"
+

@@ -22,28 +22,28 @@ class DatasetView(QWidget):
     close_requested = Signal()
 
     # Data operations
-    filter_requested = Signal()
-    transform_requested = Signal()
-    aggregate_requested = Signal()
-    join_requested = Signal()
-    clean_requested = Signal()
+    filter_requested = Signal(object)
+    aggregate_requested = Signal(object)
+    transform_requested = Signal(object)
+    join_requested = Signal(object)
+    clean_requested = Signal(object)
 
     # Column operations
     rename_column_requested = Signal(object)
     duplicate_column_requested = Signal(object)
-    add_column_requested = Signal()
+    add_column_requested = Signal(object)
     delete_column_requested = Signal(object)
-    calculated_column_requested = Signal()
+
     calculated_column_requested = Signal(object)
     # Row operations
-    add_row_requested = Signal()
+    add_row_requested = Signal(object)
     duplicate_row_requested = Signal(object)
     delete_row_requested = Signal(object)
 
-    def __init__(self, title, parent=None):
-
+    def __init__(self, title, target, workspace=None, parent=None):
         super().__init__(parent)
-
+        self.workspace = workspace
+        self.target = target  # target df main,res ect   
         self.dataframe = None
 
         # ----------------------------------
@@ -272,19 +272,28 @@ class DatasetView(QWidget):
 
         row_index = self.dataframe.index[row_position]
 
+        context = {
+            "workspace": self.workspace,
+            "target": self.target,
+            "view": self,
+            "dataframe": self.dataframe,
+            "column": column_name,
+            "row": row_index,
+        }
+
         menu = QMenu(self)
 
-        # -----------------------------
+        # ----------------------------------
         # Clipboard
-        # -----------------------------
+        # ----------------------------------
 
         copy_action = menu.addAction("Copy")
 
         menu.addSeparator()
 
-        # -----------------------------
+        # ----------------------------------
         # Edit
-        # -----------------------------
+        # ----------------------------------
 
         edit_menu = menu.addMenu("Edit")
 
@@ -304,9 +313,9 @@ class DatasetView(QWidget):
         duplicate_row = row_menu.addAction("Duplicate row")
         delete_row = row_menu.addAction("Delete row")
 
-        # -----------------------------
+        # ----------------------------------
         # Data operations
-        # -----------------------------
+        # ----------------------------------
 
         menu.addSeparator()
 
@@ -328,44 +337,44 @@ class DatasetView(QWidget):
             self.table.copy_selection()
 
         elif action == rename_column:
-            self.rename_column_requested.emit(self, column_name)
+            self.rename_column_requested.emit(context)
 
         elif action == duplicate_column:
-            self.duplicate_column_requested.emit(column_name)
+            self.duplicate_column_requested.emit(context)
 
         elif action == add_column:
-            self.add_column_requested.emit()
+            self.add_column_requested.emit(context)
 
         elif action == calculated_column:
-            self.calculated_column_requested.emit(self)
+            self.calculated_column_requested.emit(context)
 
         elif action == delete_column:
-            self.delete_column_requested.emit(column_name)
+            self.delete_column_requested.emit(context)
 
         elif action == add_row:
-            self.add_row_requested.emit()
+            self.add_row_requested.emit(context)
 
         elif action == duplicate_row:
-            self.duplicate_row_requested.emit(row_index)
+            self.duplicate_row_requested.emit(context)
 
         elif action == delete_row:
-            self.delete_row_requested.emit(self, row_index)
+            self.delete_row_requested.emit(context)
 
         elif action == filter_action:
-            self.filter_requested.emit()
+            self.filter_requested.emit(context)
 
         elif action == aggregate_action:
-            self.aggregate_requested.emit()
+            self.aggregate_requested.emit(context)
 
         elif action == transform_action:
-            self.transform_requested.emit()
+            self.transform_requested.emit(context)
 
         elif action == join_action:
-            self.join_requested.emit()
+            self.join_requested.emit(context)
 
         elif action == clean_action:
-            self.clean_requested.emit()
-              
+            self.clean_requested.emit(context)
+
         elif action == clear_action:
             self.table.clearSelection()
 

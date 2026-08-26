@@ -47,11 +47,15 @@ class Workspace(QWidget):
         )
 
         self.main_view = DatasetView(
-            "Main Dataset"
+            "Main Dataset",
+            "main",
+            workspace=self
         )
 
         self.result_view = DatasetView(
-            "Result Dataset"
+            "Result Dataset",
+            "result",
+            workspace=self
         )
 
         self.result_view.hide()
