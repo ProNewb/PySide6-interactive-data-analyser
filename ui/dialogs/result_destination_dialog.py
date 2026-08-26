@@ -1,11 +1,12 @@
 from PySide6.QtWidgets import (
-
     QDialog,
     QDialogButtonBox,
     QVBoxLayout,
     QLabel,
-    QComboBox
+    QComboBox,
 )
+
+
 class ResultDestinationDialog(QDialog):
 
     REPLACE_RESULT = "replace_result"
@@ -54,15 +55,10 @@ class ResultDestinationDialog(QDialog):
             QDialogButtonBox.Cancel
         )
 
-        buttons.accepted.connect(
-            self.accept
-        )
-
-        buttons.rejected.connect(
-            self.reject
-        )
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
 
         layout.addWidget(buttons)
 
-    def destination(self):
+    def get_destination(self):
         return self.destination_combo.currentData()

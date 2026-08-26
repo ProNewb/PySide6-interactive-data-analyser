@@ -36,6 +36,7 @@ from ui.dialogs.join_dialog import JoinDialog
 from ui.dialogs.settings_dialog import SettingsDialog
 from ui.menus.main_menu import MainMenu
 from ui.menus.status_bar import StatusBar
+from ui.dialogs.result_destination_dialog import ResultDestinationDialog
 
 class MainWindow(QMainWindow):
     """Main application window.
@@ -78,6 +79,13 @@ class MainWindow(QMainWindow):
 
         # Create initial workspace
         self.create_workspace()
+
+        # Workspace changes
+        self.workspaces.currentChanged.connect(
+            self.workspace_changed
+        )
+
+        self.rebuild_view_menu()
 
         # Workspace changes
         self.workspaces.currentChanged.connect(
@@ -193,9 +201,9 @@ class MainWindow(QMainWindow):
         self.main_menu.undo_button.triggered.connect(
             self.undo_operation
         )
-        self.main_menu.result_dataset_action.triggered.connect(
-            self.toggle_result_tab
-        )
+       # self.main_menu.result_dataset_action.triggered.connect(
+        #    self.toggle_result_tab
+        #)
         self.main_menu.redo_button.setEnabled(False)
         self.status = StatusBar()
 
@@ -429,6 +437,16 @@ class MainWindow(QMainWindow):
 
                 continue
 
+        current_index = project.get(
+            "current_workspace",
+            0
+        )
+
+        if 0 <= current_index < self.workspaces.count():
+            self.workspaces.setCurrentIndex(current_index)
+
+        self.update_workspace_controls()
+
     def close_file(self):
 
         index = self.workspaces.currentIndex()
@@ -466,28 +484,40 @@ class MainWindow(QMainWindow):
         config = dialog.get_conditions()
 
         try:
+
             result = self.data_processor.filter(
                 dataframe,
                 config
             )
+
         except ValueError as error:
+
             QMessageBox.warning(
                 self,
                 "Filter Failed",
                 str(error)
             )
+
             return
 
-        if target == "main":
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
-        else:
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
+        destination = self.choose_result_destination(
+            workspace
+        )
+
+        if destination is None:
+            return
+
+        self.apply_result(
+            workspace,
+            result,
+            destination=destination,
+            description=config.describe(),
+            result_name="Filter"
+        )
+
+        self.status.showMessage(
+            config.describe()
+        )
 
         workspace.refresh()
         self.update_workspace_controls()
@@ -613,18 +643,29 @@ class MainWindow(QMainWindow):
 
         config = dialog.get_aggregation()
 
-        result = self.data_processor.aggregate(dataframe, config)
-
-        workspace.dataset_manager.set_result_dataframe(
-            result,
-            config.describe()
+        result = self.data_processor.aggregate(
+            dataframe,
+            config
         )
 
+        destination = self.choose_result_destination(
+            workspace
+        )
+
+        if destination is None:
+            return
+
+        self.apply_result(
+            workspace,
+            result,
+            destination=destination,
+            description=config.describe(),
+            result_name="Aggregation"
+        )
         workspace.refresh()
         self.update_workspace_controls()
-
         self.status.showMessage(
-            "Aggregation created result dataset"
+            "Aggregation created"
         )
 
     def hide_result_view(self):
@@ -656,17 +697,22 @@ class MainWindow(QMainWindow):
 
 
     def toggle_result_tab(self, index, checked):
+
         workspace = self.workspace
+
         if workspace is None:
             return
 
         if checked:
+
             workspace.result_panel.show_result(index)
             workspace.set_result_visible(True)
+
         else:
+
             workspace.set_result_visible(False)
 
-        self.rebuild_view_menu()
+        self.update_workspace_controls()
             
 
     def open_cleaning_dialog(self, context=None):
@@ -703,16 +749,24 @@ class MainWindow(QMainWindow):
 
         config = dialog.get_operation()
 
-        if target == "main":
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
-        else:
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
+        destination = self.choose_result_destination(
+            workspace
+        )
+
+        if destination is None:
+            return
+
+        self.apply_result(
+            workspace,
+            result,
+            destination=destination,
+            description=config.describe(),
+            result_name="Cleaned Data"
+        )
+
+        self.status.showMessage(
+            "Cleaning completed"
+        )
 
         workspace.refresh()
         self.update_workspace_controls()
@@ -880,10 +934,21 @@ class MainWindow(QMainWindow):
             config
         )
 
-        if config.mode == "target":
-            workspace.dataset_manager.set_dataframe(result, config.describe())
-        else:
-            workspace.dataset_manager.set_result_dataframe(result, config.describe())
+        destination = self.choose_result_destination(
+            workspace
+        )
+
+        if destination is None:
+            return
+
+        self.apply_result(
+            workspace,
+            result,
+            destination=destination,
+            description=config.describe(),
+            result_name="Join"
+        )
+
 
         workspace.refresh()
         self.update_workspace_controls()
@@ -926,16 +991,24 @@ class MainWindow(QMainWindow):
 
         config = dialog.get_transform()
 
-        if target == "main":
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
-        else:
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
+        destination = self.choose_result_destination(
+            workspace
+        )
+
+        if destination is None:
+            return
+
+        self.apply_result(
+            workspace,
+            result,
+            destination=destination,
+            description=config.describe(),
+            result_name="Transform"
+        )
+
+        self.status.showMessage(
+            "Transform completed"
+        )
 
         workspace.refresh()
         self.update_workspace_controls()
@@ -1145,7 +1218,6 @@ class MainWindow(QMainWindow):
             return
 
         self.update_workspace_controls()
-        self.rebuild_view_menu()
 
     def close_workspace(self, index):
 
@@ -1175,6 +1247,7 @@ class MainWindow(QMainWindow):
         # Keep at least one empty workspace
         if self.workspaces.count() == 0:
             self.create_workspace("Untitled")
+        self.update_workspace_controls()
 
     def update_workspace_controls(self):
 
@@ -1212,39 +1285,49 @@ class MainWindow(QMainWindow):
 
         datasets = {}
 
-        for index in range(self.workspaces.count()):
+        for workspace_index in range(self.workspaces.count()):
 
-            ws = self.workspaces.widget(index)
+            ws = self.workspaces.widget(workspace_index)
 
             if ws is None:
                 continue
 
-            name = self.workspaces.tabText(index)
+            workspace_name = self.workspaces.tabText(
+                workspace_index
+            )
 
+            # -------------------------
             # Main
+            # -------------------------
+
             dataframe = ws.dataset_manager.get_dataframe()
 
             if dataframe is not None:
 
-                datasets[f"{name} • Main"] = {
+                datasets[f"{workspace_name} • Main"] = {
                     "workspace": ws,
                     "target": "main",
                     "dataframe": dataframe,
-                    "view": ws.main_view
+                    "view": ws.main_view,
+                    "result_index": None,
                 }
 
-            # Result
-            dataframe = (
-                ws.dataset_manager.get_result_dataframe()
-            )
+            # -------------------------
+            # Results
+            # -------------------------
 
-            if dataframe is not None:
+            for result_index, result in enumerate(
+                ws.dataset_manager.results
+            ):
 
-                datasets[f"{name} • Result"] = {
+                datasets[
+                    f"{workspace_name} • {result.name}"
+                ] = {
                     "workspace": ws,
                     "target": "result",
-                    "dataframe": dataframe,
-                    "view": ws.result_panel.current_view()
+                    "dataframe": result.dataframe,
+                    "view": ws.result_panel.view_at(result_index),
+                    "result_index": result_index,
                 }
 
         return datasets
@@ -1790,26 +1873,28 @@ class MainWindow(QMainWindow):
 
             return
 
-        if target == "main":
+        destination = self.choose_result_destination(
+            workspace
+        )
 
-            workspace.dataset_manager.set_dataframe(
-                result,
-                config.describe()
-            )
+        if destination is None:
+            return
 
-        else:
-
-            workspace.dataset_manager.set_result_dataframe(
-                result,
-                config.describe()
-            )
-
-        workspace.refresh()
-        self.update_workspace_controls()
+        self.apply_result(
+            workspace,
+            result,
+            destination=destination,
+            description=config.describe(),
+            result_name="Calculated Column"
+        )
 
         self.status.showMessage(
             config.describe()
         )
+        workspace.refresh()
+        self.update_workspace_controls()
+
+
 
     def resolve_context(self, context=None):
         """
@@ -1963,25 +2048,37 @@ class MainWindow(QMainWindow):
         view.delete_row_requested.connect(
             self.delete_rows
         )
-
         
     def get_current_dataset_label(self, workspace, target):
-
 
         index = self.workspaces.indexOf(workspace)
 
         if index < 0:
             return None
 
-        name = self.workspaces.tabText(index)
+        workspace_name = self.workspaces.tabText(index)
 
-        label = (
-            "Main"
-            if target == "main"
-            else "Result"
-        )
+        if target == "main":
+            return f"{workspace_name} • Main"
 
-        return f"{name} • {label}"
+        if target == "result":
+
+            result_index = (
+                workspace.result_panel.current_index()
+            )
+
+            if result_index < 0:
+                return None
+
+            result_name = (
+                workspace.dataset_manager.get_result_name(
+                    result_index
+                )
+            )
+
+            return f"{workspace_name} • {result_name}"
+
+        return None
 
     def get_context_dataset(self, context):
 
@@ -2004,70 +2101,7 @@ class MainWindow(QMainWindow):
 
         return workspace, target, dataframe
 
-    def update_view_menu(self):
-
-        menu = self.main_menu.view_menu
-
-        if hasattr(self, "_result_view_menu"):
-            menu.removeAction(
-                self._result_view_menu.menuAction()
-            )
-
-        workspace = self.workspace
-
-        if workspace is None:
-            return
-
-        result_menu = QMenu(
-            "Result Datasets",
-            menu
-        )
-
-        self._result_view_menu = result_menu
-
-        # ----------------------------
-        # Main
-        # ----------------------------
-
-        main_action = menu.addAction(
-            "Main Dataset"
-        )
-
-        main_action.setCheckable(True)
-        main_action.setChecked(
-            workspace.main_view.isVisible()
-        )
-
-        main_action.triggered.connect(
-            self.toggle_main_dataset
-        )
-
-        # ----------------------------
-        # Results
-        # ----------------------------
-
-        for index, view in enumerate(
-            workspace.result_panel.views()
-        ):
-
-            action = result_menu.addAction(
-                workspace.result_panel.tab_title(index)
-            )
-
-            action.setCheckable(True)
-
-            action.setChecked(
-                workspace.result_panel.isVisible()
-                and workspace.result_panel.current_index() == index
-            )
-
-            action.triggered.connect(
-                lambda checked=False, i=index:
-                    self.toggle_result_tab(i, checked)
-            )
-
-        menu.addMenu(result_menu)
-
+ 
     def rebuild_view_menu(self):
 
         menu = self.main_menu.view_menu
@@ -2122,3 +2156,102 @@ class MainWindow(QMainWindow):
             )
 
         menu.addMenu(result_menu)
+
+    def apply_result(
+        self,
+        workspace,
+        dataframe,
+        destination,
+        description="Result created",
+        result_name="Result"
+    ):
+
+        if dataframe is None:
+            return False
+
+        manager = workspace.dataset_manager
+
+        # --------------------------------
+        # Replace Main
+        # --------------------------------
+
+        if destination == ResultDestinationDialog.REPLACE_MAIN:
+
+            manager.set_dataframe(
+                dataframe,
+                description
+            )
+
+            workspace.refresh()
+            self.update_workspace_controls()
+
+            return True
+
+        # --------------------------------
+        # Create Result
+        # --------------------------------
+
+        if destination == ResultDestinationDialog.CREATE_RESULT:
+
+            workspace.create_result(
+                dataframe,
+                name=result_name,
+                description=description
+            )
+
+            workspace.refresh()
+            self.update_workspace_controls()
+
+            return True
+
+        # --------------------------------
+        # Replace current Result
+        # --------------------------------
+
+        if destination == ResultDestinationDialog.REPLACE_RESULT:
+
+            index = workspace.result_panel.current_index()
+
+            if index < 0:
+                QMessageBox.warning(
+                    self,
+                    "Replace Result",
+                    "There is no current result to replace."
+                )
+                return False
+
+            manager.replace_result(
+                dataframe,
+                description,
+                index=index
+            )
+
+            workspace.refresh()
+            self.update_workspace_controls()
+
+            return True
+
+        QMessageBox.warning(
+            self,
+            "Result Destination",
+            f"Unknown result destination: {destination}"
+        )
+
+        return False
+
+    def choose_result_destination(self, workspace):
+        """Ask the user where an operation result should be stored."""
+
+        has_result = (
+            workspace.dataset_manager.has_results()
+        )
+
+        dialog = ResultDestinationDialog(
+            has_result=has_result,
+            parent=self
+        )
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return None
+
+        return dialog.get_destination()

@@ -103,25 +103,66 @@ class Workspace(QWidget):
     # ======================================
     def update_views(self):
 
-        main = self.dataset_manager.get_dataframe()
-        result = self.dataset_manager.get_result_dataframe()
-
+        # -------------------------
         # Main
+        # -------------------------
+
+        main = self.dataset_manager.get_dataframe()
+
         if main is not None:
             self.main_view.set_dataframe(main)
         else:
             self.main_view.clear()
 
-        # Result
-        if result is not None:
+        # -------------------------
+        # Results
+        # -------------------------
 
-            result_view = self.ensure_result_view()
+        results = self.dataset_manager.results
 
-            result_view.set_dataframe(result)
+        # Add missing tabs
+        while self.result_panel.tabs.count() < len(results):
 
-        else:
+            index = self.result_panel.tabs.count()
+            result = results[index]
 
-            self.result_panel.hide()
+            self.result_panel.add_result(
+                result.name,
+                result.dataframe
+            )
+
+        # Update existing tabs
+        for index, result in enumerate(results):
+
+            view = self.result_panel.view_at(index)
+
+            if view is None:
+                continue
+
+            view.set_dataframe(
+                result.dataframe
+            )
+
+            self.result_panel.tabs.setTabText(
+                index,
+                result.name
+            )
+
+        # Remove tabs that no longer exist
+        while self.result_panel.tabs.count() > len(results):
+
+            index = self.result_panel.tabs.count() - 1
+
+            view = self.result_panel.view_at(index)
+
+            self.result_panel.tabs.removeTab(index)
+
+            if view is not None:
+                view.deleteLater()
+
+        # -------------------------
+        # Visibility
+        # -------------------------
 
         self.update_comparison_layout()
 
@@ -531,3 +572,55 @@ class Workspace(QWidget):
 
         self.result_visible = visible
         self.update_comparison_layout()
+
+    def create_result(
+        self,
+        dataframe,
+        name="Result",
+        description="Result created"
+    ):
+        index = self.dataset_manager.add_result(
+            dataframe,
+            name
+        )
+
+        result = self.dataset_manager.results[index]
+
+        if description:
+            result.operations.append(description)
+
+        self.result_panel.add_result(
+            result.name,
+            result.dataframe
+        )
+
+        self.result_visible = True
+
+        self.update_comparison_layout()
+
+        return index
+
+    def replace_current_result(
+        self,
+        dataframe,
+        description="Result changed"
+    ):
+        index = self.dataset_manager.active_result
+
+        if index < 0:
+            return False
+
+        self.dataset_manager.replace_result(
+            dataframe,
+            description,
+            index=index
+        )
+
+        view = self.result_panel.view_at(index)
+
+        if view is not None:
+            view.set_dataframe(dataframe)
+
+        self.update_comparison_layout()
+
+        return True
