@@ -86,7 +86,9 @@ class Workspace(QWidget):
                     self.hide_result_panel
                 )
             )
-
+            self.result_panel.result_visibility_changed.connect(
+                self.set_result_visible
+            )
             self.refresh()
 
     # ======================================
@@ -536,21 +538,25 @@ class Workspace(QWidget):
             return False
 
     def hide_main_view(self):
-        self.main_view.hide()
+        self.main_visible = False
+        self.update_comparison_layout()
 
 
     def show_main_view(self):
-        self.main_view.show()
+        self.main_visible = True
+        self.update_comparison_layout()
 
 
     def hide_result_panel(self):
-        self.result_panel.hide()
+        self.result_visible = False
+        self.update_comparison_layout()
 
 
     def show_result_panel(self):
 
         if self.result_panel.has_results():
-            self.result_panel.show()
+            self.result_visible = True
+            self.update_comparison_layout()
 
 
     def ensure_result_view(self):

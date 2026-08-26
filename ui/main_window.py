@@ -204,6 +204,9 @@ class MainWindow(QMainWindow):
        # self.main_menu.result_dataset_action.triggered.connect(
         #    self.toggle_result_tab
         #)
+        self.main_menu.main_dataset_action.triggered.connect(
+            self.toggle_main_dataset
+        )
         self.main_menu.redo_button.setEnabled(False)
         self.status = StatusBar()
 
@@ -1256,12 +1259,10 @@ class MainWindow(QMainWindow):
         if workspace is None:
             return
 
-        manager = workspace.dataset_manager
-
         self.main_menu.main_dataset_action.blockSignals(True)
 
         self.main_menu.main_dataset_action.setChecked(
-            workspace.main_view.isVisible()
+            workspace.main_visible
         )
 
         self.main_menu.main_dataset_action.blockSignals(False)

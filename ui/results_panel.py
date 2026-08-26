@@ -13,6 +13,7 @@ class ResultPanel(QWidget):
     result_added = Signal(object)
     result_removed = Signal(object)
     current_changed = Signal(int)
+    result_visibility_changed = Signal(bool)
 
     def __init__(self, workspace=None, parent=None):
 
@@ -173,3 +174,13 @@ class ResultPanel(QWidget):
 
         self.hide()
 
+    def hide_results(self):
+
+        self.hide()
+        self.result_visibility_changed.emit(False)
+
+    def show_results(self):
+
+        if self.has_results():
+            self.show()
+            self.result_visibility_changed.emit(True)
