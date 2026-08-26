@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
     QHBoxLayout,
     QInputDialog,
     QMainWindow,
+    QMenu,
     QMessageBox,
     QSpinBox,
 
@@ -193,7 +194,7 @@ class MainWindow(QMainWindow):
             self.undo_operation
         )
         self.main_menu.result_dataset_action.triggered.connect(
-            self.toggle_result_dataset
+            self.toggle_result_tab
         )
         self.main_menu.redo_button.setEnabled(False)
         self.status = StatusBar()
@@ -626,13 +627,6 @@ class MainWindow(QMainWindow):
             "Aggregation created result dataset"
         )
 
-    def hide_main_view(self):
-
-        self.main_menu.main_dataset_action.setChecked(False)
-
-        if self.workspace:
-            self.workspace.main_view.hide()
-
     def hide_result_view(self):
 
         self.main_menu.result_dataset_action.setChecked(
@@ -640,7 +634,16 @@ class MainWindow(QMainWindow):
         )
 
         if self.workspace:
-            self.workspace.result_view.hide()
+            self.workspace.result_panel.hide()
+
+    def hide_main_view(self):
+
+        self.main_menu.main_dataset_action.setChecked(
+            False
+        )
+
+        if self.workspace:
+            self.workspace.main_view.hide()
 
     def toggle_main_dataset(self, checked):
 
@@ -649,22 +652,22 @@ class MainWindow(QMainWindow):
         if workspace is None:
             return
 
-        workspace.main_view.setVisible(
-            checked
-        )
+        workspace.set_main_visible(checked)
 
 
-    def toggle_result_dataset(self, checked):
-
+    def toggle_result_tab(self, index, checked):
         workspace = self.workspace
-
         if workspace is None:
             return
 
-        workspace.result_view.setVisible(
-            checked
-        )
-        
+        if checked:
+            workspace.result_panel.show_result(index)
+            workspace.set_result_visible(True)
+        else:
+            workspace.set_result_visible(False)
+
+        self.rebuild_view_menu()
+            
 
     def open_cleaning_dialog(self, context=None):
 
@@ -943,14 +946,30 @@ class MainWindow(QMainWindow):
 
 
     def get_dataframe_for_target(self, target, use_selection=None):
-        """Return a dataset, optionally restricted to the current selection."""
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return None
 
         if target == "main":
-            dataframe = self.dataset_manager.get_dataframe()
-            view = self.main_view
+
+            dataframe = (
+                workspace.dataset_manager.get_dataframe()
+            )
+
+            view = workspace.main_view
+
+        elif target == "result":
+
+            dataframe = (
+                workspace.dataset_manager.get_result_dataframe()
+            )
+
+            view = workspace.result_panel.current_view()
+
         else:
-            dataframe = self.dataset_manager.get_result_dataframe()
-            view = self.result_view
+            return None
 
         if dataframe is None:
             return None
@@ -958,7 +977,7 @@ class MainWindow(QMainWindow):
         if use_selection is None:
             use_selection = self.use_selection.isChecked()
 
-        if use_selection:
+        if use_selection and view is not None:
             return view.get_analysis_dataframe()
 
         return dataframe
@@ -1107,14 +1126,13 @@ class MainWindow(QMainWindow):
 
     @property
     def result_view(self):
-        """Return the active workspace's result view."""
 
         workspace = self.workspace
 
         if workspace is None:
             return None
 
-        return workspace.result_view
+        return workspace.result_panel.current_view()
 
     def workspace_changed(self, index):
 
@@ -1127,6 +1145,7 @@ class MainWindow(QMainWindow):
             return
 
         self.update_workspace_controls()
+        self.rebuild_view_menu()
 
     def close_workspace(self, index):
 
@@ -1166,16 +1185,17 @@ class MainWindow(QMainWindow):
 
         manager = workspace.dataset_manager
 
+        self.main_menu.main_dataset_action.blockSignals(True)
+
         self.main_menu.main_dataset_action.setChecked(
-            manager.has_data()
+            workspace.main_view.isVisible()
         )
 
-        self.main_menu.result_dataset_action.setChecked(
-            manager.has_result()
-        )
+        self.main_menu.main_dataset_action.blockSignals(False)
 
         self.update_data_actions()
         self.update_history_menus()
+        self.rebuild_view_menu()
 
 
     @property
@@ -1192,25 +1212,39 @@ class MainWindow(QMainWindow):
 
         datasets = {}
 
-        for i in range(self.workspaces.count()):
+        for index in range(self.workspaces.count()):
 
-            ws = self.workspaces.widget(i)
-            name = self.workspaces.tabText(i)
+            ws = self.workspaces.widget(index)
 
-            if ws.has_data():
+            if ws is None:
+                continue
+
+            name = self.workspaces.tabText(index)
+
+            # Main
+            dataframe = ws.dataset_manager.get_dataframe()
+
+            if dataframe is not None:
+
                 datasets[f"{name} • Main"] = {
                     "workspace": ws,
                     "target": "main",
-                    "dataframe": ws.dataset_manager.get_dataframe(),
+                    "dataframe": dataframe,
                     "view": ws.main_view
                 }
 
-            if ws.has_result():
+            # Result
+            dataframe = (
+                ws.dataset_manager.get_result_dataframe()
+            )
+
+            if dataframe is not None:
+
                 datasets[f"{name} • Result"] = {
                     "workspace": ws,
                     "target": "result",
-                    "dataframe": ws.dataset_manager.get_result_dataframe(),
-                    "view": ws.result_view
+                    "dataframe": dataframe,
+                    "view": ws.result_panel.current_view()
                 }
 
         return datasets
@@ -1809,11 +1843,12 @@ class MainWindow(QMainWindow):
                 )
 
             if view is None:
-                view = (
-                    workspace.main_view
-                    if target == "main"
-                    else workspace.result_view
-                )
+
+                if target == "main":
+                    view = workspace.main_view
+
+                else:
+                    view = workspace.result_panel.current_view()
 
             if target == "main":
                 dataframe = workspace.dataset_manager.get_dataframe()
@@ -1840,8 +1875,11 @@ class MainWindow(QMainWindow):
 
         elif target == "result":
 
-            view = workspace.result_view
-            dataframe = workspace.dataset_manager.get_result_dataframe()
+            view = workspace.result_panel.current_view()
+
+            dataframe = (
+                workspace.dataset_manager.get_result_dataframe()
+            )
 
         else:
 
@@ -1851,63 +1889,82 @@ class MainWindow(QMainWindow):
 
     def connect_workspace_signals(self, workspace):
 
-        for view in (
-            workspace.main_view,
-            workspace.result_view
-        ):
+        self.connect_dataset_view(
+            workspace.main_view
+        )
 
-            view.filter_requested.connect(
-                self.open_filter_dialog
-            )
+        workspace.result_panel.result_added.connect(
+            self.connect_dataset_view
+        )
 
-            view.aggregate_requested.connect(
-                self.open_aggregation_dialog
-            )
+        workspace.result_panel.result_added.connect(
+            lambda view: self.rebuild_view_menu()
+        )
 
-            view.join_requested.connect(
-                self.open_join_dialog
-            )
+        workspace.result_panel.result_removed.connect(
+            lambda view: self.rebuild_view_menu()
+        )
 
-            view.transform_requested.connect(
-                self.open_transform_dialog
-            )
+        workspace.result_panel.tabs.currentChanged.connect(
+            lambda index:
+                self.rebuild_view_menu()
+        )
 
-            view.clean_requested.connect(
-                self.open_cleaning_dialog
-            )
+    def connect_dataset_view(self, view):
 
-            view.rename_column_requested.connect(
-                self.rename_column
-            )
+        view.filter_requested.connect(
+            self.open_filter_dialog
+        )
 
-            view.duplicate_column_requested.connect(
-                self.duplicate_column
-            )
+        view.aggregate_requested.connect(
+            self.open_aggregation_dialog
+        )
 
-            view.add_column_requested.connect(
-                self.add_column
-            )
+        view.join_requested.connect(
+            self.open_join_dialog
+        )
 
-            view.delete_column_requested.connect(
-                self.delete_column
-            )
+        view.transform_requested.connect(
+            self.open_transform_dialog
+        )
 
-            view.calculated_column_requested.connect(
-                self.calculated_column
-            )
+        view.clean_requested.connect(
+            self.open_cleaning_dialog
+        )
 
-            view.add_row_requested.connect(
-                self.add_row
-            )
+        view.rename_column_requested.connect(
+            self.rename_column
+        )
 
-            view.duplicate_row_requested.connect(
-                self.duplicate_row
-            )
+        view.duplicate_column_requested.connect(
+            self.duplicate_column
+        )
 
-            view.delete_row_requested.connect(
-                self.delete_rows
-            )
+        view.add_column_requested.connect(
+            self.add_column
+        )
 
+        view.delete_column_requested.connect(
+            self.delete_column
+        )
+
+        view.calculated_column_requested.connect(
+            self.calculated_column
+        )
+
+        view.add_row_requested.connect(
+            self.add_row
+        )
+
+        view.duplicate_row_requested.connect(
+            self.duplicate_row
+        )
+
+        view.delete_row_requested.connect(
+            self.delete_rows
+        )
+
+        
     def get_current_dataset_label(self, workspace, target):
 
 
@@ -1946,3 +2003,122 @@ class MainWindow(QMainWindow):
             )
 
         return workspace, target, dataframe
+
+    def update_view_menu(self):
+
+        menu = self.main_menu.view_menu
+
+        if hasattr(self, "_result_view_menu"):
+            menu.removeAction(
+                self._result_view_menu.menuAction()
+            )
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        result_menu = QMenu(
+            "Result Datasets",
+            menu
+        )
+
+        self._result_view_menu = result_menu
+
+        # ----------------------------
+        # Main
+        # ----------------------------
+
+        main_action = menu.addAction(
+            "Main Dataset"
+        )
+
+        main_action.setCheckable(True)
+        main_action.setChecked(
+            workspace.main_view.isVisible()
+        )
+
+        main_action.triggered.connect(
+            self.toggle_main_dataset
+        )
+
+        # ----------------------------
+        # Results
+        # ----------------------------
+
+        for index, view in enumerate(
+            workspace.result_panel.views()
+        ):
+
+            action = result_menu.addAction(
+                workspace.result_panel.tab_title(index)
+            )
+
+            action.setCheckable(True)
+
+            action.setChecked(
+                workspace.result_panel.isVisible()
+                and workspace.result_panel.current_index() == index
+            )
+
+            action.triggered.connect(
+                lambda checked=False, i=index:
+                    self.toggle_result_tab(i, checked)
+            )
+
+        menu.addMenu(result_menu)
+
+    def rebuild_view_menu(self):
+
+        menu = self.main_menu.view_menu
+
+        # Remove previous result submenu
+        if hasattr(self, "_result_menu"):
+            menu.removeAction(
+                self._result_menu.menuAction()
+            )
+            self._result_menu.deleteLater()
+
+        workspace = self.workspace
+
+        if workspace is None:
+            return
+
+        # Main
+        self.main_menu.main_dataset_action.blockSignals(True)
+
+        self.main_menu.main_dataset_action.setChecked(
+            workspace.main_view.isVisible()
+        )
+
+        self.main_menu.main_dataset_action.blockSignals(False)
+
+        # Results
+        result_menu = QMenu(
+            "Result Datasets",
+            menu
+        )
+
+        self._result_menu = result_menu
+
+        for index, view in enumerate(
+            workspace.result_panel.views()
+        ):
+
+            action = result_menu.addAction(
+                workspace.result_panel.tab_title(index)
+            )
+
+            action.setCheckable(True)
+
+            action.setChecked(
+                workspace.result_panel.isVisible()
+                and workspace.result_panel.current_index() == index
+            )
+
+            action.triggered.connect(
+                lambda checked=False, i=index:
+                    self.toggle_result_tab(i, checked)
+            )
+
+        menu.addMenu(result_menu)

@@ -400,3 +400,8 @@ class MainMenu:
         self.data_menu.addAction(
             self.reset_action
         )
+
+        self.view_menu
+
+
+        self.main_dataset_action

@@ -80,9 +80,14 @@ class DatasetView(QWidget):
                 QStyle.SP_TitleBarCloseButton
             )
         )
-        self.close_button.setToolTip(
-            "Hide dataset"
-        )
+        if target == "main":
+            self.close_button.setToolTip(
+                "Hide main dataset"
+            )
+        else:
+            self.close_button.setToolTip(
+                "Close result"
+            )
         title_layout.addWidget(
             self.title_label
         )
@@ -273,13 +278,13 @@ class DatasetView(QWidget):
         row_index = self.dataframe.index[row_position]
 
         context = {
-            "workspace": self.workspace,
-            "target": self.target,
-            "view": self,
-            "dataframe": self.dataframe,
-            "column": column_name,
-            "row": row_index,
-        }
+                    "workspace": self.workspace,
+                    "target": self.target,
+                    "view": self,
+                    "dataframe": self.dataframe,
+                    "column": column_name,
+                    "row": row_index,
+                }
 
         menu = QMenu(self)
 

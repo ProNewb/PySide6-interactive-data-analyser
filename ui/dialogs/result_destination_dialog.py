@@ -1,19 +1,10 @@
 from PySide6.QtWidgets import (
-    QButtonGroup,
-    QCheckBox,
+
     QDialog,
-    QGridLayout,
-    QHBoxLayout,
-    QMessageBox,
-    QScrollArea,
-    QSplitter,
+    QDialogButtonBox,
     QVBoxLayout,
     QLabel,
-    QComboBox,
-    QLineEdit,
-    QPushButton,
-    QSizePolicy,
-    QWidget
+    QComboBox
 )
 class ResultDestinationDialog(QDialog):
 

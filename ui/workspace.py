@@ -20,6 +20,7 @@ from PySide6.QtWidgets import (
 )
 
 from core.dataset_manager import DatasetManager
+from ui.results_panel import ResultPanel
 from ui.table.dataset_view import DatasetView
 from controllers.file_controller import FileController
 from PySide6.QtCore import Qt
@@ -32,58 +33,61 @@ class Workspace(QWidget):
             - one DatasetManager
             - one FileController
             - one main DatasetView
-            - one result DatasetView
+            - one ResultPanel containing zero or more result DatasetViews
 
         The MainWindow manages multiple Workspace instances as tabs.
         """
-
     def __init__(self, parent=None):
-        super().__init__(parent)
+            super().__init__(parent)
+            self.main_visible = True
+            self.result_visible = False
+            self.dataset_manager = DatasetManager()
 
-        self.dataset_manager = DatasetManager()
+            self.file_controller = FileController(
+                self.dataset_manager
+            )
 
-        self.file_controller = FileController(
-            self.dataset_manager
-        )
+            self.main_view = DatasetView(
+                "Main Dataset",
+                "main",
+                workspace=self
+            )
 
-        self.main_view = DatasetView(
-            "Main Dataset",
-            "main",
-            workspace=self
-        )
+            self.result_panel = ResultPanel(
+                workspace=self
+            )
 
-        self.result_view = DatasetView(
-            "Result Dataset",
-            "result",
-            workspace=self
-        )
+            self.result_panel.hide()
 
-        self.result_view.hide()
+            self.splitter = QSplitter(Qt.Horizontal)
 
-        self.splitter = QSplitter(
-            Qt.Horizontal
-        )
+            self.splitter.addWidget(
+                self.main_view
+            )
 
-        self.splitter.addWidget(
-            self.main_view
-        )
+            self.splitter.addWidget(
+                self.result_panel
+            )
 
-        self.splitter.addWidget(
-            self.result_view
-        )
+            self.splitter.setSizes([
+                1200,
+                0
+            ])
 
-        self.splitter.setSizes([
-            600,
-            600
-        ])
+            layout = QVBoxLayout(self)
+            layout.addWidget(self.splitter)
 
-        layout = QVBoxLayout(self)
+            self.main_view.close_requested.connect(
+                self.hide_main_view
+            )
 
-        layout.addWidget(
-            self.splitter
-        )
+            self.result_panel.result_added.connect(
+                lambda view: view.close_requested.connect(
+                    self.hide_result_panel
+                )
+            )
 
-        self.refresh()
+            self.refresh()
 
     # ======================================
     # REFRESH
@@ -97,21 +101,27 @@ class Workspace(QWidget):
     # ======================================
     # VIEWS
     # ======================================
-
     def update_views(self):
 
         main = self.dataset_manager.get_dataframe()
         result = self.dataset_manager.get_result_dataframe()
 
+        # Main
         if main is not None:
             self.main_view.set_dataframe(main)
         else:
             self.main_view.clear()
 
+        # Result
         if result is not None:
-            self.result_view.set_dataframe(result)
+
+            result_view = self.ensure_result_view()
+
+            result_view.set_dataframe(result)
+
         else:
-            self.result_view.clear()
+
+            self.result_panel.hide()
 
         self.update_comparison_layout()
 
@@ -129,44 +139,35 @@ class Workspace(QWidget):
         Both        -> 50/50 comparison
         """
         main_available = (
-            self.dataset_manager.get_dataframe()
-            is not None
+            self.dataset_manager.get_dataframe() is not None
         )
 
         result_available = (
-            self.dataset_manager.get_result_dataframe()
-            is not None
+            self.dataset_manager.get_result_dataframe() is not None
+            and self.result_panel.has_results()
         )
 
         self.main_view.setVisible(
+            main_available and self.main_visible
+        )
+
+        self.result_panel.setVisible(
+            result_available and self.result_visible
+        )
+
+        if (
             main_available
-        )
+            and self.main_visible
+            and result_available
+            and self.result_visible
+        ):
+            self.splitter.setSizes([600, 600])
 
-        self.result_view.setVisible(
-            result_available
-        )
+        elif main_available and self.main_visible:
+            self.splitter.setSizes([1200, 0])
 
-        if main_available and result_available:
-
-            self.splitter.setSizes([
-                600,
-                600
-            ])
-
-        elif main_available:
-
-            self.splitter.setSizes([
-                1200,
-                0
-            ])
-
-        elif result_available:
-
-            self.splitter.setSizes([
-                0,
-                1200
-            ])
-
+        elif result_available and self.result_visible:
+            self.splitter.setSizes([0, 1200])
     # ==================================================
     # PROJECT AND EXPORT OPERATIONS
     # ==================================================
@@ -492,3 +493,41 @@ class Workspace(QWidget):
             )
 
             return False
+
+    def hide_main_view(self):
+        self.main_view.hide()
+
+
+    def show_main_view(self):
+        self.main_view.show()
+
+
+    def hide_result_panel(self):
+        self.result_panel.hide()
+
+
+    def show_result_panel(self):
+
+        if self.result_panel.has_results():
+            self.result_panel.show()
+
+
+    def ensure_result_view(self):
+
+        view = self.result_panel.current_view()
+
+        if view is None:
+            view = self.result_panel.add_result("Result")
+
+        return view
+
+    def set_main_visible(self, visible):
+
+        self.main_visible = visible
+        self.update_comparison_layout()
+
+
+    def set_result_visible(self, visible):
+
+        self.result_visible = visible
+        self.update_comparison_layout()
