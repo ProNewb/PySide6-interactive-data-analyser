@@ -204,44 +204,21 @@ class TransformConfig:
     column: str
     operation: str
     value: Any = None
+    destination: str = "replace"
+    new_column: str | None = None
 
     def describe(self):
 
-        if self.operation == "round":
-            return (
-                f"Transform: round {self.column} "
-                f"to {self.value} dp"
-            )
+        if self.destination == "new":
+            target = self.new_column
+        else:
+            target = self.column
 
-        if self.operation == "uppercase":
-            return f"Transform: uppercase {self.column}"
-
-        if self.operation == "lowercase":
-            return f"Transform: lowercase {self.column}"
-
-        if self.operation == "trim":
-            return f"Transform: trim {self.column}"
-
-        if self.operation == "remove_whitespace":
-            return (
-                f"Transform: remove whitespace from "
-                f"{self.column}"
-            )
-
-        if self.operation == "capitalize_first":
-            return (
-                f"Transform: capitalize first letter of "
-                f"{self.column}"
-            )
-
-        if self.operation == "astype":
-            return (
-                f"Transform: cast {self.column} "
-                f"to {self.value}"
-            )
-
-        return f"Transform: {self.operation} {self.column}"
-
+        return (
+            f"Transform '{self.column}' "
+            f"using {self.operation} "
+            f"→ '{target}'"
+        )
 @dataclass
 class CalculatedColumnConfig:
     name: str
@@ -316,10 +293,10 @@ class DataProcessor:
 
         try:
 
-            value = self.convert_value(
-                config.value,
-                config.dtype
-            )
+            value = DataType.convert_value(
+            config.value,
+            config.dtype
+        )
 
         except (TypeError, ValueError) as error:
 
@@ -334,14 +311,6 @@ class DataProcessor:
                 [value] * len(result),
                 index=result.index,
                 dtype="category"
-            )
-
-        elif config.dtype == "date":
-
-            result[config.name] = pd.Series(
-                [value] * len(result),
-                index=result.index,
-                dtype="object"
             )
 
         elif config.dtype == "datetime":
@@ -611,8 +580,39 @@ class DataProcessor:
 
     def transform(self, dataframe, config):
 
+        if dataframe is None:
+            raise ValueError("No dataset is available.")
+
+        if config.column not in dataframe.columns:
+            raise ValueError(
+                f"Column '{config.column}' does not exist."
+            )
+
+        if config.destination not in {"replace", "new"}:
+            raise ValueError(
+                f"Unknown transform destination: {config.destination}"
+            )
+
+        if config.destination == "new":
+
+            if not config.new_column:
+                raise ValueError(
+                    "A new column name is required."
+                )
+
+            if config.new_column in dataframe.columns:
+                raise ValueError(
+                    f"A column named '{config.new_column}' already exists."
+                )
+
         df = dataframe.copy()
         series = df[config.column]
+
+        transformed = None
+
+        # ==================================================
+        # NUMERIC
+        # ==================================================
 
         if config.operation == "round":
 
@@ -625,46 +625,132 @@ class DataProcessor:
                     f"'{config.column}'."
                 )
 
-            df[config.column] = (
-                df[config.column]
-                .round(config.value)
+            transformed = series.round(config.value)
+
+        elif config.operation == "absolute":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Absolute value requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.abs()
+
+        elif config.operation == "normalize":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Normalize requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            minimum = series.min()
+            maximum = series.max()
+
+            if pd.isna(minimum) or pd.isna(maximum):
+                raise ValueError(
+                    f"Cannot normalize column '{config.column}' "
+                    "because it contains no usable values."
+                )
+
+            if minimum == maximum:
+                transformed = pd.Series(
+                    0.0,
+                    index=series.index
+                )
+
+            else:
+                transformed = (
+                    (series - minimum)
+                    / (maximum - minimum)
+                )
+
+        elif config.operation == "standardize":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Standardize requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            mean = series.mean()
+            std = series.std()
+
+            if pd.isna(std) or std == 0:
+                raise ValueError(
+                    f"Cannot standardize '{config.column}' "
+                    "because its standard deviation is zero."
+                )
+
+            transformed = (
+                (series - mean) / std
             )
+
+        elif config.operation == "rank":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Rank requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.rank()
+        # ==================================================
+        # TEXT
+        # ==================================================
 
         elif config.operation == "uppercase":
 
             if not pd.api.types.is_string_dtype(series):
                 raise ValueError(
-                    f"Uppercase requires a text column: '{config.column}'."
+                    f"Uppercase requires a text column: "
+                    f"'{config.column}'."
                 )
 
-            df[config.column] = (
-                df[config.column]
-                .str.upper()
-            )
+            transformed = series.str.upper()
 
         elif config.operation == "lowercase":
 
             if not pd.api.types.is_string_dtype(series):
                 raise ValueError(
-                    f"Lowercase requires a text column: '{config.column}'."
+                    f"Lowercase requires a text column: "
+                    f"'{config.column}'."
                 )
 
-            df[config.column] = (
-                df[config.column]
-                .str.lower()
-            )
+            transformed = series.str.lower()
+
+        elif config.operation == "title_case":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Title case requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.title()
 
         elif config.operation == "trim":
 
             if not pd.api.types.is_string_dtype(series):
                 raise ValueError(
-                    f"Trim requires a text column: '{config.column}'."
+                    f"Trim requires a text column: "
+                    f"'{config.column}'."
                 )
 
-            df[config.column] = (
-                df[config.column]
-                .str.strip()
-            )
+            transformed = series.str.strip()
 
         elif config.operation == "remove_whitespace":
 
@@ -674,8 +760,10 @@ class DataProcessor:
                     f"'{config.column}'."
                 )
 
-            df[config.column] = series.str.replace(
-                r"\s+", "", regex=True
+            transformed = series.str.replace(
+                r"\s+",
+                "",
+                regex=True
             )
 
         elif config.operation == "capitalize_first":
@@ -686,44 +774,138 @@ class DataProcessor:
                     f"'{config.column}'."
                 )
 
-            df[config.column] = series.str.replace(
-                r"^(\s*)(\S)",
-                lambda match: match.group(1) + match.group(2).upper(),
-                regex=True
+            text = series.str.strip()
+
+            transformed = (
+                text.str[:1].str.upper()
+                + text.str[1:].str.lower()
             )
+        elif config.operation == "length":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Length requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.len()
+        # ==================================================
+        # TYPE
+        # ==================================================
 
         elif config.operation == "astype":
 
             target_dtype = config.value
 
-            if target_dtype == "date":
-
-                df[config.column] = pd.to_datetime(
-                    df[config.column],
-                    errors="raise"
-                ).dt.normalize()
-
-            elif target_dtype == "datetime":
-
-                df[config.column] = pd.to_datetime(
-                    df[config.column],
-                    errors="raise"
+            if target_dtype not in DataType.PANDAS_DTYPES:
+                raise ValueError(
+                    f"Unsupported target type: {target_dtype}"
                 )
 
-            elif target_dtype == "category":
+            try:
 
-                df[config.column] = (
-                    df[config.column]
-                    .astype("category")
+                if target_dtype == "datetime":
+
+                    transformed = pd.to_datetime(
+                        series,
+                        errors="raise"
+                    )
+
+                elif target_dtype == "category":
+
+                    transformed = series.astype(
+                        "category"
+                    )
+
+                else:
+
+                    transformed = series.astype(
+                        DataType.PANDAS_DTYPES[target_dtype]
+                    )
+
+            except (TypeError, ValueError) as error:
+
+                raise ValueError(
+                    f"Cannot convert '{config.column}' "
+                    f"to {target_dtype}: {error}"
+                ) from error
+
+        # ==================================================
+        # DATE / TIME
+        # ==================================================
+
+        elif config.operation in {
+            "extract_year",
+            "extract_month",
+            "extract_day",
+            "extract_weekday",
+            "extract_weekend",
+            "extract_time",
+            "extract_quarter",
+            "extract_month_name",
+            "extract_day_name",
+            "extract_hour",
+            "extract_minute",
+        }:
+
+            if not pd.api.types.is_datetime64_any_dtype(series):
+                raise ValueError(
+                    f"{config.operation.replace('_', ' ').title()} "
+                    f"requires a datetime column: "
+                    f"'{config.column}'."
                 )
 
-            else:
-                pandas_dtype = DataType.PANDAS_DTYPES[target_dtype]
+            if config.operation == "extract_year":
+                transformed = series.dt.year
 
-                df[config.column] = (
-                    df[config.column].astype(pandas_dtype)
-                )
+            elif config.operation == "extract_month":
+                transformed = series.dt.month
 
+            elif config.operation == "extract_day":
+                transformed = series.dt.day
+
+            elif config.operation == "extract_weekday":
+                transformed = series.dt.dayofweek
+
+            elif config.operation == "extract_weekend":
+                transformed = series.dt.dayofweek >= 5
+
+            elif config.operation == "extract_time":
+                transformed = series.dt.time
+
+            elif config.operation == "extract_quarter":
+                transformed = series.dt.quarter
+
+            elif config.operation == "extract_month_name":
+                transformed = series.dt.month_name()
+
+            elif config.operation == "extract_day_name":
+                transformed = series.dt.day_name()
+
+            elif config.operation == "extract_hour":
+                transformed = series.dt.hour
+
+            elif config.operation == "extract_minute":
+                transformed = series.dt.minute
+
+        else:
+
+            raise ValueError(
+                f"Unknown transform operation: "
+                f"{config.operation}"
+            )
+
+        # ==================================================
+        # DESTINATION
+        # ==================================================
+
+        if config.destination == "replace":
+
+            df[config.column] = transformed
+
+        else:
+
+            df[config.new_column] = transformed
 
         return df
 
@@ -783,28 +965,25 @@ class DataProcessor:
 
             if pd.api.types.is_bool_dtype(series):
 
-                value = self.convert_value(
+                value = DataType.convert_value(
                     value,
                     "boolean"
                 )
 
             elif pd.api.types.is_integer_dtype(series):
 
-                value = self.convert_value(
+                value = DataType.convert_value(
                     value,
                     "integer"
                 )
 
             elif pd.api.types.is_float_dtype(series):
 
-                value = self.convert_value(
-                    value,
-                    "float"
-                )
+                value = DataType.convert_value(value, "float")
 
             elif pd.api.types.is_datetime64_any_dtype(series):
 
-                value = self.convert_value(
+                value = DataType.convert_value(
                     value,
                     "datetime"
                 )
@@ -993,77 +1172,3 @@ class DataProcessor:
 
         return result
     
-    def convert_value(self, value, dtype):
-        """Convert a single value to the requested application dtype."""
-
-        if value is None:
-            return None
-
-        if dtype == "string":
-            return str(value)
-
-        if dtype == "integer":
-            return int(value)
-
-        if dtype == "float":
-            return float(value)
-
-        if dtype == "boolean":
-
-            if isinstance(value, bool):
-                return value
-
-            if isinstance(value, str):
-
-                text = value.strip().lower()
-
-                if text in ("true", "yes", "1"):
-                    return True
-
-                if text in ("false", "no", "0"):
-                    return False
-
-            raise ValueError(
-                f"Value '{value}' cannot be converted to boolean."
-            )
-
-        if dtype == "datetime":
-
-            return pd.to_datetime(
-                value,
-                errors="raise"
-            )
-
-        if dtype == "category":
-            return str(value)
-
-        raise ValueError(
-            f"Unsupported data type: {dtype}"
-        )
-
-    def rename_column(self, dataframe, config):
-
-        if config.old_name not in dataframe.columns:
-            raise ValueError(
-                f"Column '{config.old_name}' does not exist."
-            )
-
-        if not config.new_name:
-            raise ValueError(
-                "The new column name cannot be empty."
-            )
-
-        if config.new_name in dataframe.columns:
-            raise ValueError(
-                f"A column named '{config.new_name}' already exists."
-            )
-
-        result = dataframe.copy()
-
-        result = result.rename(
-            columns={
-                config.old_name: config.new_name
-            }
-        )
-
-        return result

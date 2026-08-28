@@ -48,16 +48,30 @@ class StatisticsWidget(QWidget):
 
         self.correlation_page = QTextEdit()
         self.correlation_page.setReadOnly(True)
-        
+
+        self.categorical_page = QTextEdit()
+        self.categorical_page.setReadOnly(True)
+
+        self.datetime_page = QTextEdit()
+        self.datetime_page.setReadOnly(True)
+
+        self.categorical_page.setFont(font)
+        self.datetime_page.setFont(font)
+
+
         self.summary_page.setFont(font)
         self.columns_page.setFont(font)
         self.missing_page.setFont(font)
         self.numeric_page.setFont(font)
         self.correlation_page.setFont(font)
+
+
         self.tabs.addTab(self.summary_page, "Summary")
         self.tabs.addTab(self.columns_page, "Columns")
         self.tabs.addTab(self.missing_page, "Missing")
         self.tabs.addTab(self.numeric_page, "Numeric")
+        self.tabs.addTab(self.categorical_page, "Categorical"        )
+        self.tabs.addTab(self.datetime_page, "Date / Time" )
         self.tabs.addTab(self.correlation_page, "Correlation")
         
 
@@ -80,17 +94,39 @@ class StatisticsWidget(QWidget):
         self.display_columns(summary)
         self.display_missing(summary)
         self.display_numeric(summary)
+        self.display_categorical(summary)
+        self.display_datetime(summary)
         self.display_correlation(summary)
+
 
     def display_summary(self, summary):
 
         output = [
-            f"Rows: {summary['rows']}",
-            f"Columns: {summary['columns']}",
-            f"Duplicates: {summary['duplicates']}",
-            f"Missing values: {summary['missing_total']}",
-            f"Memory: {summary['memory']:,} bytes"
+            f"Rows:            {summary['rows']:,}",
+            f"Columns:         {summary['columns']:,}",
+            f"Duplicates:      {summary['duplicates']:,}",
+            f"Missing values:  {summary['missing_total']:,}",
+            f"Memory:          {summary['memory']:,} bytes",
+            "",
+            "Column types",
+            "------------",
         ]
+
+        dtype_counts = {}
+
+        for dtype in summary["dtypes"].values():
+
+            dtype = str(dtype)
+
+            dtype_counts[dtype] = (
+                dtype_counts.get(dtype, 0) + 1
+            )
+
+        for dtype, count in dtype_counts.items():
+
+            output.append(
+                f"{dtype:20} {count}"
+            )
 
         self.summary_page.setPlainText(
             "\n".join(output)
@@ -114,12 +150,22 @@ class StatisticsWidget(QWidget):
 
         output = []
 
+        rows = summary["rows"]
+
         for column, count in summary["missing"].items():
 
-            output.append(
-                f"{str(column):20} {count}"
+            percentage = (
+                (count / rows) * 100
+                if rows
+                else 0
             )
 
+            output.append(
+                f"{str(column):20} "
+                f"{count:8} "
+                f"{percentage:7.2f}%"
+            )
+        
         self.missing_page.setPlainText(
             "\n".join(output)
         )
@@ -164,3 +210,93 @@ class StatisticsWidget(QWidget):
         self.missing_page.clear()
         self.numeric_page.clear()
         self.correlation_page.clear()
+
+        self.categorical_page.clear()
+        self.datetime_page.clear()
+
+    def display_categorical(self, summary):
+
+        output = []
+
+        for column, info in summary["column_summary"].items():
+
+            dtype = info["dtype"]
+
+            if (
+                "object" not in dtype
+                and "string" not in dtype
+                and "category" not in dtype
+            ):
+                continue
+
+            output.append(
+                f"{column}"
+            )
+            output.append(
+                "-" * len(str(column))
+            )
+            output.append(
+                f"Type:           {dtype}"
+            )
+            output.append(
+                f"Unique:         {info['unique']}"
+            )
+            output.append(
+                f"Missing:        {info['missing']}"
+            )
+            output.append(
+                f"Most common:    {info['mode']}"
+            )
+            output.append(
+                f"Frequency:      {info['mode_frequency']}"
+            )
+            output.append("")
+
+        self.categorical_page.setPlainText(
+            "\n".join(output)
+            if output
+            else "No categorical columns."
+        )
+
+    def display_datetime(self, summary):
+
+        output = []
+
+        for column, info in summary["column_summary"].items():
+
+            dtype = info["dtype"]
+
+            if "datetime" not in dtype:
+                continue
+
+            output.append(
+                f"{column}"
+            )
+            output.append(
+                "-" * len(str(column))
+            )
+            output.append(
+                f"Type:           {dtype}"
+            )
+            output.append(
+                f"Unique:         {info['unique']}"
+            )
+            output.append(
+                f"Missing:        {info['missing']}"
+            )
+            output.append(
+                f"Minimum:        {info['min']}"
+            )
+            output.append(
+                f"Maximum:        {info['max']}"
+            )
+            output.append(
+                f"Range:          {info['range']}"
+            )
+            output.append("")
+
+        self.datetime_page.setPlainText(
+            "\n".join(output)
+            if output
+            else "No datetime columns."
+        )

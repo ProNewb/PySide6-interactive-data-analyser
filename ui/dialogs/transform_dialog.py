@@ -6,14 +6,16 @@ from PySide6.QtWidgets import (
     QDialog,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
+    QRadioButton,
     QSpinBox,
     QSplitter,
     QVBoxLayout
 )
 
-from core.data_processor import DataType, TransformConfig
+from core.data_processor import DataProcessor, DataType, TransformConfig
 from ui.table.preview_table import PreviewTable
 
 
@@ -43,7 +45,8 @@ class TransformDialog(QDialog):
             self.target_combo.addItem(name)
 
         self.target_combo.setCurrentText(current)
-
+        self.processor = DataProcessor()
+        
         self.use_selection = QCheckBox(
     "Use selection"
 )
@@ -72,7 +75,6 @@ class TransformDialog(QDialog):
         layout.addLayout(target_layout)
         controls = QHBoxLayout()
         controls.addWidget(QLabel("Column"))
-        controls.addWidget(QLabel("Column"))
 
         self.column_combo = QComboBox()
 
@@ -80,14 +82,65 @@ class TransformDialog(QDialog):
 
         controls.addWidget(QLabel("Operation"))
         self.operation_combo = QComboBox()
+
+        self.add_operation_category("Numeric")
+
         for label, value in (
             ("Round", "round"),
+            ("Absolute value", "absolute"),
+            ("Normalize", "normalize"),
+            ("Standardize", "standardize"),
+            ("Rank", "rank"),
+        ):
+            self.operation_combo.addItem(label, value)
+
+        self.operation_combo.insertSeparator(
+            self.operation_combo.count()
+        )
+
+        self.add_operation_category("Text")
+
+        for label, value in (
             ("Uppercase", "uppercase"),
             ("Lowercase", "lowercase"),
+            ("Title case", "title_case"),
             ("Trim", "trim"),
             ("Remove whitespace", "remove_whitespace"),
             ("Capitalize first letter", "capitalize_first"),
-            ("Change type", "astype")
+            ("Length" , "length")
+        ):
+            self.operation_combo.addItem(label, value)
+
+        self.operation_combo.insertSeparator(
+            self.operation_combo.count()
+        )
+
+        self.add_operation_category("Type")
+
+        self.operation_combo.addItem(
+            "Change type",
+            "astype"
+        )
+
+        self.operation_combo.insertSeparator(
+            self.operation_combo.count()
+        )
+
+        self.add_operation_category("Date / Time")
+
+        for label, value in (
+            ("Extract year", "extract_year"),
+            ("Extract month", "extract_month"),
+            ("Extract day", "extract_day"),
+            ("Extract weekday", "extract_weekday"),
+            ("Extract weekend", "extract_weekend"),
+            ("Extract time", "extract_time"),
+            ("Extract quarter", "extract_quarter"),
+            ("Extract month name", "extract_month_name"),
+            ("Extract day name", "extract_day_name"),
+            ("Extract hour", "extract_hour"),
+            ("Extract minute", "extract_minute"),
+
         ):
             self.operation_combo.addItem(label, value)
         controls.addWidget(self.operation_combo)
@@ -102,6 +155,37 @@ class TransformDialog(QDialog):
                 dtype.title(),
                 dtype
             )
+
+        destination_layout = QHBoxLayout()
+
+        destination_layout.addWidget(
+            QLabel("Result")
+        )
+        self.replace_col_button = QRadioButton("Replace existing column")
+        self.replace_col_button.setChecked(True)
+        self.create_col_button = QRadioButton("Create new column")
+        self.new_col_name = QLineEdit()
+        self.new_col_name.setVisible(False)
+        self.replace_col_button.toggled.connect(self.update_destination_controls)
+        self.create_col_button.toggled.connect(self.update_destination_controls)
+        self.new_col_name.textChanged.connect(
+                self.update_preview
+            )
+        destination_layout.addWidget(
+            self.replace_col_button
+        )
+
+        destination_layout.addWidget(
+            self.create_col_button
+        )
+
+        destination_layout.addWidget(
+            self.new_col_name
+        )
+
+        layout.addLayout(destination_layout)
+
+
         controls.addWidget(self.value_label)
         controls.addWidget(self.decimal_places)
         controls.addWidget(self.type_combo)
@@ -200,125 +284,137 @@ class TransformDialog(QDialog):
     def get_target(self):
         return self.datasets[self.get_dataset_key()]["target"]
 
-
     def update_operation_options(self):
+
         column = self.column_combo.currentData()
+
         if column is None:
             self.apply_button.setEnabled(False)
             return
 
         series = self.operation_dataframe[column]
+
         numeric = (
             pd.api.types.is_numeric_dtype(series)
             and not pd.api.types.is_bool_dtype(series)
         )
+
         text = (
             pd.api.types.is_object_dtype(series)
             or pd.api.types.is_string_dtype(series)
+            or pd.api.types.is_categorical_dtype(series)
         )
+
+        datetime = (
+            pd.api.types.is_datetime64_any_dtype(series)
+        )
+
         allowed = {
             "round": numeric,
+            "absolute": numeric,
+            "normalize": numeric,
+            "standardize": numeric,
+            "rank": numeric,
             "uppercase": text,
             "lowercase": text,
+            "title_case": text,
             "trim": text,
             "remove_whitespace": text,
             "capitalize_first": text,
-            "astype": True
+            "length": text,
+            "astype": True,
+
+            "extract_year": datetime,
+            "extract_month": datetime,
+            "extract_day": datetime,
+            "extract_weekday": datetime,
+            "extract_weekend": datetime,
+            "extract_time": datetime,
+            "extract_quarter": datetime,
+            "extract_month_name": datetime,
+            "extract_day_name": datetime,
+            "extract_hour": datetime,
+            "extract_minute": datetime,
         }
 
         for index in range(self.operation_combo.count()):
+
             operation = self.operation_combo.itemData(index)
-            self.operation_combo.model().item(index).setEnabled(
-                allowed[operation]
+
+            # Category labels / separators
+            if operation is None:
+                continue
+
+            item = self.operation_combo.model().item(index)
+
+            item.setEnabled(
+                allowed.get(operation, False)
             )
 
-        if not allowed[self.operation_combo.currentData()]:
+        current_operation = (
+            self.operation_combo.currentData()
+        )
+
+        if (
+            current_operation is not None
+            and not allowed.get(current_operation, False)
+        ):
             self.operation_combo.setCurrentIndex(
                 self.operation_combo.findData("astype")
             )
+
         self.update_value_controls()
         self.update_preview()
 
     def update_value_controls(self):
-        is_round = self.operation_combo.currentData() == "round"
-        is_astype = self.operation_combo.currentData() == "astype"
-        self.value_label.setText(
-            "Decimal places" if is_round else "Target type"
-        )
+
+        operation = self.operation_combo.currentData()
+
+        is_round = operation == "round"
+        is_astype = operation == "astype"
+
         self.decimal_places.setVisible(is_round)
         self.type_combo.setVisible(is_astype)
 
+        if is_round:
+            self.value_label.setText("Decimal places")
+
+        elif is_astype:
+            self.value_label.setText("Target type")
+
+        else:
+            self.value_label.clear()
+
     def get_transform(self):
+
         operation = self.operation_combo.currentData()
-        value = self.type_combo.currentData()
+
+        value = None
+
         if operation == "round":
             value = self.decimal_places.value()
-        return TransformConfig(
-            self.column_combo.currentData(),
-            operation,
-            value
+
+        elif operation == "astype":
+            value = self.type_combo.currentData()
+
+        destination = (
+            "new"
+            if self.create_col_button.isChecked()
+            else "replace"
         )
-    def transform_dataframe(self, dataframe):
 
-        config = self.get_transform()
+        new_column = None
 
-        result = dataframe.copy()
+        if destination == "new":
+            new_column = self.new_col_name.text().strip()
 
-        column = config.column
-
-        if config.operation == "round":
-
-            result[column] = (
-                result[column].round(config.value)
-            )
-
-        elif config.operation == "uppercase":
-
-            result[column] = (
-                result[column].str.upper()
-            )
-
-        elif config.operation == "lowercase":
-
-            result[column] = (
-                result[column].str.lower()
-            )
-
-        elif config.operation == "trim":
-
-            result[column] = (
-                result[column].str.strip()
-            )
-
-        elif config.operation == "remove_whitespace":
-
-            result[column] = (
-                result[column].str.replace(
-                    r"\s+",
-                    "",
-                    regex=True
-                )
-            )
-
-        elif config.operation == "capitalize_first":
-
-            result[column] = (
-                result[column].str.replace(
-                    r"^(\s*)(\S)",
-                    lambda match:
-                        match.group(1)
-                        + match.group(2).upper(),
-                    regex=True
-                )
-            )
-
-        elif config.operation == "astype":
-
-            result[column] = (
-                result[column].astype(config.value)
-            )
-
-        return result
+        return TransformConfig(
+            column=self.column_combo.currentData(),
+            operation=operation,
+            value=value,
+            destination=destination,
+            new_column=new_column
+        )
 
     def update_preview(self):
 
@@ -331,10 +427,11 @@ class TransformDialog(QDialog):
 
         try:
 
-            operation_result = (
-                self.transform_dataframe(
-                    self.operation_dataframe
-                )
+            config = self.get_transform()
+
+            operation_result = self.processor.transform(
+                self.operation_dataframe,
+                config
             )
 
             if (
@@ -343,10 +440,9 @@ class TransformDialog(QDialog):
             ):
 
                 result = self.merge_selection_result(
-                    self.dataframe,
-                    self.operation_dataframe,
-                    operation_result
-                )
+                self.dataframe,
+                operation_result
+            )
 
             else:
 
@@ -360,7 +456,6 @@ class TransformDialog(QDialog):
 
             self.result_preview.clearContents()
             self.result_preview.setRowCount(0)
-
             self.apply_button.setEnabled(False)
 
             return
@@ -371,7 +466,6 @@ class TransformDialog(QDialog):
         )
 
         self.result = result
-
         self.apply_button.setEnabled(True)
 
     def update_selection_options(self, checked):
@@ -385,23 +479,27 @@ class TransformDialog(QDialog):
     def merge_selection_result(
         self,
         original,
-        selection,
         result
     ):
 
         merged = original.copy()
 
-        common = result.index.intersection(
-            merged.index
-        )
+        for column in result.columns:
 
-        merged.loc[
-            common,
-            result.columns
-        ] = result.loc[
-            common,
-            result.columns
-        ]
+            if column not in merged.columns:
+                merged[column] = pd.NA
+
+            common = result.index.intersection(
+                merged.index
+            )
+
+            merged.loc[
+                common,
+                column
+            ] = result.loc[
+                common,
+                column
+            ]
 
         return merged
 
@@ -409,10 +507,11 @@ class TransformDialog(QDialog):
 
         try:
 
-            operation_result = (
-                self.transform_dataframe(
-                    self.operation_dataframe
-                )
+            config = self.get_transform()
+
+            operation_result = self.processor.transform(
+                self.operation_dataframe,
+                config
             )
 
             if (
@@ -422,7 +521,6 @@ class TransformDialog(QDialog):
 
                 result = self.merge_selection_result(
                     self.dataframe,
-                    self.operation_dataframe,
                     operation_result
                 )
 
@@ -431,7 +529,6 @@ class TransformDialog(QDialog):
                 result = operation_result
 
             self.result = result
-
             self.accept()
 
         except (
@@ -448,3 +545,66 @@ class TransformDialog(QDialog):
 
     def get_result(self):
         return self.result
+
+    def add_operation_category(self, text):
+
+        self.operation_combo.addItem(text)
+
+        index = self.operation_combo.count() - 1
+
+        item = self.operation_combo.model().item(index)
+
+        item.setEnabled(False)
+
+    def update_destination_controls(self):
+
+        is_new = self.create_col_button.isChecked()
+
+        self.new_col_name.setVisible(is_new)
+
+        if is_new:
+
+            self.new_col_name.setText(
+                self.default_new_column_name()
+            )
+
+        self.update_preview()
+
+    def default_new_column_name(self):
+
+        column = self.column_combo.currentData()
+        operation = self.operation_combo.currentData()
+
+        if column is None or operation is None:
+            return ""
+
+        suffixes = {
+            "normalize": "normalized",
+            "absolute": "absolute",
+            "round": "rounded",
+            "standardize": "standardized",
+            "rank": "rank",
+            "uppercase": "uppercase",
+            "lowercase": "lowercase",
+            "title_case": "title",
+            "trim": "trimmed",
+            "remove_whitespace": "no_whitespace",
+            "capitalize_first": "capitalized",
+            "length": "length",
+            "extract_year": "year",
+            "extract_month": "month",
+            "extract_day": "day",
+            "extract_weekday": "weekday",
+            "extract_weekend": "weekend",
+            "extract_time": "time",
+            "extract_quarter": "quarter",
+            "extract_month_name": "month_name",
+            "extract_day_name": "day_name",
+            "extract_hour": "hour",
+            "extract_minute": "minute",
+            "astype": self.type_combo.currentData(),
+        }
+
+        suffix = suffixes.get(operation, operation)
+
+        return f"{column}_{suffix}"

@@ -1,3 +1,6 @@
+import pandas as pd
+
+
 class DataSummary:
     """Generate descriptive information about a DataFrame."""
 
@@ -11,11 +14,18 @@ class DataSummary:
         )
 
         categorical = dataframe.select_dtypes(
-            include=["object", "category", "string"]
+            include=[
+                "object",
+                "category",
+                "string"
+            ]
         )
 
         datetime = dataframe.select_dtypes(
-            include=["datetime", "datetimetz"]
+            include=[
+                "datetime",
+                "datetimetz"
+            ]
         )
 
         if len(numeric.columns) >= 2:
@@ -27,34 +37,121 @@ class DataSummary:
 
         for column in dataframe.columns:
 
-            column_summary[column] = {
-                "dtype": str(dataframe[column].dtype),
+            series = dataframe[column]
+
+            summary = {
+                "dtype": str(series.dtype),
                 "missing": int(
-                    dataframe[column].isna().sum()
+                    series.isna().sum()
+                ),
+                "missing_percent": (
+                    series.isna().mean() * 100
                 ),
                 "unique": int(
-                    dataframe[column].nunique()
-                )
+                    series.nunique()
+                ),
+                "non_null": int(
+                    series.notna().sum()
+                ),
             }
+
+            # -------------------------
+            # Numeric
+            # -------------------------
+
+            if (
+                pd.api.types.is_numeric_dtype(series)
+                and not pd.api.types.is_bool_dtype(series)
+            ):
+
+                summary.update({
+                    "mean": series.mean(),
+                    "median": series.median(),
+                    "std": series.std(),
+                    "min": series.min(),
+                    "max": series.max(),
+                    "range": (
+                        series.max() - series.min()
+                    ),
+                    "variance": series.var(),
+                    "skew": series.skew(),
+                })
+
+            # -------------------------
+            # Categorical / Text
+            # -------------------------
+
+            elif (
+                pd.api.types.is_object_dtype(series)
+                or pd.api.types.is_string_dtype(series)
+                or pd.api.types.is_categorical_dtype(series)
+            ):
+
+                mode = series.mode()
+
+                summary.update({
+                    "mode": (
+                        mode.iloc[0]
+                        if not mode.empty
+                        else None
+                    ),
+                    "mode_frequency": (
+                        int(
+                            (series == mode.iloc[0]).sum()
+                        )
+                        if not mode.empty
+                        else 0
+                    ),
+                })
+
+            # -------------------------
+            # Datetime
+            # -------------------------
+
+            elif pd.api.types.is_datetime64_any_dtype(series):
+
+                summary.update({
+                    "min": series.min(),
+                    "max": series.max(),
+                    "range": (
+                        series.max() - series.min()
+                        if series.notna().any()
+                        else None
+                    ),
+                })
+
+            column_summary[column] = summary
+
+        # ==========================================
+        # Return complete dataset summary
+        # ==========================================
 
         return {
             "rows": len(dataframe),
 
             "columns": len(dataframe.columns),
 
-            "column_names": list(dataframe.columns),
+            "column_names": list(
+                dataframe.columns
+            ),
 
             "dtypes": dataframe.dtypes.to_dict(),
 
             "missing": dataframe.isnull().sum().to_dict(),
 
-            "missing_total": dataframe.isnull().sum().sum(),
+            "missing_total": int(
+                dataframe.isnull().sum().sum()
+            ),
 
-            "duplicates": dataframe.duplicated().sum(),
+            "duplicates": int(
+                dataframe.duplicated().sum()
+            ),
 
-            "memory": dataframe.memory_usage(
-                deep=True
-            ).sum(),
+            "memory": int(
+                dataframe.memory_usage(
+                    deep=True
+                ).sum()
+            ),
 
             "numeric": (
                 numeric.describe()
@@ -75,7 +172,6 @@ class DataSummary:
             ),
 
             "correlations": correlations,
-        
-            "column_summary": column_summary
 
-            }
+            "column_summary": column_summary
+        }
