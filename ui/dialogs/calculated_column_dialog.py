@@ -157,3 +157,4 @@ class CalculatedColumnDialog(QDialog):
             columns=columns,
             value=value
         )
+    

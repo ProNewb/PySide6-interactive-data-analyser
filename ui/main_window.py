@@ -296,6 +296,9 @@ class MainWindow(QMainWindow):
         self.main_layout.addLayout(
             target_layout
         )
+        self.use_selection.toggled.connect(
+            self.on_use_selection_changed
+        )
     # retrieve data
     def load_dataset(self):
 
@@ -2380,4 +2383,14 @@ class MainWindow(QMainWindow):
             return None
 
         return dialog.get_destination()
+
+
+    def on_use_selection_changed(self, checked):
+        """Propagate the selection setting to the active dataset views."""
+
+        # Main dataset
+        self.workspace.main_view.set_use_selection(checked)
+
+        # All result datasets
+        self.workspace.result_panel.set_use_selection(checked)
 

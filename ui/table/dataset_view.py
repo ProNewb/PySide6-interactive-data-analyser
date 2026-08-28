@@ -45,7 +45,7 @@ class DatasetView(QWidget):
         self.workspace = workspace
         self.target = target  # target df main,res ect   
         #self.dataframe = None
-
+        self.use_selection = False
         # ----------------------------------
         # Components
         # ----------------------------------
@@ -203,9 +203,7 @@ class DatasetView(QWidget):
     def set_dataframe(self, dataframe):
 
         self.table.display_dataframe(dataframe)
-        self.stats_widget.load_dataframe(dataframe)
-        self.graph_tab.set_dataframe(dataframe)
-        self.model_tab.set_dataframe(dataframe)
+        self.update_analysis()
 
     def clear(self):
         self.table.clear()
@@ -228,7 +226,10 @@ class DatasetView(QWidget):
 
     def update_analysis(self):
 
-        dataframe = self.table.get_analysis_dataframe()
+        if self.use_selection:
+            dataframe = self.table.get_analysis_dataframe()
+        else:
+            dataframe = self.dataframe
 
         if dataframe is None:
             return
@@ -395,3 +396,8 @@ class DatasetView(QWidget):
             self.dataframe.index[i]
             for i in rows
     ]
+
+
+    def set_use_selection(self, enabled):
+        self.use_selection = enabled
+        self.update_analysis()

@@ -6,6 +6,70 @@ from core.conditions import Condition
 from dataclasses import dataclass
 from typing import Any
 
+class DataType:
+
+    TYPES = (
+        "string",
+        "integer",
+        "float",
+        "boolean",
+        "datetime",
+        "category",
+    )
+
+    DEFAULT = "string"
+
+    PANDAS_DTYPES = {
+        "string": "string",
+        "integer": "Int64",
+        "float": "Float64",
+        "boolean": "boolean",
+        "datetime": "datetime64[ns]",
+        "category": "category",
+    }
+    @classmethod
+    def convert_value(cls, value, dtype):
+
+        if value is None:
+            return None
+
+        if dtype == "string":
+            return str(value)
+
+        if dtype == "integer":
+            return int(value)
+
+        if dtype == "float":
+            return float(value)
+
+        if dtype == "boolean":
+
+            if isinstance(value, bool):
+                return value
+
+            if isinstance(value, str):
+                text = value.strip().lower()
+
+                if text in ("true", "yes", "1"):
+                    return True
+
+                if text in ("false", "no", "0"):
+                    return False
+
+            raise ValueError(
+                f"Value '{value}' cannot be converted to boolean."
+            )
+
+        if dtype == "datetime":
+            return pd.to_datetime(value, errors="raise")
+
+        if dtype == "category":
+            return str(value)
+
+        raise ValueError(
+            f"Unsupported data type: {dtype}"
+        )  
+    
 @dataclass
 class DeleteColumnConfig:
     columns: list
@@ -654,20 +718,12 @@ class DataProcessor:
                 )
 
             else:
+                pandas_dtype = DataType.PANDAS_DTYPES[target_dtype]
 
-                try:
+                df[config.column] = (
+                    df[config.column].astype(pandas_dtype)
+                )
 
-                    df[config.column] = (
-                        df[config.column]
-                        .astype(target_dtype)
-                    )
-
-                except (TypeError, ValueError) as error:
-
-                    raise ValueError(
-                        f"Cannot convert '{config.column}' "
-                        f"to {target_dtype}."
-                    ) from error
 
         return df
 
@@ -936,6 +992,7 @@ class DataProcessor:
             )
 
         return result
+    
     def convert_value(self, value, dtype):
         """Convert a single value to the requested application dtype."""
 
@@ -969,15 +1026,6 @@ class DataProcessor:
             raise ValueError(
                 f"Value '{value}' cannot be converted to boolean."
             )
-
-        if dtype == "date":
-
-            converted = pd.to_datetime(
-                value,
-                errors="raise"
-            )
-
-            return converted.date()
 
         if dtype == "datetime":
 

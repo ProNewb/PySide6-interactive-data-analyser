@@ -13,7 +13,7 @@ from PySide6.QtWidgets import (
     QVBoxLayout
 )
 
-from core.data_processor import TransformConfig
+from core.data_processor import DataType, TransformConfig
 from ui.table.preview_table import PreviewTable
 
 
@@ -97,14 +97,11 @@ class TransformDialog(QDialog):
         self.decimal_places.setRange(0, 12)
         self.decimal_places.setValue(2)
         self.type_combo = QComboBox()
-        for label, dtype in (
-            ("Integer", "Int64"),
-            ("Decimal", "Float64"),
-            ("Text", "string"),
-            ("Boolean", "boolean"),
-            ("Date/time", "datetime64[ns]")
-        ):
-            self.type_combo.addItem(label, dtype)
+        for dtype in DataType.TYPES:
+            self.type_combo.addItem(
+                dtype.title(),
+                dtype
+            )
         controls.addWidget(self.value_label)
         controls.addWidget(self.decimal_places)
         controls.addWidget(self.type_combo)

@@ -20,7 +20,7 @@ class ResultPanel(QWidget):
         super().__init__(parent)
 
         self.workspace = workspace
-
+        self.use_selection = False
         self.tabs = QTabWidget()
         self.tabs.setTabsClosable(True)
 
@@ -34,7 +34,7 @@ class ResultPanel(QWidget):
 
         layout = QVBoxLayout(self)
         layout.addWidget(self.tabs)
-
+        
     # ==================================================
     # CREATE
     # ==================================================
@@ -54,6 +54,8 @@ class ResultPanel(QWidget):
 
         if dataframe is not None:
             view.set_dataframe(dataframe)
+
+        view.set_use_selection(self.use_selection)
 
         index = self.tabs.addTab(
             view,
@@ -176,3 +178,11 @@ class ResultPanel(QWidget):
         if self.has_results():
             self.show()
             self.result_visibility_changed.emit(True)
+
+    def set_use_selection(self, enabled):
+        """Enable or disable selection-based analysis for all result views."""
+
+        #self.use_selection = enabled
+
+        for view in self.views():
+            view.set_use_selection(enabled)
