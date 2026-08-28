@@ -326,29 +326,8 @@ class MainMenu:
             True
         )
 
-        # ----------------------------------
-        # Result dataset
-        # ----------------------------------
-
-        self.result_dataset_action = QAction(
-            "Result Dataset",
-            window
-        )
-
-        self.result_dataset_action.setCheckable(
-            True
-        )
-
-        self.result_dataset_action.setChecked(
-            False
-        )
-
         self.view_menu.addAction(
             self.main_dataset_action
-        )
-
-        self.view_menu.addAction(
-            self.result_dataset_action
         )
 
 

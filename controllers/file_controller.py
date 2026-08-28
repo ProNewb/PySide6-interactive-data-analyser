@@ -1,5 +1,6 @@
 import json
 from io import StringIO
+from pathlib import Path
 
 import pandas as pd
 
@@ -260,3 +261,50 @@ class FileController:
 
         return columns
 
+    def export_dataframe(
+        self,
+        dataframe,
+        filename,
+        options
+    ):
+
+        suffix = Path(filename).suffix.lower()
+
+        if suffix == ".csv":
+
+            dataframe.to_csv(
+                filename,
+                index=options.include_index,
+                header=options.include_header,
+                sep=options.delimiter,
+                encoding=options.encoding
+            )
+
+        elif suffix == ".xlsx":
+
+            dataframe.to_excel(
+                filename,
+                index=options.include_index,
+                header=options.include_header
+            )
+
+        elif suffix == ".json":
+
+            dataframe.to_json(
+                filename,
+                orient="records",
+                date_format="iso"
+            )
+
+        elif suffix == ".parquet":
+
+            dataframe.to_parquet(
+                filename,
+                index=options.include_index
+            )
+
+        else:
+
+            raise ValueError(
+                f"Unsupported export format: {suffix}"
+            )

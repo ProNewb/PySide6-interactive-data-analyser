@@ -10,16 +10,15 @@ class DataState:
     after: object
     description: str
 
-
 @dataclass
-class ResultDataset:
+class DatasetState:
     name: str
     dataframe: pd.DataFrame
 
     history: list[DataState] = field(default_factory=list)
-    redo: list[DataState] = field(default_factory=list)
+    redo_history: list[DataState] = field(default_factory=list)
     operations: list[str] = field(default_factory=list)
-
+    
 
 class DatasetManager:
 
@@ -29,28 +28,50 @@ class DatasetManager:
 
         self.reader = CSVReader()
 
-        # ---------- Main ----------
-        self.dataframe = None
+        self.main = DatasetState(
+            name="Main",
+            dataframe=pd.DataFrame()
+        )
+
         self.original_dataframe = None
-        self.history = []
-        self.redo_history = []
-        self.operation_log = []
-
-        # ---------- Results ----------
-        self.results: list[ResultDataset] = []
+        self.results = []
         self.active_result = -1
-
         self.filename = None
 
     # ==================================================
     # MAIN DATASET
     # ==================================================
+    def state(self, target="main", index=None) -> DatasetState | None:
+        if target == "main":
+            return self.main
+
+        if not self.results:
+            return None
+
+        if index is None:
+            index = self.active_result
+
+        return self.results[index]
+
+    def get_state(self, target="main", index=None):
+        if target == "main":
+            return self.main
+
+        if target == "result":
+            if index is None:
+                index = self.active_result
+
+            if 0 <= index < len(self.results):
+                return self.results[index]
+
+        return None
 
     def get_dataframe(self):
-        return self.dataframe
+        return self.main.dataframe
 
     def has_data(self):
-        return self.dataframe is not None
+        return not self.main.dataframe.empty
+    
     def load_csv(self, filename, options):
             """Load a new CSV and reset dataset state."""
 
@@ -72,10 +93,10 @@ class DatasetManager:
         original_dataframe=None,
         operations=None
     ):
-        """Load a dataframe and reset or restore its project state."""
 
         self.filename = filename
-        self.dataframe = dataframe.copy()
+
+        self.main.dataframe = dataframe.copy()
 
         self.original_dataframe = (
             dataframe.copy()
@@ -83,23 +104,14 @@ class DatasetManager:
             else original_dataframe.copy()
         )
 
-        self.history.clear()
-        self.redo_history.clear()
-        self.operation_log = list(operations or [])
+        self.main.history.clear()
+        self.main.redo_history.clear()
+        self.main.operations = list(operations or [])
 
-        # Clear previous results
         self.results.clear()
         self.active_result = -1
 
-    def has_data(self):
-        """Return True if a main dataset is loaded."""
 
-        return self.dataframe is not None
-
-    def get_dataframe(self):
-        """Return the current main dataset."""
-
-        return self.dataframe
 
     def set_dataframe(
         self,
@@ -107,87 +119,74 @@ class DatasetManager:
         description="Data changed"
     ):
 
-        if self.dataframe is not None:
+        state = self.main
 
-            self.operation_log.append(description)
+        if state.dataframe is not None and not state.dataframe.empty:
 
             operation = DataState(
-                before=self.dataframe.copy(),
+                before=state.dataframe.copy(),
                 after=dataframe.copy(),
                 description=description
             )
 
-            self.history.append(operation)
+            state.history.append(operation)
 
-            if len(self.history) > self.MAX_HISTORY:
-                self.history.pop(0)
+            if len(state.history) > self.MAX_HISTORY:
+                state.history.pop(0)
 
-        self.dataframe = dataframe.copy()
+            state.operations.append(description)
 
-        # A new operation invalidates redo history
-        self.redo_history.clear()
+        state.dataframe = dataframe.copy()
+
+        # New operation invalidates redo
+        state.redo_history.clear()
+
     # ==================================================
     # RESULT HELPERS
     # ==================================================
 
-    def has_results(self):
-        return len(self.results) > 0
+
 
     def set_active_result(self, index):
 
         if 0 <= index < len(self.results):
             self.active_result = index
 
-    def get_active_result(self):
-
-        if not self.has_results():
-            return None
-
-        if self.active_result < 0:
-            self.active_result = 0
-
-        return self.results[self.active_result]
 
     # ==================================================
     # RESULT CRUD
     # ==================================================
 
-    def add_result(self, dataframe, name="Result"):
+    def add_result(
+        self,
+        dataframe,
+        name="Result",
+        description=None
+    ):
 
-        result = ResultDataset(
+        result = DatasetState(
             name=name,
             dataframe=dataframe.copy()
         )
 
-        self.results.append(result)
+        if description:
+            result.operations.append(description)
 
+        self.results.append(result)
         self.active_result = len(self.results) - 1
 
         return self.active_result
 
-    def get_result_dataframe(self, index=None):
 
-        if not self.has_results():
-            return None
 
-        if index is None:
-            result = self.get_active_result()
-        else:
-            result = self.results[index]
+    def get_history(self, target="main", index=None):
 
-        return result.dataframe
+        state = self.get_state(target, index)
 
-    def get_result_name(self, index=None):
+        if state is None:
+            return []
 
-        if not self.has_results():
-            return None
-
-        if index is None:
-            result = self.get_active_result()
-        else:
-            result = self.results[index]
-
-        return result.name
+        return state.history
 
     def replace_result(
         self,
@@ -196,27 +195,28 @@ class DatasetManager:
         index=None
     ):
 
-        if index is None:
-            result = self.get_active_result()
-        else:
-            result = self.results[index]
+        state = self.get_state("result", index)
+
+        if state is None:
+            return False
 
         operation = DataState(
-            before=result.dataframe.copy(),
+            before=state.dataframe.copy(),
             after=dataframe.copy(),
             description=description
         )
 
-        result.history.append(operation)
+        state.history.append(operation)
 
-        if len(result.history) > self.MAX_HISTORY:
-            result.history.pop(0)
+        if len(state.history) > self.MAX_HISTORY:
+            state.history.pop(0)
 
-        result.redo.clear()
+        state.redo_history.clear()
+        state.operations.append(description)
 
-        result.operations.append(description)
+        state.dataframe = dataframe.copy()
 
-        result.dataframe = dataframe.copy()
+        return True
 
     def remove_result(self, index):
 
@@ -233,104 +233,74 @@ class DatasetManager:
     # ==================================================
     # RESULT HISTORY
     # ==================================================
+    def can_undo(self, target="main", index=None):
 
-    def can_undo(self, target="main"):
+        state = self.get_state(target, index)
 
-        if target == "main":
-            return bool(self.history)
+        if state is None:
+            return False
 
-        result = self.get_active_result()
-        return result is not None and bool(result.history)
+        return bool(state.history)
 
-    def can_redo(self, target="main"):
 
-        if target == "main":
-            return bool(self.redo_history)
+    def can_redo(self, target="main", index=None):
 
-        result = self.get_active_result()
-        return result is not None and bool(result.redo)
+        state = self.get_state(target, index)
 
-    def undo(self, target="main"):
+        if state is None:
+            return False
 
-        if target == "main":
+        return bool(state.redo_history)
 
-            if not self.history:
-                return None
+    def undo(self, target="main", index=None):
 
-            operation = self.history.pop()
+        state = self.get_state(target, index)
 
-            self.dataframe = operation.before.copy()
-
-            self.redo_history.append(operation)
-
-            return operation.description
-
-        # Result
-
-        result = self.get_active_result()
-
-        if result is None or not result.history:
+        if state is None or not state.history:
             return None
 
-        operation = result.history.pop()
+        operation = state.history.pop()
 
-        result.dataframe = operation.before.copy()
+        state.dataframe = operation.before.copy()
 
-        result.redo.append(operation)
+        state.redo_history.append(operation)
 
         return operation.description
 
-    def redo(self, target="main"):
+    def redo(self, target="main", index=None):
 
-        if target == "main":
+        state = self.get_state(target, index)
 
-            if not self.redo_history:
-                return None
-
-            operation = self.redo_history.pop()
-
-            self.dataframe = operation.after.copy()
-
-            self.history.append(operation)
-
-            return operation.description
-
-        # Result
-
-        result = self.get_active_result()
-
-        if result is None or not result.redo:
+        if state is None or not state.redo_history:
             return None
 
-        operation = result.redo.pop()
+        operation = state.redo_history.pop()
 
-        result.dataframe = operation.after.copy()
+        state.dataframe = operation.after.copy()
 
-        result.history.append(operation)
+        state.history.append(operation)
 
         return operation.description
 
-    def get_undo_history(self, target="main"):
+    def get_undo_history(self, target="main", index=None):
 
-        if target == "main":
-            return list(self.history)
+        state = self.get_state(target, index)
 
-        result = self.get_active_result()
-        return [] if result is None else list(result.history)
+        if state is None:
+            return []
 
-    def get_redo_history(self, target="main"):
+        return list(state.history)
 
-        if target == "main":
-            return list(self.redo_history)
 
-        result = self.get_active_result()
-        return [] if result is None else list(result.redo)
+    def get_redo_history(self, target="main", index=None):
 
-    def get_result_operation_log(self):
+        state = self.get_state(target, index)
 
-        result = self.get_active_result()
+        if state is None:
+            return []
 
-        return [] if result is None else list(result.operations)
+        return list(state.redo_history)
+
 
     # ==================================================
     # CLOSE
@@ -338,16 +308,15 @@ class DatasetManager:
 
     def close_file(self):
 
-        self.dataframe = None
-        self.original_dataframe = None
+        self.main = DatasetState(
+            name="Main",
+            dataframe=pd.DataFrame()
+        )
 
-        self.history.clear()
-        self.redo_history.clear()
-        self.operation_log.clear()
+        self.original_dataframe = None
 
         self.results.clear()
         self.active_result = -1
-
         self.filename = None
 
     # ==================================================
@@ -359,10 +328,10 @@ class DatasetManager:
         if self.original_dataframe is None:
             return False
 
-        if self.dataframe is None:
+        if self.main.dataframe is None:
             return False
 
-        return not self.dataframe.equals(
+        return not self.main.dataframe.equals(
             self.original_dataframe
         )
 
@@ -372,35 +341,164 @@ class DatasetManager:
         if not self.can_reset():
             return False
 
-        self.dataframe = self.original_dataframe.copy()
+        self.main.dataframe = self.original_dataframe.copy()
 
-        self.history.clear()
-        self.redo_history.clear()
-        self.operation_log.clear()
+        self.main.history.clear()
+        self.main.redo_history.clear()
+        self.main.operations.clear()
 
         return True
 
-    def set_result_dataframe(
-        self,
-        dataframe,
-        description="Result changed"
-    ):
-        if not self.has_results():
 
-            index = self.add_result(
-                dataframe,
-                "Result"
-            )
+    def current_result(self):
+        if not self.results:
+            return None
 
-            result = self.results[index]
-            result.operations.append(description)
+        if self.active_result < 0:
+            self.active_result = 0
 
+        return self.results[self.active_result]
+
+
+    def result(self, index):
+        if 0 <= index < len(self.results):
+            return self.results[index]
+        return None
+
+
+    def has_results(self):
+        return bool(self.results)
+
+    def update_result(self, dataframe, description="Result changed"):
+        result = self.current_result()
+
+        if result is None:
+            self.add_result(dataframe, description=description)
             return
 
-        self.replace_result(
-            dataframe,
-            description
+        self.replace_result(dataframe, description)
+
+    def get_history_snapshot(self, target="main", index=None, dataframe_to_json=None):
+
+        state = self.get_state(target, index)
+
+        if state is None:
+            return None
+
+        if dataframe_to_json is None:
+            raise ValueError(
+                "dataframe_to_json is required"
+            )
+
+        return {
+            "history": [
+                {
+                    "before": dataframe_to_json(operation.before),
+                    "after": dataframe_to_json(operation.after),
+                    "description": operation.description
+                }
+                for operation in state.history
+            ],
+            "redo_history": [
+                {
+                    "before": dataframe_to_json(operation.before),
+                    "after": dataframe_to_json(operation.after),
+                    "description": operation.description
+                }
+                for operation in state.redo_history
+            ]
+        }
+
+    def load_project(
+        self,
+        filename,
+        original,
+        current,
+        operations=None,
+        main_history=None,
+        dataframe_from_json=None
+    ):
+
+        self.filename = filename
+
+        # -------------------------
+        # Main dataset
+        # -------------------------
+
+        if current is None:
+            current = pd.DataFrame()
+
+        self.main = DatasetState(
+            name="Main",
+            dataframe=current.copy(),
+            operations=list(operations or [])
         )
 
-    def has_result(self):
-        return self.has_results()
+        # -------------------------
+        # Original dataset
+        # -------------------------
+
+        self.original_dataframe = (
+            None
+            if original is None
+            else original.copy()
+        )
+
+        # -------------------------
+        # History
+        # -------------------------
+
+        self.main.history.clear()
+        self.main.redo_history.clear()
+
+        if (
+            main_history
+            and dataframe_from_json is not None
+        ):
+
+            for saved in main_history.get(
+                "history",
+                []
+            ):
+
+                self.main.history.append(
+                    DataState(
+                        before=dataframe_from_json(
+                            saved["before"]
+                        ),
+                        after=dataframe_from_json(
+                            saved["after"]
+                        ),
+                        description=saved.get(
+                            "description",
+                            "Data changed"
+                        )
+                    )
+                )
+
+            for saved in main_history.get(
+                "redo_history",
+                []
+            ):
+
+                self.main.redo_history.append(
+                    DataState(
+                        before=dataframe_from_json(
+                            saved["before"]
+                        ),
+                        after=dataframe_from_json(
+                            saved["after"]
+                        ),
+                        description=saved.get(
+                            "description",
+                            "Data changed"
+                        )
+                    )
+                )
+
+        # -------------------------
+        # Results
+        # -------------------------
+
+        self.results.clear()
+        self.active_result = -1

@@ -44,7 +44,7 @@ class DatasetView(QWidget):
         super().__init__(parent)
         self.workspace = workspace
         self.target = target  # target df main,res ect   
-        self.dataframe = None
+        #self.dataframe = None
 
         # ----------------------------------
         # Components
@@ -192,37 +192,23 @@ class DatasetView(QWidget):
             # ======================================
     # DATA
     # ======================================
+    @property
+    def dataframe(self):
+        if self.target == "main":
+            return self.workspace.dataset_manager.get_dataframe()
+
+        result = self.workspace.dataset_manager.current_result()
+        return None if result is None else result.dataframe
 
     def set_dataframe(self, dataframe):
 
-        if dataframe is None:
-            self.clear()
-            return
-
-        self.dataframe = dataframe.copy()
-
-        self.table.display_dataframe(self.dataframe)
-
-        self.stats_widget.load_dataframe(
-            self.dataframe
-        )
-
-        self.graph_tab.set_dataframe(
-            self.dataframe
-        )
-
-        self.model_tab.set_dataframe(
-            self.dataframe
-        )
+        self.table.display_dataframe(dataframe)
+        self.stats_widget.load_dataframe(dataframe)
+        self.graph_tab.set_dataframe(dataframe)
+        self.model_tab.set_dataframe(dataframe)
 
     def clear(self):
-
-        self.dataframe = None
-
-        self.table.clearContents()
-        self.table.setRowCount(0)
-        self.table.setColumnCount(0)
-
+        self.table.clear()
         self.stats_widget.load_dataframe(None)
         self.graph_tab.set_dataframe(None)
         self.model_tab.set_dataframe(None)
@@ -281,7 +267,6 @@ class DatasetView(QWidget):
                     "workspace": self.workspace,
                     "target": self.target,
                     "view": self,
-                    "dataframe": self.dataframe,
                     "column": column_name,
                     "row": row_index,
                 }

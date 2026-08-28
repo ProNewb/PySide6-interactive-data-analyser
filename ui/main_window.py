@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 from ui.dialogs.add_column_dialog import AddColumnDialog
 from ui.dialogs.add_row_dialog import AddRowDialog
 from ui.dialogs.calculated_column_dialog import CalculatedColumnDialog
+from ui.dialogs.export_dialog import ExportDialog
 from ui.workspace import Workspace
 from core.data_processor import AddColumnConfig, AddRowConfig, DataProcessor, DeleteColumnConfig, DeleteRowsConfig, DuplicateColumnConfig, DuplicateRowConfig, RenameColumnConfig, CalculatedColumnConfig
 from ui.dialogs.transform_dialog import TransformDialog
@@ -80,10 +81,6 @@ class MainWindow(QMainWindow):
         # Create initial workspace
         self.create_workspace()
 
-        # Workspace changes
-        self.workspaces.currentChanged.connect(
-            self.workspace_changed
-        )
 
         self.rebuild_view_menu()
 
@@ -200,6 +197,9 @@ class MainWindow(QMainWindow):
         )
         self.main_menu.undo_button.triggered.connect(
             self.undo_operation
+        )
+        self.main_menu.redo_button.triggered.connect(
+            self.redo_operation
         )
        # self.main_menu.result_dataset_action.triggered.connect(
         #    self.toggle_result_tab
@@ -448,6 +448,27 @@ class MainWindow(QMainWindow):
         if 0 <= current_index < self.workspaces.count():
             self.workspaces.setCurrentIndex(current_index)
 
+        if self.workspaces.count() > 0:
+
+            current_index = project.get(
+                "current_workspace",
+                0
+            )
+
+            current_index = max(
+                0,
+                min(
+                    current_index,
+                    self.workspaces.count() - 1
+                )
+            )
+
+            self.workspaces.setCurrentIndex(
+                current_index
+            )
+
+            self.workspaces.currentWidget().refresh()
+
         self.update_workspace_controls()
 
     def close_file(self):
@@ -554,17 +575,31 @@ class MainWindow(QMainWindow):
 
             return
 
-        description = self.dataset_manager.undo(target)
+        description = self.dataset_manager.undo(
+            target
+        )
 
         if description is not None:
 
             self.refresh_views()
-
             self.update_data_actions()
+            self.update_history_menus()
 
             self.status.showMessage(
                 f"Undid: {description}"
             )
+
+            description = self.dataset_manager.undo(target)
+
+            if description is not None:
+
+                self.refresh_views()
+
+                self.update_data_actions()
+
+                self.status.showMessage(
+                    f"Undid: {description}"
+                )
 
     def reset_operation(self):
 
@@ -789,10 +824,11 @@ class MainWindow(QMainWindow):
         dialog.exec()
 
     def confirm_result_overwrite(self):
-
+        if not self.dataset_manager.has_results():
+            return True
         if (
             self.dataset_manager
-            .get_result_dataframe()
+            .current_result().dataframe
             is None
         ):
             return True
@@ -834,6 +870,8 @@ class MainWindow(QMainWindow):
         if description is not None:
 
             self.refresh_views()
+            self.update_data_actions()
+            self.update_history_menus()
 
             self.status.showMessage(
                 f"Redid: {description}"
@@ -1021,9 +1059,16 @@ class MainWindow(QMainWindow):
         )
 
 
-    def get_dataframe_for_target(self, target, use_selection=None):
+    def get_dataframe_for_target(
+        self,
+        target,
+        use_selection=None,
+        workspace=None,
+        result_index=None
+    ):
 
-        workspace = self.workspace
+        if workspace is None:
+            workspace = self.workspace
 
         if workspace is None:
             return None
@@ -1038,11 +1083,26 @@ class MainWindow(QMainWindow):
 
         elif target == "result":
 
-            dataframe = (
-                workspace.dataset_manager.get_result_dataframe()
+            if result_index is None:
+                result_index = (
+                    workspace.dataset_manager.active_result
+                )
+
+            result = workspace.dataset_manager.result(
+                result_index
             )
 
-            view = workspace.result_panel.current_view()
+            dataframe = (
+                None
+                if result is None
+                else result.dataframe
+            )
+
+            view = (
+                workspace.result_panel.view_at(result_index)
+                if result is not None
+                else None
+            )
 
         else:
             return None
@@ -1125,7 +1185,7 @@ class MainWindow(QMainWindow):
             filename += ".json"
 
         project = {
-            "version": 4,
+            "version": 5,
             "current_workspace": self.workspaces.currentIndex(),
             "workspaces": workspaces
         }
@@ -1164,10 +1224,67 @@ class MainWindow(QMainWindow):
 
     def export_data(self):
 
-        if self.workspace is None:
+        workspace = self.workspace
+
+        if workspace is None:
             return
 
-        self.workspace.export_csv()
+        dialog = ExportDialog(
+            self.get_available_datasets(),
+            self
+        )
+
+        if dialog.exec() != QDialog.DialogCode.Accepted:
+            return
+
+        options = dialog.get_options()
+
+        dataframe = self.get_dataframe_for_target(
+            options.target,
+            use_selection=options.selection_only,
+            workspace=options.workspace,
+            result_index=options.result_index
+        )
+
+        if dataframe is None:
+            QMessageBox.warning(
+                self,
+                "Export",
+                "There is no data available to export."
+            )
+            return
+
+        filename, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Dataset",
+            "",
+            options.file_filter()
+        )
+
+        if not filename:
+            return
+
+        try:
+
+            workspace.file_controller.export_dataframe(
+                dataframe,
+                filename,
+                options
+            )
+
+        except Exception as error:
+
+            QMessageBox.warning(
+                self,
+                "Export Failed",
+                str(error)
+            )
+
+            return
+
+        self.status.showMessage(
+            f"Exported {Path(filename).name}"
+        )
 
     @property
     def workspace(self):
@@ -1388,7 +1505,7 @@ class MainWindow(QMainWindow):
                 config.describe()
             )
         else:
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1467,7 +1584,7 @@ class MainWindow(QMainWindow):
 
         else:
 
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1538,7 +1655,7 @@ class MainWindow(QMainWindow):
 
         else:
 
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1618,7 +1735,7 @@ class MainWindow(QMainWindow):
 
         else:
 
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1694,7 +1811,7 @@ class MainWindow(QMainWindow):
 
         else:
 
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1762,7 +1879,7 @@ class MainWindow(QMainWindow):
 
         else:
 
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1828,7 +1945,7 @@ class MainWindow(QMainWindow):
 
         else:
 
-            workspace.dataset_manager.set_result_dataframe(
+            workspace.dataset_manager.update_result(
                 result,
                 config.describe()
             )
@@ -1939,7 +2056,8 @@ class MainWindow(QMainWindow):
             if target == "main":
                 dataframe = workspace.dataset_manager.get_dataframe()
             else:
-                dataframe = workspace.dataset_manager.get_result_dataframe()
+                result = workspace.dataset_manager.current_result()
+                dataframe = None if result is None else result.dataframe
 
             return workspace, target, view, dataframe
 
@@ -1963,9 +2081,8 @@ class MainWindow(QMainWindow):
 
             view = workspace.result_panel.current_view()
 
-            dataframe = (
-                workspace.dataset_manager.get_result_dataframe()
-            )
+            result = workspace.dataset_manager.current_result()
+            dataframe = None if result is None else result.dataframe
 
         else:
 
@@ -1974,7 +2091,13 @@ class MainWindow(QMainWindow):
         return workspace, target, view, dataframe
 
     def connect_workspace_signals(self, workspace):
+        workspace.main_visibility_changed.connect(
+            lambda: self.update_workspace_controls()
+        )
 
+        workspace.result_visibility_changed.connect(
+            lambda: self.update_workspace_controls()
+        )
         self.connect_dataset_view(
             workspace.main_view
         )
@@ -2071,11 +2194,12 @@ class MainWindow(QMainWindow):
             if result_index < 0:
                 return None
 
-            result_name = (
-                workspace.dataset_manager.get_result_name(
-                    result_index
-                )
-            )
+            result = workspace.dataset_manager.result(result_index)
+
+            if result is None:
+                return None
+
+            result_name = result.name
 
             return f"{workspace_name} • {result_name}"
 
@@ -2089,7 +2213,7 @@ class MainWindow(QMainWindow):
         if target == "main":
             dataframe = workspace.dataset_manager.get_dataframe()
         elif target == "result":
-            dataframe = workspace.dataset_manager.get_result_dataframe()
+            dataframe = workspace.dataset_manager.current_result().dataframe
         else:
             raise ValueError(
                 f"Invalid dataset target: {target}"
@@ -2256,3 +2380,4 @@ class MainWindow(QMainWindow):
             return None
 
         return dialog.get_destination()
+

@@ -165,14 +165,6 @@ class ResultPanel(QWidget):
         self.tabs.setCurrentIndex(index)
         self.show()
 
-    def show_results(self):
-
-        if self.has_results():
-            self.show()
-
-    def hide_results(self):
-
-        self.hide()
 
     def hide_results(self):
 

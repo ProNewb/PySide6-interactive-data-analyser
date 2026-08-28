@@ -1,6 +1,7 @@
 import json
 
 from io import StringIO
+from pathlib import Path
 
 import pandas as pd
 
@@ -9,7 +10,7 @@ from PySide6.QtWidgets import QMessageBox
 from PySide6.QtWidgets import QInputDialog
 
 
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
     QFileDialog,
     QInputDialog,
@@ -37,6 +38,8 @@ class Workspace(QWidget):
 
         The MainWindow manages multiple Workspace instances as tabs.
         """
+    main_visibility_changed = Signal(bool)
+    result_visibility_changed = Signal(bool)
     def __init__(self, parent=None):
             super().__init__(parent)
             self.main_visible = True
@@ -111,7 +114,10 @@ class Workspace(QWidget):
 
         main = self.dataset_manager.get_dataframe()
 
-        if main is not None:
+        if (
+            main is not None
+            and not main.empty
+        ):
             self.main_view.set_dataframe(main)
         else:
             self.main_view.clear()
@@ -174,20 +180,12 @@ class Workspace(QWidget):
 
     def update_comparison_layout(self):
 
-        """
-        Automatically resize the splitter based on which datasets exist.
-
-        Main only   -> full width main
-        Result only -> full width result
-        Both        -> 50/50 comparison
-        """
         main_available = (
-            self.dataset_manager.get_dataframe() is not None
+            self.dataset_manager.has_data()
         )
 
         result_available = (
-            self.dataset_manager.get_result_dataframe() is not None
-            and self.result_panel.has_results()
+            self.dataset_manager.has_results()
         )
 
         self.main_view.setVisible(
@@ -204,13 +202,26 @@ class Workspace(QWidget):
             and result_available
             and self.result_visible
         ):
-            self.splitter.setSizes([600, 600])
+
+            self.splitter.setSizes([
+                600,
+                600
+            ])
 
         elif main_available and self.main_visible:
-            self.splitter.setSizes([1200, 0])
+
+            self.splitter.setSizes([
+                1200,
+                0
+            ])
 
         elif result_available and self.result_visible:
-            self.splitter.setSizes([0, 1200])
+
+            self.splitter.setSizes([
+                0,
+                1200
+            ])
+
     # ==================================================
     # PROJECT AND EXPORT OPERATIONS
     # ==================================================
@@ -266,105 +277,35 @@ class Workspace(QWidget):
 
         return True
 
-    def export_csv(self):
-        """Export the selected Main or Result dataframe."""
+    def export_dataset(
+        self,
+        dataframe,
+        filename,
+        include_index=False
+    ):
+        suffix = Path(filename).suffix.lower()
 
-        available = []
-        if self.dataset_manager.get_dataframe() is not None:
-            available.append(("Main Dataset", "main"))
-        if self.dataset_manager.get_result_dataframe() is not None:
-            available.append(("Result Dataset", "result"))
+        if suffix == ".csv":
+            dataframe.to_csv(filename, index=include_index)
 
-        if not available:
-            QMessageBox.information(
-                None,
-                "Export Data",
-                "There is no dataset to export."
+        elif suffix == ".xlsx":
+            dataframe.to_excel(filename, index=include_index)
+
+        elif suffix == ".json":
+            dataframe.to_json(
+                filename,
+                orient="records",
+                date_format="iso"
             )
-            return False
 
-        labels = [label for label, _ in available]
-        selected_label, accepted = QInputDialog.getItem(
-            None,
-            "Export Data",
-            "Dataset to export:",
-            labels,
-            0,
-            False
-        )
-
-        if not accepted:
-            return False
-
-        selected_target = dict(available)[selected_label]
-        dataframe = (
-            self.dataset_manager.get_result_dataframe()
-            if selected_target == "result"
-            else self.dataset_manager.get_dataframe()
-        )
-
-        if dataframe is None:
-            QMessageBox.information(
-                None,
-                "Export Data",
-                "There is no dataset to export."
-            )
-            return False
-
-        filename, selected_filter = QFileDialog.getSaveFileName(
-            None,
-            "Export Data",
-            "",
-            "CSV Files (*.csv);;Excel Files (*.xlsx);;"
-            "JSON Files (*.json);;Parquet Files (*.parquet);;"
-            "All Files (*)"
-        )
-
-        if not filename:
-            return False
-
-        extension = filename.lower().rsplit(".", 1)[-1] \
-            if "." in filename else ""
-
-        if not extension:
-            extension = {
-                "Excel Files (*.xlsx)": "xlsx",
-                "JSON Files (*.json)": "json",
-                "Parquet Files (*.parquet)": "parquet"
-            }.get(selected_filter, "csv")
-            filename = f"{filename}.{extension}"
-
-        try:
-            if extension == "csv":
-                dataframe.to_csv(filename, index=False)
-            elif extension in ("xlsx", "xls"):
-                dataframe.to_excel(filename, index=False)
-            elif extension == "json":
-                dataframe.to_json(filename, orient="records", date_format="iso")
-            elif extension == "parquet":
-                dataframe.to_parquet(filename, index=False)
-            else:
-                QMessageBox.warning(
-                    None,
-                    "Export Data",
-                    f"Unsupported file type: .{extension}"
-                )
-                return False
-        except (OSError, ValueError, ImportError) as error:
-            QMessageBox.warning(
-                None,
-                "Export Data",
-                f"Could not export the dataset:\n{error}"
-            )
-            return False
-
-        return True
+        elif suffix == ".parquet":
+            dataframe.to_parquet(filename, index=include_index)
 
     def has_data(self):
         return self.dataset_manager.has_data()
 
     def has_result(self):
-        return self.dataset_manager.has_result()
+        return self.dataset_manager.has_results()
 
     def _dataframe_json(self, dataframe):
 
@@ -420,15 +361,8 @@ class Workspace(QWidget):
 
     def get_project_data(self):
 
-        dataframe = self.dataset_manager.get_dataframe()
-
-        if dataframe is None:
-            return None
-
-        result = self.dataset_manager.get_result_dataframe()
-
         return {
-            "version": 3,
+            "version": 5,
             "source_file": self.dataset_manager.filename,
 
             "main": {
@@ -436,115 +370,112 @@ class Workspace(QWidget):
                     self.dataset_manager.original_dataframe
                 ),
                 "current": self._dataframe_json(
-                    dataframe
+                    self.dataset_manager.get_dataframe()
                 ),
-                "operations": self.dataset_manager.get_operation_log()
+                "operations": self.dataset_manager.main.operations,
+                "visible": self.main_visible,
             },
 
-            "result": {
-                "visible": result is not None,
-                "current": (
-                    None
-                    if result is None
-                    else self._dataframe_json(result)
-                ),
-                "operations": self.dataset_manager.get_result_operation_log()
-            },
+            "results": [
+                {
+                    "name": result.name,
+                    "dataframe": self._dataframe_json(result.dataframe),
+                    "operations": result.operations,
+                }
+                for result in self.dataset_manager.results
+            ],
+
+            "active_result": self.dataset_manager.active_result,
+            "result_visible": self.result_visible,
 
             "history": {
                 "main": self.dataset_manager.get_history_snapshot(
-                    "main",
-                    self._dataframe_json
-                ),
-                "result": self.dataset_manager.get_history_snapshot(
-                    "result",
-                    self._dataframe_json
+                target="main",
+                dataframe_to_json=self._dataframe_json
                 )
             }
         }
 
     def load_project_data(self, project):
-        """Load a single workspace from saved project data."""
 
         try:
 
             main = project.get("main", {})
-            result = project.get("result", {})
 
             self.dataset_manager.load_project(
                 filename=project.get("source_file"),
-
                 original=self._dataframe_from_json(
                     main.get("original")
                 ),
-
                 current=self._dataframe_from_json(
                     main.get("current")
                 ),
-
                 operations=main.get(
                     "operations",
                     []
                 ),
-
-                result_dataframe=self._dataframe_from_json(
-                    result.get("current")
-                ),
-
-                result_operations=result.get(
-                    "operations",
-                    []
-                ),
-
                 main_history=project.get(
                     "history",
                     {}
                 ).get("main"),
-
-                result_history=project.get(
-                    "history",
-                    {}
-                ).get("result"),
-
                 dataframe_from_json=self._dataframe_from_json
+            )
+
+            self.dataset_manager.results.clear()
+
+            for saved in project.get("results", []):
+
+                dataframe = self._dataframe_from_json(
+                    saved.get("dataframe")
+                )
+
+                if dataframe is None:
+                    continue
+
+                index = self.dataset_manager.add_result(
+                    dataframe,
+                    saved.get("name", "Result")
+                )
+
+                self.dataset_manager.results[index].operations = (
+                    saved.get("operations", [])
+                )
+
+            self.dataset_manager.active_result = project.get(
+                "active_result",
+                -1
+            )
+
+            self.main_visible = main.get(
+                "visible",
+                True
+            )
+
+            self.result_visible = project.get(
+                "result_visible",
+                False
             )
 
             self.refresh()
 
             return True
 
-        except (
-            KeyError,
-            TypeError,
-            ValueError
-        ) as error:
+        except Exception as error:
 
             QMessageBox.warning(
                 self,
-                "Open Project",
+                "Load Project",
                 f"Could not load workspace:\n{error}"
             )
 
             return False
-
-        except (OSError, json.JSONDecodeError, KeyError, TypeError, ValueError) as error:
-
-            QMessageBox.warning(
-                None,
-                "Open Project",
-                f"Could not load the project:\n{error}"
-            )
-
-            return False
-
+    
     def hide_main_view(self):
-        self.main_visible = False
-        self.update_comparison_layout()
+        self.set_main_visible(False)
 
 
     def show_main_view(self):
-        self.main_visible = True
-        self.update_comparison_layout()
+        self.set_main_visible(True)
 
 
     def hide_result_panel(self):
@@ -571,6 +502,7 @@ class Workspace(QWidget):
     def set_main_visible(self, visible):
 
         self.main_visible = visible
+        self.main_visibility_changed.emit(visible)
         self.update_comparison_layout()
 
 
@@ -578,6 +510,7 @@ class Workspace(QWidget):
 
         self.result_visible = visible
         self.update_comparison_layout()
+        self.result_visibility_changed.emit(visible)
 
     def create_result(
         self,
@@ -587,13 +520,12 @@ class Workspace(QWidget):
     ):
         index = self.dataset_manager.add_result(
             dataframe,
-            name
+            name,
+            description=description
         )
 
         result = self.dataset_manager.results[index]
 
-        if description:
-            result.operations.append(description)
 
         self.result_panel.add_result(
             result.name,
@@ -611,8 +543,12 @@ class Workspace(QWidget):
         dataframe,
         description="Result changed"
     ):
-        index = self.dataset_manager.active_result
+        result = self.dataset_manager.current_result()
 
+        if result is None:
+            return False
+
+        index = self.dataset_manager.active_result
         if index < 0:
             return False
 
