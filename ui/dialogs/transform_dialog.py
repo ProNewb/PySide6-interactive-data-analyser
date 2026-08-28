@@ -12,9 +12,10 @@ from PySide6.QtWidgets import (
     QRadioButton,
     QSpinBox,
     QSplitter,
-    QVBoxLayout
+    QVBoxLayout,
+    QMenu,
 )
-
+from PySide6.QtGui import QAction
 from core.data_processor import DataProcessor, DataType, TransformConfig
 from ui.table.preview_table import PreviewTable
 
@@ -33,7 +34,7 @@ class TransformDialog(QDialog):
         self.datasets = datasets
         self.preview = PreviewTable()
         self.result_preview = PreviewTable()
-
+        self.operation = None
         self.setWindowTitle("Transform Data")
         layout = QVBoxLayout(self)
 
@@ -80,70 +81,27 @@ class TransformDialog(QDialog):
 
         controls.addWidget(self.column_combo)
 
-        controls.addWidget(QLabel("Operation"))
-        self.operation_combo = QComboBox()
-
-        self.add_operation_category("Numeric")
-
-        for label, value in (
-            ("Round", "round"),
-            ("Absolute value", "absolute"),
-            ("Normalize", "normalize"),
-            ("Standardize", "standardize"),
-            ("Rank", "rank"),
-        ):
-            self.operation_combo.addItem(label, value)
-
-        self.operation_combo.insertSeparator(
-            self.operation_combo.count()
+        controls.addWidget(
+            QLabel("Operation")
         )
 
-        self.add_operation_category("Text")
-
-        for label, value in (
-            ("Uppercase", "uppercase"),
-            ("Lowercase", "lowercase"),
-            ("Title case", "title_case"),
-            ("Trim", "trim"),
-            ("Remove whitespace", "remove_whitespace"),
-            ("Capitalize first letter", "capitalize_first"),
-            ("Length" , "length")
-        ):
-            self.operation_combo.addItem(label, value)
-
-        self.operation_combo.insertSeparator(
-            self.operation_combo.count()
+        self.operation_button = QPushButton(
+            "Select operation..."
         )
 
-        self.add_operation_category("Type")
-
-        self.operation_combo.addItem(
-            "Change type",
-            "astype"
+        self.operation_menu = QMenu(
+            self.operation_button
         )
 
-        self.operation_combo.insertSeparator(
-            self.operation_combo.count()
+        self.build_operation_menu()
+
+        self.operation_button.setMenu(
+            self.operation_menu
         )
 
-        self.add_operation_category("Date / Time")
-
-        for label, value in (
-            ("Extract year", "extract_year"),
-            ("Extract month", "extract_month"),
-            ("Extract day", "extract_day"),
-            ("Extract weekday", "extract_weekday"),
-            ("Extract weekend", "extract_weekend"),
-            ("Extract time", "extract_time"),
-            ("Extract quarter", "extract_quarter"),
-            ("Extract month name", "extract_month_name"),
-            ("Extract day name", "extract_day_name"),
-            ("Extract hour", "extract_hour"),
-            ("Extract minute", "extract_minute"),
-
-        ):
-            self.operation_combo.addItem(label, value)
-        controls.addWidget(self.operation_combo)
+        controls.addWidget(
+            self.operation_button
+        )
 
         self.value_label = QLabel("Decimal places")
         self.decimal_places = QSpinBox()
@@ -216,10 +174,7 @@ class TransformDialog(QDialog):
         cancel_button.clicked.connect(self.reject)
         self.apply_button.clicked.connect(self.apply)
         self.column_combo.currentIndexChanged.connect(self.update_operation_options)
-        self.operation_combo.currentIndexChanged.connect(self.update_preview)
-        self.operation_combo.currentIndexChanged.connect(
-            self.update_value_controls
-        )
+        #self.operation_combo.currentIndexChanged.connect( self.on_operation_changed )
         self.decimal_places.valueChanged.connect(self.update_preview)
         self.type_combo.currentIndexChanged.connect(self.update_preview)
         self.target_combo.currentIndexChanged.connect(self.change_target)
@@ -285,12 +240,15 @@ class TransformDialog(QDialog):
         return self.datasets[self.get_dataset_key()]["target"]
 
     def update_operation_options(self):
+        """Rebuild the menu for the selected column."""
 
         column = self.column_combo.currentData()
 
         if column is None:
-            self.apply_button.setEnabled(False)
+            self.operation_button.setEnabled(False)
             return
+
+        self.operation_button.setEnabled(True)
 
         series = self.operation_dataframe[column]
 
@@ -300,75 +258,31 @@ class TransformDialog(QDialog):
         )
 
         text = (
-            pd.api.types.is_object_dtype(series)
-            or pd.api.types.is_string_dtype(series)
+            pd.api.types.is_string_dtype(series)
+            or pd.api.types.is_object_dtype(series)
             or pd.api.types.is_categorical_dtype(series)
         )
 
-        datetime = (
-            pd.api.types.is_datetime64_any_dtype(series)
+        datetime = pd.api.types.is_datetime64_any_dtype(series)
+
+        # <-- THIS IS THE IMPORTANT LINE
+        self.build_operation_menu(
+            numeric=numeric,
+            text=text,
+            datetime=datetime,
         )
 
-        allowed = {
-            "round": numeric,
-            "absolute": numeric,
-            "normalize": numeric,
-            "standardize": numeric,
-            "rank": numeric,
-            "uppercase": text,
-            "lowercase": text,
-            "title_case": text,
-            "trim": text,
-            "remove_whitespace": text,
-            "capitalize_first": text,
-            "length": text,
-            "astype": True,
-
-            "extract_year": datetime,
-            "extract_month": datetime,
-            "extract_day": datetime,
-            "extract_weekday": datetime,
-            "extract_weekend": datetime,
-            "extract_time": datetime,
-            "extract_quarter": datetime,
-            "extract_month_name": datetime,
-            "extract_day_name": datetime,
-            "extract_hour": datetime,
-            "extract_minute": datetime,
-        }
-
-        for index in range(self.operation_combo.count()):
-
-            operation = self.operation_combo.itemData(index)
-
-            # Category labels / separators
-            if operation is None:
-                continue
-
-            item = self.operation_combo.model().item(index)
-
-            item.setEnabled(
-                allowed.get(operation, False)
-            )
-
-        current_operation = (
-            self.operation_combo.currentData()
-        )
-
-        if (
-            current_operation is not None
-            and not allowed.get(current_operation, False)
-        ):
-            self.operation_combo.setCurrentIndex(
-                self.operation_combo.findData("astype")
-            )
+        # Reset invalid selection
+        if self.operation not in self.operation_actions:
+            self.operation = None
+            self.operation_button.setText("Select operation...")
 
         self.update_value_controls()
         self.update_preview()
 
     def update_value_controls(self):
 
-        operation = self.operation_combo.currentData()
+        operation = self.operation
 
         is_round = operation == "round"
         is_astype = operation == "astype"
@@ -387,7 +301,7 @@ class TransformDialog(QDialog):
 
     def get_transform(self):
 
-        operation = self.operation_combo.currentData()
+        operation = self.operation
 
         value = None
 
@@ -424,7 +338,15 @@ class TransformDialog(QDialog):
             self.operation_dataframe,
             full=full
         )
+        if self.operation is None:
 
+            self.result_preview.clearContents()
+            self.result_preview.setRowCount(0)
+
+            self.apply_button.setEnabled(False)
+
+            return
+        
         try:
 
             config = self.get_transform()
@@ -467,6 +389,7 @@ class TransformDialog(QDialog):
 
         self.result = result
         self.apply_button.setEnabled(True)
+
 
     def update_selection_options(self, checked):
 
@@ -546,15 +469,7 @@ class TransformDialog(QDialog):
     def get_result(self):
         return self.result
 
-    def add_operation_category(self, text):
 
-        self.operation_combo.addItem(text)
-
-        index = self.operation_combo.count() - 1
-
-        item = self.operation_combo.model().item(index)
-
-        item.setEnabled(False)
 
     def update_destination_controls(self):
 
@@ -573,7 +488,7 @@ class TransformDialog(QDialog):
     def default_new_column_name(self):
 
         column = self.column_combo.currentData()
-        operation = self.operation_combo.currentData()
+        operation = self.operation
 
         if column is None or operation is None:
             return ""
@@ -608,3 +523,69 @@ class TransformDialog(QDialog):
         suffix = suffixes.get(operation, operation)
 
         return f"{column}_{suffix}"
+
+
+    def build_operation_menu(self, numeric=False, text=False, datetime=False):
+
+        self.operation_menu.clear()
+        self.operation_actions = {}
+
+        if numeric:
+            menu = self.operation_menu.addMenu("Numeric")
+
+            self.add_operation(menu, "Round", "round")
+            self.add_operation(menu, "Absolute value", "absolute")
+            self.add_operation(menu, "Normalize", "normalize")
+            self.add_operation(menu, "Standardize", "standardize")
+            self.add_operation(menu, "Rank", "rank")
+
+        if text:
+            menu = self.operation_menu.addMenu("Text")
+
+            self.add_operation(menu, "Uppercase", "uppercase")
+            self.add_operation(menu, "Lowercase", "lowercase")
+            self.add_operation(menu, "Title case", "title_case")
+            self.add_operation(menu, "Trim", "trim")
+            self.add_operation(menu, "Remove whitespace", "remove_whitespace")
+            self.add_operation(menu, "Capitalize first", "capitalize_first")
+            self.add_operation(menu, "Length", "length")
+
+        if datetime:
+            menu = self.operation_menu.addMenu("Date / Time")
+
+            self.add_operation(menu, "Extract year", "extract_year")
+            self.add_operation(menu, "Extract month", "extract_month")
+            self.add_operation(menu, "Extract weekday", "extract_weekday")
+            self.add_operation(menu, "Extract hour", "extract_hour")
+
+        # Always available
+        type_menu = self.operation_menu.addMenu("Type")
+        self.add_operation(type_menu, "Change type", "astype")
+
+    def add_operation(self, menu, label, value):
+        """Add an operation action to a menu."""
+
+        action = menu.addAction(label)
+
+        action.setData(value)
+
+        action.triggered.connect(
+            lambda checked=False, action=action:
+            self.select_operation(action)
+        )
+
+        self.operation_actions[value] = action
+
+    def select_operation(self, action):
+        """Set the currently selected operation."""
+
+        value = action.data()
+
+        self.operation = value
+
+        self.operation_button.setText(
+            action.text()
+        )
+
+        self.update_value_controls()
+        self.update_preview()
