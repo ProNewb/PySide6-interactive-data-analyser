@@ -107,6 +107,10 @@ class MainWindow(QMainWindow):
         # MAIN MENU CONNECTIONS
         # ==================================================
 
+        self.main_menu.new_action.triggered.connect(
+            self.new_file
+        )
+
         self.main_menu.open_action.triggered.connect(
             self.load_dataset
         )
@@ -2405,3 +2409,5 @@ class MainWindow(QMainWindow):
         # All result datasets
         self.workspace.result_panel.set_use_selection(checked)
 
+    def new_file(self):
+        self.workspace.new_dataset()

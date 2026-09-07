@@ -579,3 +579,7 @@ class Workspace(QWidget):
 
         # Tell MainWindow to update Undo/Redo toolbar
         self.history_changed.emit()
+
+    def new_dataset(self):
+        self.dataset_manager.new_dataset()
+        self.update_views()

@@ -29,6 +29,11 @@ class MainMenu:
             .addMenu("File")
         )
 
+        self.new_action = QAction(
+            "New File",
+            window
+        )
+
         self.open_action = QAction(
             "Open File",
             window
@@ -62,6 +67,10 @@ class MainMenu:
         self.exit_action = QAction(
             "Exit",
             window
+        )
+
+        self.file_menu.addAction(
+            self.new_action
         )
 
         self.file_menu.addAction(

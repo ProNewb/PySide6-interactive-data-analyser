@@ -193,7 +193,23 @@ class DataType:
             "allowed_dtypes": {"numeric"},
             "destination": "new",
         },
-
+        "compare_difference": {
+            "label": "Difference between columns",
+            "group": "Numeric",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"numeric"},
+            "destination": "new",
+        },
+            "z_score": {
+                "label": "Z-score",
+                "group": "Numeric",
+                "mode": "single",
+                "min_columns": 1,
+                "max_columns": 1,
+                "allowed_dtypes": {"numeric"},
+            },
         # -------------------------
         # Multi datetime
         # -------------------------
@@ -1722,10 +1738,24 @@ class DataProcessor:
         elif operation == "cumulative_sum":
             return series.cumsum()
 
+        elif operation in {"standardize", "z_score"}:
+
+            mean = series.mean()
+            std = series.std()
+
+            if pd.isna(std) or std == 0:
+                raise ValueError(
+                    f"Cannot calculate {operation} because "
+                    "the standard deviation is zero."
+                )
+
+            return (series - mean) / std
+        
         raise ValueError(
             f"Unknown numeric operation: {operation}"
         )
           
+
             
     def calculate(self, dataframe, config):
 
@@ -1767,7 +1797,9 @@ class DataProcessor:
         if config.operation == "one_hot_encoding":
             return self._one_hot(dataframe, config)
 
-    
+        if config.operation == "compare_difference":
+            return self._compare_difference(dataframe, config)
+            
 
     def delete_column(self, dataframe, config):
 
@@ -2145,3 +2177,30 @@ class DataProcessor:
                 f"{operation} accepts at most "
                 f"{max_columns} column(s)."
             )
+
+    def _compare_difference(self, dataframe, config):
+        self._require_columns(dataframe, config.columns)
+        self._require_column_count(
+            config.columns,
+            2,
+            "Difference between columns"
+        )
+
+        self._require_numeric_series(
+            dataframe[config.columns[0]],
+            config.columns[0]
+        )
+
+        self._require_numeric_series(
+            dataframe[config.columns[1]],
+            config.columns[1]
+        )
+
+        result = dataframe.copy()
+
+        result[config.new_column] = (
+            result[config.columns[0]]
+            - result[config.columns[1]]
+        )
+
+        return result

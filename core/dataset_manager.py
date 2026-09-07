@@ -502,3 +502,14 @@ class DatasetManager:
 
         self.results.clear()
         self.active_result = -1
+
+    def new_dataset(self):
+        self.main = DatasetState(
+            name="Main",
+            dataframe=pd.DataFrame()
+        )
+
+        self.original_dataframe = pd.DataFrame()
+
+        self.results.clear()
+        self.active_result = None

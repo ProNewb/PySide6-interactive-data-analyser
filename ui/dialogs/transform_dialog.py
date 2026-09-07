@@ -473,7 +473,7 @@ class TransformDialog(QDialog):
         # Now column rows can safely access operation_dataframe.
         self.add_column_row()
 
-        self.refresh_column_rows()
+        #self.refresh_column_rows()
         self.update_operation_options()
         self.update_destination_controls()
         self.update_preview()
@@ -654,29 +654,35 @@ class TransformDialog(QDialog):
                 show_remove
             )
 
-    def populate_column_combo(self, combo):
+    def populate_column_combo(self, combo, preferred=None):
         current = combo.currentData()
 
         combo.blockSignals(True)
         combo.clear()
 
-        # Dataset columns
         for column in self.operation_dataframe.columns:
             combo.addItem(
                 str(column),
                 ("column", column)
             )
 
-
-
-        # Constant operand
         combo.addItem(
             "Constant",
             ("constant", None)
         )
 
-        # Restore previous selection if it still exists
-        if current is not None:
+        # Prefer a supplied value.
+        if preferred is not None:
+            for index in range(combo.count()):
+                if combo.itemData(index) == (
+                    "column",
+                    preferred
+                ):
+                    combo.setCurrentIndex(index)
+                    break
+
+        # Otherwise restore previous selection.
+        elif current is not None:
             for index in range(combo.count()):
                 if combo.itemData(index) == current:
                     combo.setCurrentIndex(index)
@@ -684,43 +690,10 @@ class TransformDialog(QDialog):
 
         combo.blockSignals(False)
 
-    def refresh_column_rows(self):
-        for (
-            _,
-            combo,
-            _,
-            _,
-            _,
-        ) in self.column_rows:
-            self.populate_column_combo(
-                combo
-            )
-
-    def get_selected_columns(self):
-        columns = []
-
-        for (
-            _,
-            combo,
-            _,
-            _,
-            _,
-        ) in self.column_rows:
-
-            data = combo.currentData()
-
-            if not data:
-                continue
-
-            operand_type, value = data
-
-            if operand_type == "column":
-                columns.append(value)
-
-        return columns
-
     def source_columns_changed(self):
         self.update_operation_options()
+        self.update_column_rows_for_operation()
+        self.update_destination_controls()
         self.update_preview()
 
     # =============================================================
@@ -751,6 +724,19 @@ class TransformDialog(QDialog):
             return "text"
 
         return "other"
+
+    def refresh_column_rows(self):
+        for (
+            _,
+            combo,
+            _,
+            _,
+            _,
+        ) in self.column_rows:
+
+            self.populate_column_combo(
+                combo
+            )
 
     def operation_allowed(
         self,
@@ -784,6 +770,13 @@ class TransformDialog(QDialog):
         ):
             return False
 
+        # Multi-column transforms require distinct columns.
+        if (
+            spec.get("mode") == "multi"
+            and len(columns) != len(set(columns))
+        ):
+            return False
+
         allowed = (
             spec.get("allowed_dtypes")
             or spec.get("dtype")
@@ -814,25 +807,12 @@ class TransformDialog(QDialog):
             set(allowed)
         )
 
-    def build_operation_menu(
-        self,
-        columns=None,
-    ):
+    def build_operation_menu(self, columns=None):
         if columns is None:
             columns = []
 
         self.operation_menu.clear()
         self.operation_actions = {}
-
-        # Prevent duplicate source columns.
-        if len(columns) != len(set(columns)):
-            self.operation_button.setEnabled(
-                False
-            )
-            self.operation_button.setText(
-                "Select different columns..."
-            )
-            return
 
         self.operation_button.setEnabled(
             bool(columns)
@@ -920,19 +900,27 @@ class TransformDialog(QDialog):
 
         if not self.operation_actions:
             self.operation = None
+
             self.operation_button.setText(
                 "No valid operations"
             )
+
             self.update_value_controls()
+            self.update_destination_controls()
+            self.update_column_rows_for_operation()
+
             return
 
         if self.operation not in self.operation_actions:
             self.operation = None
+
             self.operation_button.setText(
                 "Select operation..."
             )
 
         self.update_value_controls()
+        self.update_destination_controls()
+        self.update_column_rows_for_operation()
 
     def add_operation(
         self,
@@ -1131,32 +1119,93 @@ class TransformDialog(QDialog):
     def update_destination_controls(self):
         operation = self.operation
 
+        if operation is None:
+            self.destination_widget.setVisible(False)
+            return
+
+        # --------------------------------------------------
+        # Calculated expression
+        # --------------------------------------------------
+
         if operation == "__calculate__":
-            self.destination_widget.setVisible(
-                True
-            )
+            self.destination_widget.setVisible(True)
 
-            self.replace_col_button.setVisible(
-                False
-            )
+            self.replace_col_button.setVisible(False)
+            self.create_col_button.setVisible(False)
 
-            self.create_col_button.setVisible(
-                False
-            )
+            self.new_col_name.setVisible(True)
 
-            self.new_col_name.setVisible(
-                True
-            )
+            if not self.new_col_name.text().strip():
+                self.new_col_name.setText("calculated")
 
-            if not self.new_col_name.text():
+            return
+
+        spec = DataType.TRANSFORM_OPERATIONS.get(
+            operation,
+            {}
+        )
+
+        mode = spec.get("mode", "single")
+
+        # --------------------------------------------------
+        # Forced-new operations
+        # --------------------------------------------------
+
+        if (
+            spec.get("destination") == "new"
+            or mode == "multi"
+        ):
+            self.destination_widget.setVisible(True)
+
+            self.replace_col_button.setVisible(False)
+            self.create_col_button.setVisible(False)
+
+            self.new_col_name.setVisible(True)
+
+            if not self.new_col_name.text().strip():
                 self.new_col_name.setText(
-                    "calculated"
+                    self.default_new_column_name()
                 )
 
             return
+
+        # --------------------------------------------------
+        # Normal single-column operation
+        # --------------------------------------------------
+
+        self.destination_widget.setVisible(True)
+
+        self.replace_col_button.setVisible(True)
+        self.create_col_button.setVisible(True)
+
+        self.new_col_name.setVisible(
+            self.create_col_button.isChecked()
+        )
     # =============================================================
     # CALCULATIONS
     # =============================================================
+    def get_selected_columns(self):
+        columns = []
+
+        for (
+            _,
+            combo,
+            _,
+            _,
+            _,
+        ) in self.column_rows:
+
+            data = combo.currentData()
+
+            if not data:
+                continue
+
+            operand_type, value = data
+
+            if operand_type == "column":
+                columns.append(value)
+
+        return columns
 
     def update_calculation_visibility(self):
         visible = (
@@ -1339,9 +1388,9 @@ class TransformDialog(QDialog):
                     operator_combo.currentData()
                 )
 
-        if not operands:
+        if len(operands) < 2:
             raise ValueError(
-                "Select at least one calculation operand."
+                "A calculation requires at least two operands."
             )
 
         operators = operators[:len(operands) - 1]

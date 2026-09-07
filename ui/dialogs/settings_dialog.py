@@ -16,7 +16,9 @@ from ui.helpers.font_delegate import FontDelegate
 from PySide6.QtWidgets import QFormLayout, QSpinBox
 
 class SettingsDialog(QDialog):
-
+    DEFAULT_SETTINGS = {
+        "highlight_color": "#FFFF00",
+    }
     THEMES = {
         # Existing
         "Dark Teal": "dark_teal.xml",

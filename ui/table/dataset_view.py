@@ -16,6 +16,14 @@ from ui.menus.selection_toolbar import SelectionToolbar
 from PySide6.QtCore import Qt, Signal
 from ui.model_tab import ModelTab
 
+from dataclasses import dataclass
+
+
+@dataclass
+class HighlightRule:
+    column: str
+    operator: str
+    value: object
 
 class DatasetView(QWidget):
 
@@ -49,7 +57,7 @@ class DatasetView(QWidget):
         # ----------------------------------
         # Components
         # ----------------------------------
-
+        self.highlight_rule = None
         self.table = DataTable()
         self.table.setAlternatingRowColors(True)
         self.selection_toolbar = SelectionToolbar(
@@ -401,3 +409,58 @@ class DatasetView(QWidget):
     def set_use_selection(self, enabled):
         self.use_selection = enabled
         self.update_analysis()
+
+    def set_highlight_rule(self, rule):
+        self.highlight_rule = rule
+        self.refresh_highlighting()
+
+    def refresh_highlighting(self):
+
+        if self.highlight_rule is None:
+            self.clear_highlighting()
+            return
+
+        rule = self.highlight_rule
+
+        dataframe = self.dataframe
+
+        for row_index, value in enumerate(
+            dataframe[rule.column]
+        ):
+
+            if self.matches_rule(value, rule):
+
+                for column_index in range(
+                    self.table.columnCount()
+                ):
+                    item = self.table.item(
+                        row_index,
+                        column_index
+                    )
+
+                    if item:
+                        item.setBackground(
+                            self.highlight_brush
+                        )
+
+    def matches_rule(self, value, rule):
+
+        if rule.operator == ">":
+            return value > rule.value
+
+        if rule.operator == "<":
+            return value < rule.value
+
+        if rule.operator == ">=":
+            return value >= rule.value
+
+        if rule.operator == "<=":
+            return value <= rule.value
+
+        if rule.operator == "==":
+            return value == rule.value
+
+        if rule.operator == "!=":
+            return value != rule.value
+
+        return False
