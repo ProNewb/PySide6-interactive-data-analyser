@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-
+import operator
 import pandas as pd
 from core.conditions import Condition
 
 from dataclasses import dataclass
 from typing import Any
-
+import numpy as np
 class DataType:
 
     TYPES = (
@@ -27,6 +27,47 @@ class DataType:
         "datetime": "datetime64[ns]",
         "category": "category",
     }
+
+    OPERATORS = {
+    "+": operator.add,
+    "-": operator.sub,
+    "*": operator.mul,
+    "/": operator.truediv,
+    "//": operator.floordiv,
+    "%": operator.mod,
+    "**": operator.pow,
+}
+    TRANSFORM_OPERATIONS = {
+    "round": {
+        "group": "Numeric",
+        "mode": "single",
+        "min_columns": 1,
+        "max_columns": 1,
+        "dtype": "numeric",
+        "inputs": ["decimals"],
+    },
+
+    "days_between": {
+        "group": "Date / Time",
+        "mode": "multi",
+        "min_columns": 2,
+        "max_columns": 2,
+        "dtype": "datetime",
+        "destination": "new",
+    },
+
+    "concatenate": {
+        "group": "Text",
+        "mode": "multi",
+        "min_columns": 2,
+        "max_columns": None,
+        "dtype": "text",
+        "destination": "new",
+        "inputs": ["separator"],
+    },
+
+}
+    
     @classmethod
     def convert_value(cls, value, dtype):
 
@@ -219,11 +260,67 @@ class TransformConfig:
             f"using {self.operation} "
             f"→ '{target}'"
         )
+
 @dataclass
-class CalculatedColumnConfig:
+class MultiColumnTransformConfig:
+    columns: list[str]
+    operation: str
+    value: Any = None
+    new_column: str | None = None
+    output_columns: list[str] | None = None
+    drop_source: bool = False
+
+    def describe(self):
+        columns = ", ".join(map(str, self.columns))
+
+        if self.output_columns:
+            output = ", ".join(map(str, self.output_columns))
+        elif self.new_column:
+            output = self.new_column
+        else:
+            output = "replace"
+
+        return (
+            f"Transform '{self.operation}' "
+            f"using ({columns}) → {output}"
+        )
+@dataclass
+class CalculationOperand:
+    type: str          # "column" or "constant"
+    value: Any
+
+    def describe(self):
+        if self.type == "column":
+            return str(self.value)
+
+        return str(self.value)
+
+@dataclass
+class CalculationConfig:
+    name: str
+    operands: list[CalculationOperand]
+    operators: list[str]
+
+    def describe(self):
+        expression = ""
+
+        for index, operand in enumerate(self.operands):
+            expression += operand.describe()
+
+            if index < len(self.operators):
+                expression += f" {self.operators[index]} "
+
+        return (
+            f"Calculate column '{self.name}' "
+            f"using {expression}"
+        )
+            
+@dataclass
+class CalculatedColumnConfig: # potentiallyt being removed
     name: str
     operation: str
     columns: list
+    expression: str = None
     value: Any = None
 
     def describe(self):
@@ -277,6 +374,30 @@ class JoinConfig:
     
 class DataProcessor:
     """Class responsible for data operations."""
+
+
+    def apply_transform(self, dataframe, config):
+
+        if isinstance(config, TransformConfig):
+            return self.transform(dataframe, config)
+
+        if isinstance(config, MultiColumnTransformConfig):
+            return self.transform_multiple(dataframe, config)
+
+        if isinstance(config, CalculatedColumnConfig):
+            return self.add_calculated_column(dataframe, config)
+
+        if isinstance(config, CalculationConfig):
+            return self.calculate(
+                dataframe,
+                config
+            )
+        
+        raise TypeError(
+            f"Unsupported transform configuration: "
+            f"{type(config).__name__}"
+        )
+
     def add_column(self, dataframe, config):
 
         if not config.name:
@@ -519,17 +640,17 @@ class DataProcessor:
         # Select columns
         # ----------------------------------
 
-        if config.left_columns:
-            left_df = left_df.loc[
-                :,
-                config.left_columns
-            ]
+        left_df = self._select_join_columns(
+            left_df,
+            config.left_columns,
+            config.left_key
+        )
 
-        if config.right_columns:
-            right_df = right_df.loc[
-                :,
-                config.right_columns
-            ]
+        right_df = self._select_join_columns(
+            right_df,
+            config.right_columns,
+            config.right_key
+        )
 
         # ----------------------------------
         # Remove duplicate right columns
@@ -577,6 +698,17 @@ class DataProcessor:
             )
 
         return result
+
+    def _select_join_columns(self, dataframe, columns, key):
+        if not columns:
+            return dataframe
+
+        selected = list(columns)
+
+        if key not in selected:
+            selected.insert(0, key)
+
+        return dataframe.loc[:, selected]
 
     def transform(self, dataframe, config):
 
@@ -706,8 +838,230 @@ class DataProcessor:
                     f"Rank requires a numeric column "
                     f"'{config.column}'."
                 )
-
             transformed = series.rank()
+
+        elif config.operation == "z_score":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Z-score requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            mean = series.mean()
+            std = series.std()
+
+            if pd.isna(std) or std == 0:
+                raise ValueError(
+                    f"Cannot calculate z-score for '{config.column}' "
+                    "because its standard deviation is zero."
+                )
+
+            transformed = (
+                (series - mean) / std
+            )
+
+        elif config.operation == "log":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Logarithm requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            if (series <= 0).any():
+                raise ValueError(
+                    f"Cannot calculate logarithm for '{config.column}' "
+                    "because it contains non-positive values."
+                )
+
+            transformed = series.apply(lambda x: np.log(x))
+
+        elif config.operation == "exp":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Exponential requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: np.exp(x))
+
+        elif config.operation == "sqrt":
+            
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Square root requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            if (series < 0).any():
+                raise ValueError(
+                    f"Cannot calculate square root for '{config.column}' "
+                    "because it contains negative values."
+                )
+
+            transformed = series.apply(lambda x: np.sqrt(x))
+
+        elif config.operation == "cbrt":
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Cube root requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: np.cbrt(x))
+
+        elif config.operation == "reciprocal":
+            
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Reciprocal requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            if (series == 0).any():
+                raise ValueError(
+                    f"Cannot calculate reciprocal for '{config.column}' "
+                    "because it contains zero values."
+                )
+
+            transformed = series.apply(lambda x: 1 / x)
+
+        elif config.operation == "square":
+            
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Square requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: x ** 2)
+
+        elif config.operation == "cube":
+            
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Cube requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: x ** 3)
+
+        elif config.operation == "power":
+            
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Power requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: x ** config.value)
+
+        elif config.operation == "modulus":
+            
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Modulus requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: x % config.value)
+
+        elif config.operation == "floor":
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Floor requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: np.floor(x))
+
+        elif config.operation == "ceil":
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Ceil requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.apply(lambda x: np.ceil(x))
+
+        elif config.operation == "round_to":
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Round to requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.round(config.value)
+
+        elif config.operation == "clip":
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Clip requires a numeric column "
+                    f"'{config.column}'."
+                )
+
+            min_value = config.value[0]
+            max_value = config.value[1]
+
+            transformed = series.clip(lower=min_value, upper=max_value)
+
+       
+
+        elif config.operation == "cumulative_sum":
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"Cumulative sum requires a numeric column "
+                    f"'{config.column}'."
+                )
+            transformed = series.cumsum()
         # ==================================================
         # TEXT
         # ==================================================
@@ -789,6 +1143,458 @@ class DataProcessor:
                 )
 
             transformed = series.str.len()
+
+        elif config.operation == "regex_replace":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex replace requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value.get("pattern")
+            replacement = config.value.get("replacement")
+
+            if pattern is None or replacement is None:
+                raise ValueError(
+                    "Both 'pattern' and 'replacement' must be provided "
+                    "for regex replace."
+                )
+
+            transformed = series.str.replace(
+                pattern,
+                replacement,
+                regex=True
+            )
+
+        elif config.operation == "substring":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Substring requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            start = config.value.get("start")
+            end = config.value.get("end")
+
+            if start is None or end is None:
+                raise ValueError(
+                    "Both 'start' and 'end' must be provided "
+                    "for substring."
+                )
+
+            transformed = series.str.slice(start, end)
+
+        elif config.operation == "replace":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Replace requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            old_value = config.value.get("old_value")
+            new_value = config.value.get("new_value")
+
+            if old_value is None or new_value is None:
+                raise ValueError(
+                    "Both 'old_value' and 'new_value' must be provided "
+                    "for replace."
+                )
+
+            transformed = series.str.replace(
+                old_value,
+                new_value,
+                regex=False
+            )
+
+        elif config.operation == "contains":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Contains requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            substring = config.value
+
+            if substring is None:
+                raise ValueError(
+                    "'substring' must be provided for contains."
+                )
+
+            transformed = series.str.contains(
+                substring,
+                regex=False
+            )
+
+        elif config.operation == "startswith":  
+            
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Startswith requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            prefix = config.value
+
+            if prefix is None:
+                raise ValueError(
+                    "'prefix' must be provided for startswith."
+                )
+
+            transformed = series.str.startswith(prefix)
+
+        elif config.operation == "endswith":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Endswith requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            suffix = config.value
+
+            if suffix is None:
+                raise ValueError(
+                    "'suffix' must be provided for endswith."
+                )
+
+            transformed = series.str.endswith(suffix)
+
+        elif config.operation == "count_occurrences":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Count occurrences requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            substring = config.value
+
+            if substring is None:
+                raise ValueError(
+                    "'substring' must be provided for count_occurrences."
+                )
+
+            transformed = series.str.count(substring)
+
+        elif config.operation == "find_index":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Find index requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            substring = config.value
+
+            if substring is None:
+                raise ValueError(
+                    "'substring' must be provided for find_index."
+                )
+
+            transformed = series.str.find(substring)
+
+        elif config.operation == "is_numeric":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Is numeric requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.isnumeric()
+
+        elif config.operation == "is_alpha":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Is alpha requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.isalpha()
+
+        elif config.operation == "is_alphanumeric":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Is alphanumeric requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.isalnum()
+
+        elif config.operation == "is_lower":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Is lower requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.islower()
+
+        elif config.operation == "is_upper":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Is upper requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.isupper()
+
+        elif config.operation == "length":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Length requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.len()
+
+        elif config.operation == "strip":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Strip requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            transformed = series.str.strip()
+
+        elif config.operation == "pad":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Pad requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            width = config.value.get("width")
+            side = config.value.get("side", "left")
+
+            if width is None:
+                raise ValueError(
+                    "'width' must be provided for pad."
+                )
+
+            if side not in {"left", "right", "both"}:
+                raise ValueError(
+                    "'side' must be 'left', 'right', or 'both'."
+                )
+
+            transformed = series.str.pad(
+                width=width,
+                side=side
+            )
+
+        elif config.operation == "find_and_replace":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Find and replace requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            find_value = config.value.get("find")
+            replace_value = config.value.get("replace")
+
+            if find_value is None or replace_value is None:
+                raise ValueError(
+                    "Both 'find' and 'replace' must be provided "
+                    "for find_and_replace."
+                )
+
+            transformed = series.str.replace(
+                find_value,
+                replace_value,
+                regex=False
+            )
+
+        elif config.operation == "regex_extract":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex extract requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value
+
+            if pattern is None:
+                raise ValueError(
+                    "'pattern' must be provided for regex_extract."
+                )
+
+            transformed = series.str.extract(pattern)
+
+        elif config.operation == "regex_match":
+            
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex match requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value
+
+            if pattern is None:
+                raise ValueError(
+                    "'pattern' must be provided for regex_match."
+                )
+
+            transformed = series.str.match(pattern)
+
+        elif config.operation == "regex_search":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex search requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value
+
+            if pattern is None:
+                raise ValueError(
+                    "'pattern' must be provided for regex_search."
+                )
+
+            transformed = series.str.contains(pattern, regex=True)
+
+        elif config.operation == "regex_findall":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex findall requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value
+
+            if pattern is None:
+                raise ValueError(
+                    "'pattern' must be provided for regex_findall."
+                )
+
+            transformed = series.str.findall(pattern)
+
+        elif config.operation == "regex_replace_all":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex replace all requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value.get("pattern")
+            replacement = config.value.get("replacement")
+
+            if pattern is None or replacement is None:
+                raise ValueError(
+                    "Both 'pattern' and 'replacement' must be provided "
+                    "for regex_replace_all."
+                )
+
+            transformed = series.str.replace(
+                pattern,
+                replacement,
+                regex=True
+            )
+
+        elif config.operation == "regex_extract_all":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex extract all requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value
+
+            if pattern is None:
+                raise ValueError(
+                    "'pattern' must be provided for regex_extract_all."
+                )
+
+            transformed = series.str.extractall(pattern)
+
+        elif config.operation == "regex_replace":
+            
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Regex replace requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            pattern = config.value.get("pattern")
+            replacement = config.value.get("replacement")
+
+            if pattern is None or replacement is None:
+                raise ValueError(
+                    "Both 'pattern' and 'replacement' must be provided "
+                    "for regex_replace."
+                )
+
+            transformed = series.str.replace(
+                pattern,
+                replacement,
+                regex=True
+            )
+
+
+            #
+        elif config.operation == "extract_substring":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Extract substring requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            start = config.value.get("start")
+            end = config.value.get("end")
+
+            if start is None or end is None:
+                raise ValueError(
+                    "Both 'start' and 'end' must be provided "
+                    "for extract_substring."
+                )
+
+            transformed = series.str.slice(start, end)  
+
+        elif config.operation == "replace_substring":
+
+            if not pd.api.types.is_string_dtype(series):
+                raise ValueError(
+                    f"Replace substring requires a text column: "
+                    f"'{config.column}'."
+                )
+
+            old_substring = config.value.get("old_substring")
+            new_substring = config.value.get("new_substring")
+
+            if old_substring is None or new_substring is None:
+                raise ValueError(
+                    "Both 'old_substring' and 'new_substring' must be provided "
+                    "for replace_substring."
+                )
+
+            transformed = series.str.replace(
+                old_substring,
+                new_substring,
+                regex=False
+            )
+
+
+
+
         # ==================================================
         # TYPE
         # ==================================================
@@ -846,6 +1652,11 @@ class DataProcessor:
             "extract_day_name",
             "extract_hour",
             "extract_minute",
+            "extract_second",
+            "extract_millisecond",
+            "extract_nanosecond",
+            "extract_week",
+            "extract_day_of_year",
         }:
 
             if not pd.api.types.is_datetime64_any_dtype(series):
@@ -887,14 +1698,29 @@ class DataProcessor:
 
             elif config.operation == "extract_minute":
                 transformed = series.dt.minute
+            elif config.operation == "extract_second":
+                transformed = series.dt.second
+            elif config.operation == "extract_millisecond":
+                transformed = series.dt.microsecond // 1000
+            elif config.operation == "extract_nanosecond":
+                transformed = series.dt.nanosecond
 
-        else:
+            elif config.operation == "extract_day":
+                transformed = series.dt.day
+            elif config.operation == "extract_week":
+                transformed = series.dt.isocalendar().week
+            elif config.operation == "extract_day_of_year":
+                transformed = series.dt.dayofyear
+            elif config.operation == "extract_day_name":
+                transformed = series.dt.day_name()
+            elif config.operation == "extract_month_name":
+                transformed = series.dt.month_name()
 
+        if transformed is None:
             raise ValueError(
                 f"Unknown transform operation: "
                 f"{config.operation}"
             )
-
         # ==================================================
         # DESTINATION
         # ==================================================
@@ -908,6 +1734,249 @@ class DataProcessor:
             df[config.new_column] = transformed
 
         return df
+    
+    def transform_multiple(self, dataframe, config):
+
+        if dataframe is None:
+            raise ValueError("No dataset is available.")
+
+        self._require_columns(
+            dataframe,
+            config.columns
+        )
+
+        df = dataframe.copy()
+        columns = config.columns
+        operation = config.operation
+
+        self._require_column_range(
+            columns,
+            config.min_columns,
+            config.max_columns,
+            operation
+        )
+        # --------------------------------------------------
+        # DATE DIFFERENCES
+        # --------------------------------------------------
+
+        if operation in {
+            "difference",
+            "days_between",
+            "hours_between",
+            "minutes_between",
+            "seconds_between",
+            "weeks_between",
+        }:
+
+            self._require_column_count(
+                columns,
+                2,
+                operation
+            )
+
+            self._require_datetime(
+                df,
+                columns,
+                operation
+            )
+
+            first = df[columns[0]]
+            second = df[columns[1]]
+
+            delta = first - second
+
+            if operation == "difference":
+                transformed = delta
+
+            elif operation == "seconds_between":
+                transformed = delta.dt.total_seconds()
+
+            elif operation == "minutes_between":
+                transformed = (
+                    delta.dt.total_seconds() / 60
+                )
+
+            elif operation == "hours_between":
+                transformed = (
+                    delta.dt.total_seconds() / 3600
+                )
+
+            elif operation == "days_between":
+                transformed = (
+                    delta.dt.total_seconds() / 86400
+                )
+
+            elif operation == "weeks_between":
+                transformed = (
+                    delta.dt.total_seconds() / 604800
+                )
+                
+
+            self._validate_new_column(
+                df,
+                config.new_column
+            )
+
+            df[config.new_column] = transformed
+
+            return df
+
+        elif operation == "one_hot_encoding":
+
+            self._require_column_count(
+                columns,
+                1,
+                operation
+            )
+
+            column = columns[0]
+            series = df[column]
+
+            if not (
+                pd.api.types.is_string_dtype(series)
+                or pd.api.types.is_categorical_dtype(series)
+            ):
+                raise ValueError(
+                    f"One-hot encoding requires a text or "
+                    f"categorical column: '{column}'."
+                )
+
+            encoded = pd.get_dummies(
+                series,
+                prefix=column,
+                prefix_sep="_",
+                dtype="boolean"
+            )
+
+            if config.drop_source:
+                df = df.drop(columns=[column])
+
+            df = pd.concat(
+                [df, encoded],
+                axis=1
+            )
+
+            return df
+        elif operation == "concatenate":
+
+            self._require_string(
+                df,
+                columns,
+                operation
+            )
+
+            separator = (
+                config.value
+                if config.value is not None
+                else ""
+            )
+
+            transformed = df[columns[0]].astype("string")
+
+            for column in columns[1:]:
+                transformed = (
+                    transformed
+                    + separator
+                    + df[column].astype("string")
+                )
+
+            self._validate_new_column(
+                df,
+                config.new_column
+            )
+
+            df[config.new_column] = transformed
+
+            return df
+
+        elif operation == "subtract":
+
+            self._require_column_count(
+                columns,
+                2,
+                operation
+            )
+
+            self._require_numeric(
+                df,
+                columns,
+                operation
+            )
+
+            transformed = (
+                df[columns[0]]
+                - df[columns[1]]
+            )
+
+            self._validate_new_column(
+                df,
+                config.new_column
+            )
+
+            df[config.new_column] = transformed
+
+            return df
+
+       
+
+        elif operation == "add":
+
+            self._require_column_count(columns, 2, operation)
+            self._require_numeric(df, columns, operation)
+
+            self._validate_new_column(
+                df,
+                config.new_column
+            )
+
+            df[config.new_column] = (
+                df[columns[0]]
+                + df[columns[1]]
+            )
+
+            return df
+
+        
+        elif operation == "multiply":
+
+            self._require_column_count(columns, 2, operation)
+            self._require_numeric(df, columns, operation)
+
+            self._validate_new_column(
+                df,
+                config.new_column
+            )
+            
+            df[config.new_column] = (
+                df[columns[0]]
+                * df[columns[1]]
+            )
+
+            return df
+
+        
+
+        elif operation == "divide":
+
+            self._require_column_count(columns, 2, operation)
+            self._require_numeric(df, columns, operation)
+
+            denominator = df[columns[1]]
+
+            if (denominator == 0).any():
+                raise ValueError(
+                    "Cannot divide by zero."
+                )
+            self._validate_new_column(
+                df,
+                config.new_column
+            )
+            df[config.new_column] = (
+                df[columns[0]]
+                / denominator
+            )
+
+            return df
 
     def delete_column(self, dataframe, config):
 
@@ -1172,3 +2241,119 @@ class DataProcessor:
 
         return result
     
+    def rename_column(self, dataframe, config):
+
+            if config.old_name not in dataframe.columns:
+                raise ValueError(
+                    f"Column '{config.old_name}' does not exist."
+                )
+
+            if not config.new_name:
+                raise ValueError(
+                    "The new column name cannot be empty."
+                )
+
+            if config.new_name in dataframe.columns:
+                raise ValueError(
+                    f"A column named '{config.new_name}' already exists."
+                )
+
+            result = dataframe.copy()
+
+            result = result.rename(
+                columns={
+                    config.old_name: config.new_name
+                }
+            )
+
+            return result
+
+    def _require_columns(self, dataframe, columns):
+        if not columns:
+            raise ValueError("At least one source column is required.")
+
+        missing = [
+            column for column in columns
+            if column not in dataframe.columns
+        ]
+
+        if missing:
+            raise ValueError(
+                f"Column(s) do not exist: {missing}"
+            )
+
+
+    def _require_column_count(self, columns, count, operation):
+        if len(columns) != count:
+            raise ValueError(
+                f"{operation} requires exactly {count} column(s)."
+            )
+
+
+    def _require_numeric(self, dataframe, columns, operation):
+        for column in columns:
+            series = dataframe[column]
+
+            if (
+                not pd.api.types.is_numeric_dtype(series)
+                or pd.api.types.is_bool_dtype(series)
+            ):
+                raise ValueError(
+                    f"{operation} requires numeric columns. "
+                    f"'{column}' is not numeric."
+                )
+
+
+    def _require_datetime(self, dataframe, columns, operation):
+        for column in columns:
+            if not pd.api.types.is_datetime64_any_dtype(
+                dataframe[column]
+            ):
+                raise ValueError(
+                    f"{operation} requires datetime columns. "
+                    f"'{column}' is not datetime."
+                )
+
+
+    def _require_string(self, dataframe, columns, operation):
+        for column in columns:
+            if not pd.api.types.is_string_dtype(
+                dataframe[column]
+            ):
+                raise ValueError(
+                    f"{operation} requires text columns. "
+                    f"'{column}' is not text."
+                )
+
+
+    def _validate_new_column(self, dataframe, name):
+        if not name:
+            raise ValueError(
+                "A new column name is required."
+            )
+
+        if name in dataframe.columns:
+            raise ValueError(
+                f"A column named '{name}' already exists."
+            )
+
+    def _require_column_range(
+        self,
+        columns,
+        min_columns,
+        max_columns,
+        operation
+    ):
+        count = len(columns)
+
+        if count < min_columns:
+            raise ValueError(
+                f"{operation} requires at least "
+                f"{min_columns} column(s)."
+            )
+
+        if max_columns is not None and count > max_columns:
+            raise ValueError(
+                f"{operation} accepts at most "
+                f"{max_columns} column(s)."
+            )

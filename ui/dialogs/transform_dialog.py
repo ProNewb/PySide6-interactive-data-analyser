@@ -1,5 +1,6 @@
 from PySide6.QtCore import Qt
 import pandas as pd
+import numpy as np
 from PySide6.QtWidgets import (
     QComboBox,
     QCheckBox,
@@ -260,16 +261,21 @@ class TransformDialog(QDialog):
         text = (
             pd.api.types.is_string_dtype(series)
             or pd.api.types.is_object_dtype(series)
-            or pd.api.types.is_categorical_dtype(series)
+            #or pd.api.types.is_categorical_dtype(series)
         )
 
         datetime = pd.api.types.is_datetime64_any_dtype(series)
 
-        # <-- THIS IS THE IMPORTANT LINE
+        category = isinstance(
+            series.dtype,
+            pd.CategoricalDtype
+        )
+
         self.build_operation_menu(
             numeric=numeric,
             text=text,
             datetime=datetime,
+            category=category,
         )
 
         # Reset invalid selection
@@ -307,6 +313,9 @@ class TransformDialog(QDialog):
 
         if operation == "round":
             value = self.decimal_places.value()
+
+        if operation == "exp":
+            value = self.type_combo.currentData()
 
         elif operation == "astype":
             value = self.type_combo.currentData()
@@ -432,7 +441,7 @@ class TransformDialog(QDialog):
 
             config = self.get_transform()
 
-            operation_result = self.processor.transform(
+            operation_result = self.processor.apply_transform(
                 self.operation_dataframe,
                 config
             )
@@ -499,6 +508,14 @@ class TransformDialog(QDialog):
             "round": "rounded",
             "standardize": "standardized",
             "rank": "rank",
+            "log": "log",
+            "log10": "log10",
+            "exp": "exp",
+            "sqrt": "sqrt",
+            "ceil": "ceil",
+            "floor": "floor",
+            "clip": "clip",
+            "cumulative_sum": "cumsum",
             "uppercase": "uppercase",
             "lowercase": "lowercase",
             "title_case": "title",
@@ -517,6 +534,10 @@ class TransformDialog(QDialog):
             "extract_day_name": "day_name",
             "extract_hour": "hour",
             "extract_minute": "minute",
+            "extract_second": "second",
+            "extract_millisecond": "millisecond",
+            "extract_nanosecond": "nanosecond",
+            "one_hot_encoding": "encode",
             "astype": self.type_combo.currentData(),
         }
 
@@ -525,7 +546,7 @@ class TransformDialog(QDialog):
         return f"{column}_{suffix}"
 
 
-    def build_operation_menu(self, numeric=False, text=False, datetime=False):
+    def build_operation_menu(self, numeric=False, text=False, datetime=False, category=False):
 
         self.operation_menu.clear()
         self.operation_actions = {}
@@ -538,8 +559,23 @@ class TransformDialog(QDialog):
             self.add_operation(menu, "Normalize", "normalize")
             self.add_operation(menu, "Standardize", "standardize")
             self.add_operation(menu, "Rank", "rank")
-
-        if text:
+            self.add_operation(menu, "log", "log")
+            self.add_operation(menu, "log10", "log10")
+            self.add_operation(menu, "exp", "exp")
+            self.add_operation(menu, "sqrt", "sqrt")
+            self.add_operation(menu, "cbrt", "cbrt")
+            self.add_operation(menu, "Ceil", "ceil")
+            self.add_operation(menu, "Floor", "floor")
+            self.add_operation(menu, "clip", "clip")
+            self.add_operation(menu, "Cumulative sum", "cumulative_sum")
+            self.add_operation(menu, "Extract Difference between columns", "difference_between_columns")
+            self.add_operation(menu, "Round To", "round_to")
+            self.add_operation(menu, "Modulus", "modulus")
+            self.add_operation(menu, "Power", "power")
+            self.add_operation(menu, "exponent", "exp")
+            self.add_operation(menu, "z_score", "z_score")
+            self.add_operation(menu, "iqr", "iqr")
+        elif text:
             menu = self.operation_menu.addMenu("Text")
 
             self.add_operation(menu, "Uppercase", "uppercase")
@@ -549,14 +585,51 @@ class TransformDialog(QDialog):
             self.add_operation(menu, "Remove whitespace", "remove_whitespace")
             self.add_operation(menu, "Capitalize first", "capitalize_first")
             self.add_operation(menu, "Length", "length")
-
-        if datetime:
+            self.add_operation(menu, "find and replace", "find_and_replace")
+            self.add_operation(menu, "Extract substring", "extract_substring")
+            self.add_operation(menu, "Pad", "pad")
+            self.add_operation(menu, "Remove substring", "remove_substring")
+            self.add_operation(menu, "Split", "split")
+            self.add_operation(menu, "Join", "join")
+            self.add_operation(menu, "Regex replace", "regex_replace")
+            self.add_operation(menu, "Regex extract", "regex_extract")
+        elif datetime:
             menu = self.operation_menu.addMenu("Date / Time")
 
             self.add_operation(menu, "Extract year", "extract_year")
             self.add_operation(menu, "Extract month", "extract_month")
             self.add_operation(menu, "Extract weekday", "extract_weekday")
             self.add_operation(menu, "Extract hour", "extract_hour")
+            self.add_operation(menu, "Extract minute", "extract_minute")
+            self.add_operation(menu, "Extract second", "extract_second")
+            self.add_operation(menu, "Extract millisecond", "extract_millisecond")
+            self.add_operation(menu, "Extract nanosecond", "extract_nanosecond")
+            self.add_operation(menu, "Extract day", "extract_day")
+            self.add_operation(menu, "Extract weekend", "extract_weekend")
+            self.add_operation(menu, "Extract quarter", "extract_quarter")
+            self.add_operation(menu, "Extract month name", "extract_month_name")
+            self.add_operation(menu, "Extract day name", "extract_day_name")
+            self.add_operation(menu, "Extract time", "extract_time")
+            #self.add_operation(menu, "Extract date", "extract_date")
+            #self.add_operation(menu, "Extract timestamp", "extract_timestamp")
+            #self.add_operation(menu, "Extract ISO week", "extract_iso_week")
+            #self.add_operation(menu, "Extract ISO year", "extract_iso_year")
+            #self.add_operation(menu, "Extract ISO weekday", "extract_iso_weekday")
+            #self.add_operation(menu, "Extract ISO quarter", "extract_iso_quarter")
+            #self.add_operation(menu, "Extract ISO month", "extract_iso_month")
+            #self.add_operation(menu, "Extract Week Number", "extract_week_number" )
+            #self.add_operation(menu, "Extract ISO day", "extract_iso_day")
+            #self.add_operation(menu, "Extract Age", "extract_age")
+            self.add_operation(menu, "Extract days between columns", "days_between") 
+            self.add_operation(menu, "Extract weeks between columns", "weeks_between")
+            self.add_operation(menu, "Extract months between columns", "months_between")
+            self.add_operation(menu, "Extract years between columns", "years_between")
+            self.add_operation(menu, "Extract Seconds between columns", "seconds_between")
+            self.add_operation(menu, "Extract difference between columns", "difference")
+              
+        elif category:
+            self.add_operation(menu, "One Hot Encoding", "one_hot_encoding")
+
 
         # Always available
         type_menu = self.operation_menu.addMenu("Type")

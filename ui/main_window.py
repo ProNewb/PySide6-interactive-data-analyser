@@ -204,8 +204,12 @@ class MainWindow(QMainWindow):
        # self.main_menu.result_dataset_action.triggered.connect(
         #    self.toggle_result_tab
         #)
+
         self.main_menu.main_dataset_action.triggered.connect(
             self.toggle_main_dataset
+        )
+        self.target_combo.currentIndexChanged.connect(
+            self.update_workspace_controls
         )
         self.main_menu.redo_button.setEnabled(False)
         self.status = StatusBar()
@@ -357,6 +361,7 @@ class MainWindow(QMainWindow):
             f"Loaded {title}"
         )
 
+
     def load_project(self):
 
         filename, _ = QFileDialog.getOpenFileName(
@@ -440,7 +445,7 @@ class MainWindow(QMainWindow):
                     self.workspaces.removeTab(index)
 
                 workspace.deleteLater()
-
+  
                 continue
 
         current_index = project.get(
@@ -815,6 +820,7 @@ class MainWindow(QMainWindow):
         self.status.showMessage(
             "Cleaning completed"
         )
+
 
     def open_options(self):
 
@@ -2101,6 +2107,11 @@ class MainWindow(QMainWindow):
         workspace.result_visibility_changed.connect(
             lambda: self.update_workspace_controls()
         )
+        workspace.result_panel.current_changed.connect(
+            lambda _: self.update_workspace_controls()
+        )
+
+
         self.connect_dataset_view(
             workspace.main_view
         )

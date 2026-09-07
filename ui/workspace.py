@@ -27,7 +27,7 @@ from controllers.file_controller import FileController
 from PySide6.QtCore import Qt
 
 class Workspace(QWidget):
-
+    history_changed = Signal()
     """Represents a single analysis workspace.
 
         Each workspace owns:
@@ -93,7 +93,9 @@ class Workspace(QWidget):
                 self.set_result_visible
             )
             self.refresh()
-
+            self.result_panel.current_changed.connect(
+                self.on_result_changed
+            )
     # ======================================
     # REFRESH
     # ======================================
@@ -566,3 +568,14 @@ class Workspace(QWidget):
         self.update_comparison_layout()
 
         return True
+
+    def on_result_changed(self, index):
+        self.dataset_manager.set_active_result(index)
+
+        # Refresh graphs/statistics for the newly selected tab
+        view = self.result_panel.current_view()
+        if view:
+            view.update_analysis()
+
+        # Tell MainWindow to update Undo/Redo toolbar
+        self.history_changed.emit()

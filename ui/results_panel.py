@@ -80,12 +80,6 @@ class ResultPanel(QWidget):
 
     def _current_changed(self, index):
 
-        if index >= 0 and self.workspace is not None:
-
-            self.workspace.dataset_manager.set_active_result(
-                index
-            )
-
         self.current_changed.emit(index)
 
     def current_view(self):
@@ -182,7 +176,7 @@ class ResultPanel(QWidget):
     def set_use_selection(self, enabled):
         """Enable or disable selection-based analysis for all result views."""
 
-        #self.use_selection = enabled
+        self.use_selection = enabled
 
         for view in self.views():
             view.set_use_selection(enabled)
