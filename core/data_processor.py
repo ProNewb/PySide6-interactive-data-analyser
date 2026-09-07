@@ -38,35 +38,247 @@ class DataType:
     "**": operator.pow,
 }
     TRANSFORM_OPERATIONS = {
-    "round": {
-        "group": "Numeric",
-        "mode": "single",
-        "min_columns": 1,
-        "max_columns": 1,
-        "dtype": "numeric",
-        "inputs": ["decimals"],
-    },
 
-    "days_between": {
-        "group": "Date / Time",
-        "mode": "multi",
-        "min_columns": 2,
-        "max_columns": 2,
-        "dtype": "datetime",
-        "destination": "new",
-    },
+        # -------------------------
+        # Numeric single-column
+        # -------------------------
 
-    "concatenate": {
-        "group": "Text",
-        "mode": "multi",
-        "min_columns": 2,
-        "max_columns": None,
-        "dtype": "text",
-        "destination": "new",
-        "inputs": ["separator"],
-    },
+        "round": {
+            "label": "Round",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
 
-}
+        "absolute": {
+            "label": "Absolute value",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
+
+        "normalize": {
+            "label": "Normalize",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
+
+        "standardize": {
+            "label": "Standardize",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
+
+        "power": {
+            "label": "Power",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
+
+        "modulus": {
+            "label": "Modulus",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
+
+        # -------------------------
+        # Text single-column
+        # -------------------------
+
+        "uppercase": {
+            "label": "Uppercase",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "lowercase": {
+            "label": "Lowercase",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "find_and_replace": {
+            "label": "Find and replace",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        # -------------------------
+        # Datetime single-column
+        # -------------------------
+
+        "extract_year": {
+            "label": "Extract year",
+            "group": "Date / Time",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"datetime"},
+        },
+
+        "extract_month": {
+            "label": "Extract month",
+            "group": "Date / Time",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"datetime"},
+        },
+
+        # -------------------------
+        # Multi numeric
+        # -------------------------
+
+        "add": {
+            "label": "Add columns",
+            "group": "Numeric",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"numeric"},
+            "destination": "new",
+        },
+
+        "subtract": {
+            "label": "Subtract columns",
+            "group": "Numeric",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"numeric"},
+            "destination": "new",
+        },
+
+        "multiply": {
+            "label": "Multiply columns",
+            "group": "Numeric",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"numeric"},
+            "destination": "new",
+        },
+
+        "divide": {
+            "label": "Divide columns",
+            "group": "Numeric",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"numeric"},
+            "destination": "new",
+        },
+
+        # -------------------------
+        # Multi datetime
+        # -------------------------
+
+        "difference": {
+            "label": "Difference",
+            "group": "Date / Time",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"datetime"},
+            "destination": "new",
+        },
+
+        "days_between": {
+            "label": "Days between",
+            "group": "Date / Time",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"datetime"},
+            "destination": "new",
+        },
+
+        "hours_between": {
+            "label": "Hours between",
+            "group": "Date / Time",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": 2,
+            "allowed_dtypes": {"datetime"},
+            "destination": "new",
+        },
+
+        # -------------------------
+        # Multi text
+        # -------------------------
+
+        "concatenate": {
+            "label": "Concatenate",
+            "group": "Text",
+            "mode": "multi",
+            "min_columns": 2,
+            "max_columns": None,
+            "allowed_dtypes": {"text"},
+            "destination": "new",
+        },
+
+        # -------------------------
+        # Encoding
+        # -------------------------
+
+        "one_hot_encoding": {
+            "label": "One-hot encoding",
+            "group": "Category",
+            "mode": "multi",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {
+                "text",
+                "category",
+            },
+        },
+
+        # -------------------------
+        # Type
+        # -------------------------
+
+        "astype": {
+            "label": "Change type",
+            "group": "Type",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {
+                "numeric",
+                "text",
+                "datetime",
+                "category",
+                "boolean",
+            },
+        },
+
+
+    }
     
     @classmethod
     def convert_value(cls, value, dtype):
@@ -710,7 +922,7 @@ class DataProcessor:
 
         return dataframe.loc[:, selected]
 
-    def transform(self, dataframe, config):
+    def _validate_transform(self, dataframe, config):
 
         if dataframe is None:
             raise ValueError("No dataset is available.")
@@ -722,7 +934,7 @@ class DataProcessor:
 
         if config.destination not in {"replace", "new"}:
             raise ValueError(
-                f"Unknown transform destination: {config.destination}"
+                f"Unknown destination: {config.destination}"
             )
 
         if config.destination == "new":
@@ -734,339 +946,42 @@ class DataProcessor:
 
             if config.new_column in dataframe.columns:
                 raise ValueError(
-                    f"A column named '{config.new_column}' already exists."
+                    f"Column '{config.new_column}' already exists."
                 )
+        
+    def transform(self, dataframe, config):
+        self._validate_transform(dataframe, config)
 
         df = dataframe.copy()
         series = df[config.column]
 
-        transformed = None
+        if (
+            pd.api.types.is_numeric_dtype(series)
+            and not pd.api.types.is_bool_dtype(series)
+        ):
+            transformed = self._transform_numeric(series, config)
 
-        # ==================================================
-        # NUMERIC
-        # ==================================================
+        elif pd.api.types.is_string_dtype(series):
+            transformed = self._transform_text(series, config)
 
-        if config.operation == "round":
+        elif pd.api.types.is_datetime64_any_dtype(series):
+            transformed = self._transform_datetime(series, config)
 
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Round can only be used with numeric column "
-                    f"'{config.column}'."
-                )
+        else:
+            transformed = self._transform_type(series, config)
 
-            transformed = series.round(config.value)
+        target = (
+            config.column
+            if config.destination == "replace"
+            else config.new_column
+        )
 
-        elif config.operation == "absolute":
+        df[target] = transformed
 
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Absolute value requires a numeric column "
-                    f"'{config.column}'."
-                )
+        return df
 
-            transformed = series.abs()
-
-        elif config.operation == "normalize":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Normalize requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            minimum = series.min()
-            maximum = series.max()
-
-            if pd.isna(minimum) or pd.isna(maximum):
-                raise ValueError(
-                    f"Cannot normalize column '{config.column}' "
-                    "because it contains no usable values."
-                )
-
-            if minimum == maximum:
-                transformed = pd.Series(
-                    0.0,
-                    index=series.index
-                )
-
-            else:
-                transformed = (
-                    (series - minimum)
-                    / (maximum - minimum)
-                )
-
-        elif config.operation == "standardize":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Standardize requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            mean = series.mean()
-            std = series.std()
-
-            if pd.isna(std) or std == 0:
-                raise ValueError(
-                    f"Cannot standardize '{config.column}' "
-                    "because its standard deviation is zero."
-                )
-
-            transformed = (
-                (series - mean) / std
-            )
-
-        elif config.operation == "rank":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Rank requires a numeric column "
-                    f"'{config.column}'."
-                )
-            transformed = series.rank()
-
-        elif config.operation == "z_score":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Z-score requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            mean = series.mean()
-            std = series.std()
-
-            if pd.isna(std) or std == 0:
-                raise ValueError(
-                    f"Cannot calculate z-score for '{config.column}' "
-                    "because its standard deviation is zero."
-                )
-
-            transformed = (
-                (series - mean) / std
-            )
-
-        elif config.operation == "log":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Logarithm requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            if (series <= 0).any():
-                raise ValueError(
-                    f"Cannot calculate logarithm for '{config.column}' "
-                    "because it contains non-positive values."
-                )
-
-            transformed = series.apply(lambda x: np.log(x))
-
-        elif config.operation == "exp":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Exponential requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: np.exp(x))
-
-        elif config.operation == "sqrt":
-            
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Square root requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            if (series < 0).any():
-                raise ValueError(
-                    f"Cannot calculate square root for '{config.column}' "
-                    "because it contains negative values."
-                )
-
-            transformed = series.apply(lambda x: np.sqrt(x))
-
-        elif config.operation == "cbrt":
-
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Cube root requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: np.cbrt(x))
-
-        elif config.operation == "reciprocal":
-            
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Reciprocal requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            if (series == 0).any():
-                raise ValueError(
-                    f"Cannot calculate reciprocal for '{config.column}' "
-                    "because it contains zero values."
-                )
-
-            transformed = series.apply(lambda x: 1 / x)
-
-        elif config.operation == "square":
-            
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Square requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: x ** 2)
-
-        elif config.operation == "cube":
-            
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Cube requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: x ** 3)
-
-        elif config.operation == "power":
-            
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Power requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: x ** config.value)
-
-        elif config.operation == "modulus":
-            
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Modulus requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: x % config.value)
-
-        elif config.operation == "floor":
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Floor requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: np.floor(x))
-
-        elif config.operation == "ceil":
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Ceil requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.apply(lambda x: np.ceil(x))
-
-        elif config.operation == "round_to":
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Round to requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.round(config.value)
-
-        elif config.operation == "clip":
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Clip requires a numeric column "
-                    f"'{config.column}'."
-                )
-
-            min_value = config.value[0]
-            max_value = config.value[1]
-
-            transformed = series.clip(lower=min_value, upper=max_value)
-
-       
-
-        elif config.operation == "cumulative_sum":
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"Cumulative sum requires a numeric column "
-                    f"'{config.column}'."
-                )
-            transformed = series.cumsum()
-        # ==================================================
-        # TEXT
-        # ==================================================
-
-        elif config.operation == "uppercase":
+    def _transform_text(self, series, config):
+        if config.operation == "uppercase":
 
             if not pd.api.types.is_string_dtype(series):
                 raise ValueError(
@@ -1591,392 +1506,268 @@ class DataProcessor:
                 new_substring,
                 regex=False
             )
+            return transformed
 
+    def _transform_type(self, series, config):
 
-
-
-        # ==================================================
-        # TYPE
-        # ==================================================
-
-        elif config.operation == "astype":
-
-            target_dtype = config.value
-
-            if target_dtype not in DataType.PANDAS_DTYPES:
-                raise ValueError(
-                    f"Unsupported target type: {target_dtype}"
-                )
-
-            try:
-
-                if target_dtype == "datetime":
-
-                    transformed = pd.to_datetime(
-                        series,
-                        errors="raise"
-                    )
-
-                elif target_dtype == "category":
-
-                    transformed = series.astype(
-                        "category"
-                    )
-
-                else:
-
-                    transformed = series.astype(
-                        DataType.PANDAS_DTYPES[target_dtype]
-                    )
-
-            except (TypeError, ValueError) as error:
-
-                raise ValueError(
-                    f"Cannot convert '{config.column}' "
-                    f"to {target_dtype}: {error}"
-                ) from error
-
-        # ==================================================
-        # DATE / TIME
-        # ==================================================
-
-        elif config.operation in {
-            "extract_year",
-            "extract_month",
-            "extract_day",
-            "extract_weekday",
-            "extract_weekend",
-            "extract_time",
-            "extract_quarter",
-            "extract_month_name",
-            "extract_day_name",
-            "extract_hour",
-            "extract_minute",
-            "extract_second",
-            "extract_millisecond",
-            "extract_nanosecond",
-            "extract_week",
-            "extract_day_of_year",
-        }:
-
-            if not pd.api.types.is_datetime64_any_dtype(series):
-                raise ValueError(
-                    f"{config.operation.replace('_', ' ').title()} "
-                    f"requires a datetime column: "
-                    f"'{config.column}'."
-                )
-
-            if config.operation == "extract_year":
-                transformed = series.dt.year
-
-            elif config.operation == "extract_month":
-                transformed = series.dt.month
-
-            elif config.operation == "extract_day":
-                transformed = series.dt.day
-
-            elif config.operation == "extract_weekday":
-                transformed = series.dt.dayofweek
-
-            elif config.operation == "extract_weekend":
-                transformed = series.dt.dayofweek >= 5
-
-            elif config.operation == "extract_time":
-                transformed = series.dt.time
-
-            elif config.operation == "extract_quarter":
-                transformed = series.dt.quarter
-
-            elif config.operation == "extract_month_name":
-                transformed = series.dt.month_name()
-
-            elif config.operation == "extract_day_name":
-                transformed = series.dt.day_name()
-
-            elif config.operation == "extract_hour":
-                transformed = series.dt.hour
-
-            elif config.operation == "extract_minute":
-                transformed = series.dt.minute
-            elif config.operation == "extract_second":
-                transformed = series.dt.second
-            elif config.operation == "extract_millisecond":
-                transformed = series.dt.microsecond // 1000
-            elif config.operation == "extract_nanosecond":
-                transformed = series.dt.nanosecond
-
-            elif config.operation == "extract_day":
-                transformed = series.dt.day
-            elif config.operation == "extract_week":
-                transformed = series.dt.isocalendar().week
-            elif config.operation == "extract_day_of_year":
-                transformed = series.dt.dayofyear
-            elif config.operation == "extract_day_name":
-                transformed = series.dt.day_name()
-            elif config.operation == "extract_month_name":
-                transformed = series.dt.month_name()
-
-        if transformed is None:
+        if config.operation != "astype":
             raise ValueError(
-                f"Unknown transform operation: "
-                f"{config.operation}"
+                f"Unknown type operation: {config.operation}"
             )
-        # ==================================================
-        # DESTINATION
-        # ==================================================
 
-        if config.destination == "replace":
+        target_dtype = config.value
 
-            df[config.column] = transformed
+        if target_dtype not in DataType.PANDAS_DTYPES:
+            raise ValueError(
+                f"Unsupported target type: {target_dtype}"
+            )
 
-        else:
+        try:
 
-            df[config.new_column] = transformed
+            if target_dtype == "datetime":
 
-        return df
+                return pd.to_datetime(
+                    series,
+                    errors="raise"
+                )
+
+            if target_dtype == "category":
+
+                return series.astype("category")
+
+            return series.astype(
+                DataType.PANDAS_DTYPES[target_dtype]
+            )
+
+        except (TypeError, ValueError) as error:
+
+            raise ValueError(
+                f"Cannot convert '{config.column}' "
+                f"to {target_dtype}: {error}"
+            ) from error
     
-    def transform_multiple(self, dataframe, config):
+    def _transform_datetime(self, series, config):
 
-        if dataframe is None:
-            raise ValueError("No dataset is available.")
-
-        self._require_columns(
-            dataframe,
-            config.columns
-        )
-
-        df = dataframe.copy()
-        columns = config.columns
         operation = config.operation
 
-        self._require_column_range(
-            columns,
-            config.min_columns,
-            config.max_columns,
-            operation
+        if operation == "extract_year":
+            return series.dt.year
+
+        elif operation == "extract_month":
+            return series.dt.month
+
+        elif operation == "extract_day":
+            return series.dt.day
+
+        elif operation == "extract_weekday":
+            return series.dt.dayofweek
+
+        elif operation == "extract_weekend":
+            return series.dt.dayofweek >= 5
+
+        elif operation == "extract_time":
+            return series.dt.time
+
+        elif operation == "extract_quarter":
+            return series.dt.quarter
+
+        elif operation == "extract_month_name":
+            return series.dt.month_name()
+
+        elif operation == "extract_day_name":
+            return series.dt.day_name()
+
+        elif operation == "extract_hour":
+            return series.dt.hour
+
+        elif operation == "extract_minute":
+            return series.dt.minute
+
+        elif operation == "extract_second":
+            return series.dt.second
+
+        elif operation == "extract_millisecond":
+            return series.dt.microsecond // 1000
+
+        elif operation == "extract_nanosecond":
+            return series.dt.nanosecond
+
+        elif operation == "extract_week":
+            return series.dt.isocalendar().week
+
+        elif operation == "extract_day_of_year":
+            return series.dt.dayofyear
+
+        raise ValueError(
+            f"Unknown datetime operation: {operation}"
         )
-        # --------------------------------------------------
-        # DATE DIFFERENCES
-        # --------------------------------------------------
-
-        if operation in {
-            "difference",
-            "days_between",
-            "hours_between",
-            "minutes_between",
-            "seconds_between",
-            "weeks_between",
-        }:
-
-            self._require_column_count(
-                columns,
-                2,
-                operation
-            )
-
-            self._require_datetime(
-                df,
-                columns,
-                operation
-            )
-
-            first = df[columns[0]]
-            second = df[columns[1]]
-
-            delta = first - second
-
-            if operation == "difference":
-                transformed = delta
-
-            elif operation == "seconds_between":
-                transformed = delta.dt.total_seconds()
-
-            elif operation == "minutes_between":
-                transformed = (
-                    delta.dt.total_seconds() / 60
-                )
-
-            elif operation == "hours_between":
-                transformed = (
-                    delta.dt.total_seconds() / 3600
-                )
-
-            elif operation == "days_between":
-                transformed = (
-                    delta.dt.total_seconds() / 86400
-                )
-
-            elif operation == "weeks_between":
-                transformed = (
-                    delta.dt.total_seconds() / 604800
-                )
-                
-
-            self._validate_new_column(
-                df,
-                config.new_column
-            )
-
-            df[config.new_column] = transformed
-
-            return df
-
-        elif operation == "one_hot_encoding":
-
-            self._require_column_count(
-                columns,
-                1,
-                operation
-            )
-
-            column = columns[0]
-            series = df[column]
-
-            if not (
-                pd.api.types.is_string_dtype(series)
-                or pd.api.types.is_categorical_dtype(series)
-            ):
-                raise ValueError(
-                    f"One-hot encoding requires a text or "
-                    f"categorical column: '{column}'."
-                )
-
-            encoded = pd.get_dummies(
-                series,
-                prefix=column,
-                prefix_sep="_",
-                dtype="boolean"
-            )
-
-            if config.drop_source:
-                df = df.drop(columns=[column])
-
-            df = pd.concat(
-                [df, encoded],
-                axis=1
-            )
-
-            return df
-        elif operation == "concatenate":
-
-            self._require_string(
-                df,
-                columns,
-                operation
-            )
-
-            separator = (
-                config.value
-                if config.value is not None
-                else ""
-            )
-
-            transformed = df[columns[0]].astype("string")
-
-            for column in columns[1:]:
-                transformed = (
-                    transformed
-                    + separator
-                    + df[column].astype("string")
-                )
-
-            self._validate_new_column(
-                df,
-                config.new_column
-            )
-
-            df[config.new_column] = transformed
-
-            return df
-
-        elif operation == "subtract":
-
-            self._require_column_count(
-                columns,
-                2,
-                operation
-            )
-
-            self._require_numeric(
-                df,
-                columns,
-                operation
-            )
-
-            transformed = (
-                df[columns[0]]
-                - df[columns[1]]
-            )
-
-            self._validate_new_column(
-                df,
-                config.new_column
-            )
-
-            df[config.new_column] = transformed
-
-            return df
-
-       
-
-        elif operation == "add":
-
-            self._require_column_count(columns, 2, operation)
-            self._require_numeric(df, columns, operation)
-
-            self._validate_new_column(
-                df,
-                config.new_column
-            )
-
-            df[config.new_column] = (
-                df[columns[0]]
-                + df[columns[1]]
-            )
-
-            return df
-
-        
-        elif operation == "multiply":
-
-            self._require_column_count(columns, 2, operation)
-            self._require_numeric(df, columns, operation)
-
-            self._validate_new_column(
-                df,
-                config.new_column
-            )
             
-            df[config.new_column] = (
-                df[columns[0]]
-                * df[columns[1]]
-            )
+    def _transform_numeric(self, series, config):
 
-            return df
+        operation = config.operation
 
-        
+        if operation == "round":
+            return series.round(config.value)
 
-        elif operation == "divide":
+        elif operation == "absolute":
+            return series.abs()
 
-            self._require_column_count(columns, 2, operation)
-            self._require_numeric(df, columns, operation)
+        elif operation == "normalize":
 
-            denominator = df[columns[1]]
+            minimum = series.min()
+            maximum = series.max()
 
-            if (denominator == 0).any():
+            if pd.isna(minimum) or pd.isna(maximum):
                 raise ValueError(
-                    "Cannot divide by zero."
+                    "Cannot normalize a column with no usable values."
                 )
-            self._validate_new_column(
-                df,
-                config.new_column
-            )
-            df[config.new_column] = (
-                df[columns[0]]
-                / denominator
+
+            if minimum == maximum:
+                return pd.Series(
+                    0.0,
+                    index=series.index
+                )
+
+            return (
+                (series - minimum)
+                / (maximum - minimum)
             )
 
-            return df
+        elif operation in {"standardize", "z_score"}:
+
+            mean = series.mean()
+            std = series.std()
+
+            if pd.isna(std) or std == 0:
+                raise ValueError(
+                    f"Cannot calculate {operation} because "
+                    "the standard deviation is zero."
+                )
+
+            return (series - mean) / std
+
+        elif operation == "rank":
+            return series.rank()
+
+        elif operation == "log":
+
+            if (series <= 0).any():
+                raise ValueError(
+                    "Logarithm requires all values to be positive."
+                )
+
+            return np.log(series)
+
+        elif operation == "exp":
+            return np.exp(series)
+
+        elif operation == "sqrt":
+
+            if (series < 0).any():
+                raise ValueError(
+                    "Square root requires non-negative values."
+                )
+
+            return np.sqrt(series)
+
+        elif operation == "cbrt":
+            return np.cbrt(series)
+
+        elif operation == "reciprocal":
+
+            if (series == 0).any():
+                raise ValueError(
+                    "Cannot calculate reciprocal because "
+                    "the column contains zero."
+                )
+
+            return 1 / series
+
+        elif operation == "square":
+            return series ** 2
+
+        elif operation == "cube":
+            return series ** 3
+
+        elif operation == "power":
+            return series ** config.value
+
+        elif operation == "modulus":
+
+            if config.value == 0:
+                raise ValueError(
+                    "Cannot calculate modulus by zero."
+                )
+
+            return series % config.value
+
+        elif operation == "floor":
+            return np.floor(series)
+
+        elif operation == "ceil":
+            return np.ceil(series)
+
+        elif operation == "round_to":
+            return series.round(config.value)
+
+        elif operation == "clip":
+
+            minimum, maximum = config.value
+
+            return series.clip(
+                lower=minimum,
+                upper=maximum
+            )
+
+        elif operation == "cumulative_sum":
+            return series.cumsum()
+
+        raise ValueError(
+            f"Unknown numeric operation: {operation}"
+        )
+          
+            
+    def calculate(self, dataframe, config):
+
+        result = dataframe.copy()
+
+        expression = self._build_expression(result, config)
+
+        result[config.name] = expression
+
+        return result
+
+    def _build_expression(self, df, config):
+
+        current = self._operand_value(df, config.operands[0])
+
+        for op, operand in zip(config.operators, config.operands[1:]):
+
+            right = self._operand_value(df, operand)
+
+            current = DataType.OPERATORS[op](current, right)
+
+        return current
+
+    def _operand_value(self, df, operand):
+
+        if operand.type == "column":
+            return df[operand.value]
+
+        return operand.value
+
+    def transform_multiple(self, dataframe, config):
+
+        if config.operation == "concatenate":
+            return self._concatenate(dataframe, config)
+
+        if config.operation == "days_between":
+            return self._days_between(dataframe, config)
+
+        if config.operation == "one_hot_encoding":
+            return self._one_hot(dataframe, config)
+
+    
 
     def delete_column(self, dataframe, config):
 
@@ -2290,18 +2081,15 @@ class DataProcessor:
             )
 
 
-    def _require_numeric(self, dataframe, columns, operation):
-        for column in columns:
-            series = dataframe[column]
 
-            if (
-                not pd.api.types.is_numeric_dtype(series)
-                or pd.api.types.is_bool_dtype(series)
-            ):
-                raise ValueError(
-                    f"{operation} requires numeric columns. "
-                    f"'{column}' is not numeric."
-                )
+    def _require_numeric_series(self, series, name):
+        if (
+            not pd.api.types.is_numeric_dtype(series)
+            or pd.api.types.is_bool_dtype(series)
+        ):
+            raise ValueError(
+                f"'{name}' must be numeric."
+            )
 
 
     def _require_datetime(self, dataframe, columns, operation):

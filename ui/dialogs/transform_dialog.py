@@ -12,77 +12,138 @@ from PySide6.QtWidgets import (
     QPushButton,
     QRadioButton,
     QSpinBox,
+    QDoubleSpinBox,
     QSplitter,
     QVBoxLayout,
     QMenu,
+    QStackedWidget,
+    QWidget,
+)
+
+from core.data_processor import (
+    DataProcessor,
+    DataType,
+    TransformConfig,
+    MultiColumnTransformConfig,
+    CalculationConfig,
+    CalculationOperand,
 )
 from PySide6.QtGui import QAction
-from core.data_processor import DataProcessor, DataType, TransformConfig
+
 from ui.table.preview_table import PreviewTable
 
 
 class TransformDialog(QDialog):
-    """Configure a column transform and preview its result."""
+    """Configure single-column, multi-column and calculated transforms."""
 
     def __init__(
         self,
         datasets,
         parent=None,
         current=None,
-        use_selection=False
+        use_selection=False,
     ):
         super().__init__(parent)
+
         self.datasets = datasets
-        self.preview = PreviewTable()
-        self.result_preview = PreviewTable()
+        self.processor = DataProcessor()
+
         self.operation = None
+        self.result = None
+        
+        self.column_rows = []
+
         self.setWindowTitle("Transform Data")
+        self.resize(1000, 700)
+
         layout = QVBoxLayout(self)
 
+        # ---------------------------------------------------------
+        # Target
+        # ---------------------------------------------------------
+
         target_layout = QHBoxLayout()
-        target_layout.addWidget(QLabel("Target dataset"))
+
+        target_layout.addWidget(
+            QLabel("Target dataset")
+        )
+
         self.target_combo = QComboBox()
 
         for name in datasets:
             self.target_combo.addItem(name)
 
-        self.target_combo.setCurrentText(current)
-        self.processor = DataProcessor()
-        
-        self.use_selection = QCheckBox(
-    "Use selection"
-)
+        if current in datasets:
+            self.target_combo.setCurrentText(current)
 
+        target_layout.addWidget(
+            self.target_combo
+        )
+
+        self.use_selection = QCheckBox(
+            "Use selection"
+        )
         self.use_selection.setChecked(
             use_selection
-        )
-
-        self.preserve_unselected = QCheckBox(
-            "Preserve unselected data"
-        )
-
-        self.preserve_unselected.setChecked(True)
-
-        self.preserve_unselected.setEnabled(
-            self.use_selection.isChecked()
         )
 
         target_layout.addWidget(
             self.use_selection
         )
 
+        self.preserve_unselected = QCheckBox(
+            "Preserve unselected data"
+        )
+        self.preserve_unselected.setChecked(True)
+        self.preserve_unselected.setEnabled(
+            use_selection
+        )
+
         target_layout.addWidget(
             self.preserve_unselected
         )
+
         layout.addLayout(target_layout)
-        controls = QHBoxLayout()
-        controls.addWidget(QLabel("Column"))
 
-        self.column_combo = QComboBox()
+        # ---------------------------------------------------------
+        # Source columns
+        # ---------------------------------------------------------
 
-        controls.addWidget(self.column_combo)
+        source_header = QHBoxLayout()
 
-        controls.addWidget(
+        self.source_label = QLabel(
+            "Source columns"
+        )
+
+        source_header.addWidget(
+            self.source_label
+        )
+
+        self.add_column_button = QPushButton("+ Add column")
+        self.add_column_button.clicked.connect(
+            self.add_column_row
+        )
+
+        source_header.addWidget(
+            self.add_column_button
+        )
+
+        source_header.addStretch()
+
+        layout.addLayout(source_header)
+
+        self.columns_layout = QVBoxLayout()
+        layout.addLayout(self.columns_layout)
+
+        
+
+        # ---------------------------------------------------------
+        # Operation
+        # ---------------------------------------------------------
+
+        operation_layout = QHBoxLayout()
+
+        operation_layout.addWidget(
             QLabel("Operation")
         )
 
@@ -94,42 +155,187 @@ class TransformDialog(QDialog):
             self.operation_button
         )
 
-        self.build_operation_menu()
-
         self.operation_button.setMenu(
             self.operation_menu
         )
 
-        controls.addWidget(
+        operation_layout.addWidget(
             self.operation_button
         )
 
-        self.value_label = QLabel("Decimal places")
+        operation_layout.addStretch()
+
+        layout.addLayout(operation_layout)
+
+        # ---------------------------------------------------------
+        # Value/input controls
+        # ---------------------------------------------------------
+
+        self.value_widget = QWidget()
+
+        self.value_layout = QHBoxLayout(
+            self.value_widget
+        )
+
+        self.value_layout.setContentsMargins(
+            0, 0, 0, 0
+        )
+
+        self.value_label = QLabel()
+
+        self.value_layout.addWidget(
+            self.value_label
+        )
+
         self.decimal_places = QSpinBox()
         self.decimal_places.setRange(0, 12)
         self.decimal_places.setValue(2)
+
         self.type_combo = QComboBox()
+
         for dtype in DataType.TYPES:
             self.type_combo.addItem(
                 dtype.title(),
                 dtype
             )
 
-        destination_layout = QHBoxLayout()
+        self.value_edit = QLineEdit()
+
+        self.find_edit = QLineEdit()
+
+        self.replace_edit = QLineEdit()
+
+        self.pattern_edit = QLineEdit()
+
+        self.clip_min = QDoubleSpinBox()
+        self.clip_min.setRange(
+            -1_000_000_000,
+            1_000_000_000
+        )
+        self.clip_min.setDecimals(6)
+
+        self.clip_max = QDoubleSpinBox()
+        self.clip_max.setRange(
+            -1_000_000_000,
+            1_000_000_000
+        )
+        self.clip_max.setDecimals(6)
+        self.clip_max.setValue(100)
+
+        self.substring_start = QSpinBox()
+        self.substring_start.setRange(
+            0,
+            1_000_000
+        )
+
+        self.substring_end = QSpinBox()
+        self.substring_end.setRange(
+            0,
+            1_000_000
+        )
+        self.substring_end.setValue(10)
+
+        self.pad_width = QSpinBox()
+        self.pad_width.setRange(
+            1,
+            1000
+        )
+        self.pad_width.setValue(10)
+
+        self.separator_edit = QLineEdit()
+        self.separator_edit.setText(" ")
+
+        # ---------------------------------------------------------
+        # Add all controls to the layout
+        # ---------------------------------------------------------
+
+        for widget in (
+            self.decimal_places,
+            self.type_combo,
+            self.value_edit,
+            self.find_edit,
+            self.replace_edit,
+            self.pattern_edit,
+            self.clip_min,
+            self.clip_max,
+            self.substring_start,
+            self.substring_end,
+            self.pad_width,
+            self.separator_edit,
+        ):
+            self.value_layout.addWidget(widget)
+
+        # ---------------------------------------------------------
+        # Signals
+        # ---------------------------------------------------------
+
+        for widget in (
+            self.decimal_places,
+            self.clip_min,
+            self.clip_max,
+            self.substring_start,
+            self.substring_end,
+            self.pad_width,
+        ):
+            widget.valueChanged.connect(
+                self.update_preview
+            )
+
+        for widget in (
+            self.type_combo,
+            self.value_edit,
+            self.find_edit,
+            self.replace_edit,
+            self.pattern_edit,
+            self.separator_edit,
+        ):
+            if isinstance(widget, QComboBox):
+                widget.currentIndexChanged.connect(
+                    self.update_preview
+                )
+            else:
+                widget.textChanged.connect(
+                    self.update_preview
+                )
+
+        layout.addWidget(
+            self.value_widget
+        )
+
+        # ---------------------------------------------------------
+        # Destination
+        # ---------------------------------------------------------
+
+        self.destination_widget = QWidget()
+
+        destination_layout = QHBoxLayout(
+            self.destination_widget
+        )
+
+        destination_layout.setContentsMargins(
+            0, 0, 0, 0
+        )
 
         destination_layout.addWidget(
             QLabel("Result")
         )
-        self.replace_col_button = QRadioButton("Replace existing column")
+
+        self.replace_col_button = QRadioButton(
+            "Replace existing column"
+        )
         self.replace_col_button.setChecked(True)
-        self.create_col_button = QRadioButton("Create new column")
+
+        self.create_col_button = QRadioButton(
+            "Create new column"
+        )
+
         self.new_col_name = QLineEdit()
+        self.new_col_name.setPlaceholderText(
+            "New column name"
+        )
+
         self.new_col_name.setVisible(False)
-        self.replace_col_button.toggled.connect(self.update_destination_controls)
-        self.create_col_button.toggled.connect(self.update_destination_controls)
-        self.new_col_name.textChanged.connect(
-                self.update_preview
-            )
+
         destination_layout.addWidget(
             self.replace_col_button
         )
@@ -142,183 +348,1091 @@ class TransformDialog(QDialog):
             self.new_col_name
         )
 
-        layout.addLayout(destination_layout)
+        destination_layout.addStretch()
 
+        layout.addWidget(
+            self.destination_widget
+        )
 
-        controls.addWidget(self.value_label)
-        controls.addWidget(self.decimal_places)
-        controls.addWidget(self.type_combo)
-        layout.addLayout(controls)
+        # ---------------------------------------------------------
+        # Preview
+        # ---------------------------------------------------------
 
         previews = QSplitter(Qt.Horizontal)
-        previews.addWidget(self.preview)
-        previews.addWidget(self.result_preview)
-        layout.addWidget(previews)
+
+        self.preview = PreviewTable()
+        self.result_preview = PreviewTable()
+
+        previews.addWidget(
+            self.preview
+        )
+        previews.addWidget(
+            self.result_preview
+        )
+
+        layout.addWidget(
+            previews
+        )
 
         preview_labels = QHBoxLayout()
-        preview_labels.addWidget(QLabel("Current data"))
-        preview_labels.addWidget(QLabel("Transformed preview"))
-        self.show_all_rows = QCheckBox("Show all rows")
-        self.show_all_rows.toggled.connect(self.update_preview)
-        preview_labels.addWidget(self.show_all_rows)
-        layout.insertLayout(layout.indexOf(previews), preview_labels)
+
+        preview_labels.addWidget(
+            QLabel("Current data")
+        )
+
+        preview_labels.addWidget(
+            QLabel("Transformed preview")
+        )
+
+        self.show_all_rows = QCheckBox(
+            "Show all rows"
+        )
+
+        self.show_all_rows.toggled.connect(
+            self.update_preview
+        )
+
+        preview_labels.addWidget(
+            self.show_all_rows
+        )
+
+        layout.insertLayout(
+            layout.indexOf(previews),
+            preview_labels
+        )
+
+        # ---------------------------------------------------------
+        # Buttons
+        # ---------------------------------------------------------
 
         buttons = QHBoxLayout()
+
         cancel_button = QPushButton("Cancel")
         self.apply_button = QPushButton("Apply")
+
         buttons.addStretch()
-        buttons.addWidget(cancel_button)
-        buttons.addWidget(self.apply_button)
+
+        buttons.addWidget(
+            cancel_button
+        )
+
+        buttons.addWidget(
+            self.apply_button
+        )
+
         layout.addLayout(buttons)
-        self.dataframe = self.get_dataframe()
-        self.operation_dataframe = self.get_operation_dataframe()
-        cancel_button.clicked.connect(self.reject)
-        self.apply_button.clicked.connect(self.apply)
-        self.column_combo.currentIndexChanged.connect(self.update_operation_options)
-        #self.operation_combo.currentIndexChanged.connect( self.on_operation_changed )
-        self.decimal_places.valueChanged.connect(self.update_preview)
-        self.type_combo.currentIndexChanged.connect(self.update_preview)
-        self.target_combo.currentIndexChanged.connect(self.change_target)
-        self.change_target()
-        self.update_operation_options()
-        self.use_selection.toggled.connect(self.change_target)
+
+        # ---------------------------------------------------------
+        # Signals
+        # ---------------------------------------------------------
+
+        cancel_button.clicked.connect(
+            self.reject
+        )
+
+        self.apply_button.clicked.connect(
+            self.apply
+        )
+
+        self.target_combo.currentIndexChanged.connect(
+            self.change_target
+        )
+
         self.use_selection.toggled.connect(
-            self.update_selection_options
+            self.change_selection_mode
         )
 
         self.preserve_unselected.toggled.connect(
             self.update_preview
         )
 
+        self.replace_col_button.toggled.connect(
+            self.update_destination_controls
+        )
+
+        self.create_col_button.toggled.connect(
+            self.update_destination_controls
+        )
+
+        self.new_col_name.textChanged.connect(
+            self.update_preview
+        )
+
+
+        # ---------------------------------------------------------
+        # Initial data
+        # ---------------------------------------------------------
+        
+        self.dataframe = pd.DataFrame()
+        self.operation_dataframe = pd.DataFrame()
+
+        # Now target_combo exists, so this is safe.
+        self.dataframe = self.get_dataframe()
+        self.operation_dataframe = self.get_operation_dataframe()
+
+        # Now column rows can safely access operation_dataframe.
+        self.add_column_row()
+
+        self.refresh_column_rows()
+        self.update_operation_options()
+        self.update_destination_controls()
+        self.update_preview()
+
+    # =============================================================
+    # DATASET
+    # =============================================================
+
     def get_dataset_key(self):
         return self.target_combo.currentText()
 
+    def get_dataset_info(self):
+        return self.datasets[
+            self.get_dataset_key()
+        ]
 
     def get_dataframe(self):
-
-        info = self.datasets[
-            self.get_dataset_key()
-        ]
-
-        return info["dataframe"].copy()
+        return self.get_dataset_info()[
+            "dataframe"
+        ].copy()
 
     def get_operation_dataframe(self):
+        info = self.get_dataset_info()
 
-        info = self.datasets[
-            self.get_dataset_key()
-        ]
-
-        full_df = info["dataframe"].copy()
+        full_df = info[
+            "dataframe"
+        ].copy()
 
         if not self.use_selection.isChecked():
             return full_df
 
-        return info["view"].get_analysis_dataframe().copy()
+        return info[
+            "view"
+        ].get_analysis_dataframe().copy()
 
+    def get_workspace(self):
+        return self.get_dataset_info()[
+            "workspace"
+        ]
+
+    def get_target(self):
+        return self.get_dataset_info()[
+            "target"
+        ]
 
     def change_target(self):
-
         self.dataframe = self.get_dataframe()
+        self.operation_dataframe = (
+            self.get_operation_dataframe()
+        )
 
-        self.operation_dataframe = self.get_operation_dataframe()
+        self.refresh_column_rows()
+        self.update_operation_options()
+        self.update_preview()
 
-        self.column_combo.clear()
+    def change_selection_mode(self):
+        checked = self.use_selection.isChecked()
+
+        self.preserve_unselected.setEnabled(
+            checked
+        )
+
+        self.change_target()
+
+    # =============================================================
+    # SOURCE COLUMN ROWS
+    # =============================================================
+
+    def add_column_row(self):
+        row_widget = QWidget()
+        row_layout = QHBoxLayout(row_widget)
+
+        row_layout.setContentsMargins(
+            0, 0, 0, 0
+        )
+
+        combo = QComboBox()
+
+        constant_edit = QLineEdit()
+        constant_edit.setPlaceholderText(
+            "Constant"
+        )
+        constant_edit.setVisible(False)
+
+        operator_combo = QComboBox()
+
+        for operator in DataType.OPERATORS:
+            operator_combo.addItem(
+                operator,
+                operator
+            )
+
+        remove_button = QPushButton("×")
+        remove_button.setFixedWidth(30)
+
+        row_layout.addWidget(combo)
+        row_layout.addWidget(constant_edit)
+        row_layout.addWidget(operator_combo)
+        row_layout.addWidget(remove_button)
+
+        self.columns_layout.addWidget(
+            row_widget
+        )
+
+        self.column_rows.append(
+            (
+                row_widget,
+                combo,
+                constant_edit,
+                operator_combo,
+                remove_button,
+            )
+        )
+
+        combo.currentIndexChanged.connect(
+            self.source_columns_changed
+        )
+
+        constant_edit.textChanged.connect(
+            self.source_columns_changed
+        )
+
+        operator_combo.currentIndexChanged.connect(
+            self.update_preview
+        )
+
+        remove_button.clicked.connect(
+            lambda: self.remove_column_row(
+                row_widget
+            )
+        )
+
+        self.populate_column_combo(combo)
+
+        self.update_column_row_buttons()
+        self.update_operator_rows()
+        self.update_operation_options()
+
+
+    def remove_column_row(self, widget):
+        if len(self.column_rows) <= 1:
+            return
+
+        for index, item in enumerate(
+            self.column_rows
+        ):
+            row_widget, _, _, _, _ = item
+
+            if row_widget is widget:
+                self.columns_layout.removeWidget(
+                    row_widget
+                )
+
+                row_widget.deleteLater()
+
+                self.column_rows.pop(index)
+                break
+
+        self.update_column_row_buttons()
+        self.update_operator_rows()
+        self.update_operation_options()
+        self.update_preview()
+
+    def update_column_row_buttons(self):
+        show_remove = (
+            len(self.column_rows) > 1
+        )
+
+        for (
+            row_widget,
+            combo,
+            constant_edit,
+            operator_combo,
+            remove_button,
+        ) in self.column_rows:
+
+            remove_button.setVisible(
+                show_remove
+            )
+
+    def populate_column_combo(self, combo):
+        current = combo.currentData()
+
+        combo.blockSignals(True)
+        combo.clear()
+
+        # Dataset columns
+        for column in self.operation_dataframe.columns:
+            combo.addItem(
+                str(column),
+                ("column", column)
+            )
+
+
+
+        # Constant operand
+        combo.addItem(
+            "Constant",
+            ("constant", None)
+        )
+
+        # Restore previous selection if it still exists
+        if current is not None:
+            for index in range(combo.count()):
+                if combo.itemData(index) == current:
+                    combo.setCurrentIndex(index)
+                    break
+
+        combo.blockSignals(False)
+
+    def refresh_column_rows(self):
+        for (
+            _,
+            combo,
+            _,
+            _,
+            _,
+        ) in self.column_rows:
+            self.populate_column_combo(
+                combo
+            )
+
+    def get_selected_columns(self):
+        columns = []
+
+        for (
+            _,
+            combo,
+            _,
+            _,
+            _,
+        ) in self.column_rows:
+
+            data = combo.currentData()
+
+            if not data:
+                continue
+
+            operand_type, value = data
+
+            if operand_type == "column":
+                columns.append(value)
+
+        return columns
+
+    def source_columns_changed(self):
+        self.update_operation_options()
+        self.update_preview()
+
+    # =============================================================
+    # OPERATION MENU
+    # =============================================================
+
+    def update_operation_options(self):
+        columns = self.get_selected_columns()
+
+        self.build_operation_menu(
+            columns
+        )
+
+    def get_dtype_group(self, series):
+        if pd.api.types.is_bool_dtype(series):
+            return "boolean"
+
+        if pd.api.types.is_numeric_dtype(series):
+            return "numeric"
+
+        if pd.api.types.is_datetime64_any_dtype(series):
+            return "datetime"
+
+        if pd.api.types.is_categorical_dtype(series):
+            return "category"
+
+        if pd.api.types.is_string_dtype(series):
+            return "text"
+
+        return "other"
+
+    def operation_allowed(
+        self,
+        operation,
+        columns,
+    ):
+        spec = DataType.TRANSFORM_OPERATIONS.get(
+            operation
+        )
+
+        if spec is None:
+            return False
+
+        count = len(columns)
+
+        minimum = spec.get(
+            "min_columns",
+            1
+        )
+
+        maximum = spec.get(
+            "max_columns"
+        )
+
+        if count < minimum:
+            return False
+
+        if (
+            maximum is not None
+            and count > maximum
+        ):
+            return False
+
+        allowed = (
+            spec.get("allowed_dtypes")
+            or spec.get("dtype")
+        )
+
+        if allowed is None:
+            return True
+
+        if isinstance(
+            allowed,
+            str
+        ):
+            allowed = {
+                allowed
+            }
+
+        groups = {
+            self.get_dtype_group(
+                self.operation_dataframe[column]
+            )
+            for column in columns
+        }
+
+        if "any" in allowed:
+            return True
+
+        return groups.issubset(
+            set(allowed)
+        )
+
+    def build_operation_menu(
+        self,
+        columns=None,
+    ):
+        if columns is None:
+            columns = []
+
+        self.operation_menu.clear()
+        self.operation_actions = {}
+
+        # Prevent duplicate source columns.
+        if len(columns) != len(set(columns)):
+            self.operation_button.setEnabled(
+                False
+            )
+            self.operation_button.setText(
+                "Select different columns..."
+            )
+            return
+
+        self.operation_button.setEnabled(
+            bool(columns)
+        )
+
+        grouped = {}
+
+        for operation, spec in (
+            DataType.TRANSFORM_OPERATIONS.items()
+        ):
+            if not self.operation_allowed(
+                operation,
+                columns
+            ):
+                continue
+
+            group = spec.get(
+                "group",
+                "Other"
+            )
+
+            grouped.setdefault(
+                group,
+                []
+            ).append(
+                operation
+            )
+
+        # Calculation is a separate mode.
+        if len(columns) >= 1:
+            grouped.setdefault(
+                "Calculate",
+                []
+            ).append(
+                "__calculate__"
+            )
+
+        for group, operations in grouped.items():
+            menu = self.operation_menu.addMenu(
+                group
+            )
+
+            for operation in operations:
+
+                if operation == "__calculate__":
+                    action = menu.addAction(
+                        "Calculated expression"
+                    )
+
+                    action.setData(
+                        operation
+                    )
+
+                    action.triggered.connect(
+                        lambda checked=False,
+                        action=action:
+                        self.select_operation(
+                            action
+                        )
+                    )
+
+                    self.operation_actions[
+                        operation
+                    ] = action
+
+                    continue
+
+                spec = DataType.TRANSFORM_OPERATIONS[
+                    operation
+                ]
+
+                label = spec.get(
+                    "label",
+                    operation.replace(
+                        "_",
+                        " "
+                    ).title()
+                )
+
+                self.add_operation(
+                    menu,
+                    label,
+                    operation
+                )
+
+        if not self.operation_actions:
+            self.operation = None
+            self.operation_button.setText(
+                "No valid operations"
+            )
+            self.update_value_controls()
+            return
+
+        if self.operation not in self.operation_actions:
+            self.operation = None
+            self.operation_button.setText(
+                "Select operation..."
+            )
+
+        self.update_value_controls()
+
+    def add_operation(
+        self,
+        menu,
+        label,
+        value,
+    ):
+        action = menu.addAction(
+            label
+        )
+
+        action.setData(
+            value
+        )
+
+        action.triggered.connect(
+            lambda checked=False,
+            action=action:
+            self.select_operation(
+                action
+            )
+        )
+
+        self.operation_actions[
+            value
+        ] = action
+
+    def select_operation(self, action):
+        self.operation = action.data()
+
+        self.operation_button.setText(
+            action.text()
+        )
+
+        self.update_column_rows_for_operation()
+        self.update_value_controls()
+        self.update_destination_controls()
+        self.update_preview()
+
+    # =============================================================
+    # VALUE CONTROLS
+    # =============================================================
+
+    def clear_value_controls(self):
+        while self.value_layout.count():
+            item = self.value_layout.takeAt(0)
+
+            widget = item.widget()
+
+            if widget is not None:
+                widget.deleteLater()
+
+
+    def update_value_controls(self):
+        operation = self.operation
+
+        widgets = [
+            self.decimal_places,
+            self.type_combo,
+            self.value_edit,
+            self.find_edit,
+            self.replace_edit,
+            self.pattern_edit,
+            self.clip_min,
+            self.clip_max,
+            self.substring_start,
+            self.substring_end,
+            self.pad_width,
+            self.separator_edit,
+        ]
+
+        for widget in widgets:
+            widget.setVisible(False)
+
+        if operation is None:
+            self.value_widget.setVisible(False)
+            return
+
+        if operation == "__calculate__":
+            self.value_widget.setVisible(False)
+            return
+
+        self.value_widget.setVisible(True)
+
+        if operation in {
+            "round",
+            "round_to",
+        }:
+            self.value_label.setText(
+                "Decimal places"
+            )
+
+            self.decimal_places.setVisible(True)
+
+        elif operation == "astype":
+            self.value_label.setText(
+                "Target type"
+            )
+
+            self.type_combo.setVisible(True)
+
+        elif operation in {
+            "power",
+            "modulus",
+            "add_value",
+            "subtract_value",
+            "multiply_value",
+            "divide_value",
+        }:
+            self.value_label.setText(
+                "Value"
+            )
+
+            self.value_edit.setVisible(True)
+
+        elif operation == "clip":
+            self.value_label.setText(
+                "Minimum / maximum"
+            )
+
+            self.clip_min.setVisible(True)
+            self.clip_max.setVisible(True)
+
+        elif operation in {
+            "find_and_replace",
+            "replace_substring",
+            "regex_replace",
+            "regex_replace_all",
+        }:
+            self.value_label.setText(
+                "Find / pattern"
+            )
+
+            self.find_edit.setVisible(True)
+            self.replace_edit.setVisible(True)
+
+        elif operation in {
+            "contains",
+            "startswith",
+            "endswith",
+            "count_occurrences",
+            "find_index",
+        }:
+            self.value_label.setText(
+                "Text"
+            )
+
+            self.value_edit.setVisible(True)
+
+        elif operation in {
+            "regex_extract",
+            "regex_match",
+            "regex_search",
+            "regex_findall",
+            "regex_extract_all",
+        }:
+            self.value_label.setText(
+                "Pattern"
+            )
+
+            self.pattern_edit.setVisible(True)
+
+        elif operation in {
+            "substring",
+            "extract_substring",
+        }:
+            self.value_label.setText(
+                "Start / end"
+            )
+
+            self.substring_start.setVisible(True)
+            self.substring_end.setVisible(True)
+
+        elif operation == "pad":
+            self.value_label.setText(
+                "Width"
+            )
+
+            self.pad_width.setVisible(True)
+
+        elif operation == "concatenate":
+            self.value_label.setText(
+                "Separator"
+            )
+
+            self.separator_edit.setVisible(True)
+
+        else:
+            self.value_label.clear()
+            self.value_widget.setVisible(False)
+
+    # =============================================================
+    # DESTINATION
+    # =============================================================
+
+    def update_destination_controls(self):
+        operation = self.operation
+
+        if operation == "__calculate__":
+            self.destination_widget.setVisible(
+                True
+            )
+
+            self.replace_col_button.setVisible(
+                False
+            )
+
+            self.create_col_button.setVisible(
+                False
+            )
+
+            self.new_col_name.setVisible(
+                True
+            )
+
+            if not self.new_col_name.text():
+                self.new_col_name.setText(
+                    "calculated"
+                )
+
+            return
+    # =============================================================
+    # CALCULATIONS
+    # =============================================================
+
+    def update_calculation_visibility(self):
+        visible = (
+            self.operation == "__calculate__"
+        )
+
+        self.calculation_widget.setVisible(
+            visible
+        )
+
+    def add_calculation_operand(self):
+        row = QWidget()
+        row_layout = QHBoxLayout(row)
+
+        row_layout.setContentsMargins(
+            0,
+            0,
+            0,
+            0
+        )
+
+        type_combo = QComboBox()
+
+        type_combo.addItem(
+            "Column",
+            "column"
+        )
+
+        type_combo.addItem(
+            "Constant",
+            "constant"
+        )
+
+        value_combo = QComboBox()
 
         for column in self.operation_dataframe.columns:
-            self.column_combo.addItem(
+            value_combo.addItem(
                 str(column),
                 column
             )
 
-        self.update_operation_options()
+        operator_combo = QComboBox()
+
+        for operator in DataType.OPERATORS:
+            operator_combo.addItem(
+                operator,
+                operator
+            )
+
+        remove_button = QPushButton("×")
+        remove_button.setFixedWidth(30)
+
+        row_layout.addWidget(
+            type_combo
+        )
+
+        row_layout.addWidget(
+            value_combo
+        )
+
+        row_layout.addWidget(
+            operator_combo
+        )
+
+        row_layout.addWidget(
+            remove_button
+        )
+
+        self.calculation_rows_layout.addWidget(
+            row
+        )
+
+        def update_operand_type():
+            value_combo.clear()
+
+            if type_combo.currentData() == "column":
+                for column in self.operation_dataframe.columns:
+                    value_combo.addItem(
+                        str(column),
+                        column
+                    )
+            else:
+                value_combo.setEditable(
+                    True
+                )
+                value_combo.addItem(
+                    "0",
+                    0
+                )
+
+            self.update_preview()
+
+        type_combo.currentIndexChanged.connect(
+            update_operand_type
+        )
+
+        value_combo.currentIndexChanged.connect(
+            self.update_preview
+        )
+
+        operator_combo.currentIndexChanged.connect(
+            self.update_preview
+        )
+
+        remove_button.clicked.connect(
+            lambda: self.remove_calculation_operand(
+                row
+            )
+        )
+
         self.update_preview()
 
-    def get_workspace(self):
-        return self.datasets[self.get_dataset_key()]["workspace"]
-
-
-    def get_target(self):
-        return self.datasets[self.get_dataset_key()]["target"]
-
-    def update_operation_options(self):
-        """Rebuild the menu for the selected column."""
-
-        column = self.column_combo.currentData()
-
-        if column is None:
-            self.operation_button.setEnabled(False)
-            return
-
-        self.operation_button.setEnabled(True)
-
-        series = self.operation_dataframe[column]
-
-        numeric = (
-            pd.api.types.is_numeric_dtype(series)
-            and not pd.api.types.is_bool_dtype(series)
+    def remove_calculation_operand(self, widget):
+        self.calculation_rows_layout.removeWidget(
+            widget
         )
 
-        text = (
-            pd.api.types.is_string_dtype(series)
-            or pd.api.types.is_object_dtype(series)
-            #or pd.api.types.is_categorical_dtype(series)
-        )
+        widget.deleteLater()
 
-        datetime = pd.api.types.is_datetime64_any_dtype(series)
-
-        category = isinstance(
-            series.dtype,
-            pd.CategoricalDtype
-        )
-
-        self.build_operation_menu(
-            numeric=numeric,
-            text=text,
-            datetime=datetime,
-            category=category,
-        )
-
-        # Reset invalid selection
-        if self.operation not in self.operation_actions:
-            self.operation = None
-            self.operation_button.setText("Select operation...")
-
-        self.update_value_controls()
         self.update_preview()
 
-    def update_value_controls(self):
+    def get_calculation(self):
+        name = self.new_col_name.text().strip()
 
-        operation = self.operation
+        if not name:
+            raise ValueError(
+                "A calculated column name is required."
+            )
 
-        is_round = operation == "round"
-        is_astype = operation == "astype"
+        operands = []
+        operators = []
 
-        self.decimal_places.setVisible(is_round)
-        self.type_combo.setVisible(is_astype)
+        for index, (
+            row_widget,
+            combo,
+            constant_edit,
+            operator_combo,
+            remove_button,
+        ) in enumerate(self.column_rows):
 
-        if is_round:
-            self.value_label.setText("Decimal places")
+            data = combo.currentData()
 
-        elif is_astype:
-            self.value_label.setText("Target type")
+            if not data:
+                continue
 
-        else:
-            self.value_label.clear()
+            operand_type, value = data
+
+            if operand_type == "column":
+                operands.append(
+                    CalculationOperand(
+                        type="column",
+                        value=value,
+                    )
+                )
+
+            elif operand_type == "constant":
+                text = constant_edit.text().strip()
+
+                if not text:
+                    raise ValueError(
+                        "Enter a value for every constant."
+                    )
+
+                try:
+                    constant = float(text)
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid constant: {text}"
+                    )
+
+                operands.append(
+                    CalculationOperand(
+                        type="constant",
+                        value=constant,
+                    )
+                )
+
+            if index < len(self.column_rows) - 1:
+                operators.append(
+                    operator_combo.currentData()
+                )
+
+        if not operands:
+            raise ValueError(
+                "Select at least one calculation operand."
+            )
+
+        operators = operators[:len(operands) - 1]
+
+        if len(operators) != len(operands) - 1:
+            raise ValueError(
+                "A calculation requires one operator "
+                "between each pair of operands."
+            )
+
+        return CalculationConfig(
+            name=name,
+            operands=operands,
+            operators=operators,
+        )
+
+    # =============================================================
+    # CONFIGURATION
+    # =============================================================
 
     def get_transform(self):
-
         operation = self.operation
 
-        value = None
+        if operation == "__calculate__":
+            return self.get_calculation()
 
-        if operation == "round":
-            value = self.decimal_places.value()
+        if operation is None:
+            raise ValueError(
+                "Select an operation."
+            )
 
-        if operation == "exp":
-            value = self.type_combo.currentData()
+        columns = self.get_selected_columns()
 
-        elif operation == "astype":
-            value = self.type_combo.currentData()
+        if not columns:
+            raise ValueError(
+                "Select at least one column."
+            )
+
+        spec = DataType.TRANSFORM_OPERATIONS.get(
+            operation
+        )
+
+        if spec is None:
+            raise ValueError(
+                f"Unsupported operation: {operation}"
+            )
+
+        mode = spec.get(
+            "mode",
+            "single"
+        )
+
+        # ---------------------------------------------------------
+        # MULTI COLUMN
+        # ---------------------------------------------------------
+
+        if mode == "multi":
+            value = self.get_operation_value()
+
+            if operation == "one_hot_encoding":
+                return MultiColumnTransformConfig(
+                    columns=columns,
+                    operation=operation,
+                    value=value,
+                    min_columns=1,
+                    max_columns=1,
+                )
+
+            new_column = (
+                self.new_col_name.text().strip()
+            )
+
+            return MultiColumnTransformConfig(
+                columns=columns,
+                operation=operation,
+                value=value,
+                new_column=new_column,
+                min_columns=spec.get(
+                    "min_columns",
+                    2
+                ),
+                max_columns=spec.get(
+                    "max_columns"
+                ),
+            )
+
+        # ---------------------------------------------------------
+        # SINGLE COLUMN
+        # ---------------------------------------------------------
+
+        value = self.get_operation_value()
 
         destination = (
             "new"
@@ -329,38 +1443,169 @@ class TransformDialog(QDialog):
         new_column = None
 
         if destination == "new":
-            new_column = self.new_col_name.text().strip()
+            new_column = (
+                self.new_col_name.text().strip()
+            )
 
         return TransformConfig(
-            column=self.column_combo.currentData(),
+            column=columns[0],
             operation=operation,
             value=value,
             destination=destination,
-            new_column=new_column
+            new_column=new_column,
         )
+    def get_operands(self):
+        operands = []
+
+        for _, combo, constant_edit, _ in self.column_rows:
+            data = combo.currentData()
+
+            if not data:
+                continue
+
+            operand_type, value = data
+
+            if operand_type == "column":
+                operands.append(
+                    CalculationOperand(
+                        type="column",
+                        value=value,
+                    )
+                )
+
+            elif operand_type == "constant":
+                text = constant_edit.text().strip()
+
+                if not text:
+                    raise ValueError(
+                        "Enter a value for every constant."
+                    )
+
+                try:
+                    value = float(text)
+                except ValueError:
+                    raise ValueError(
+                        f"Invalid constant: {text}"
+                    )
+
+                operands.append(
+                    CalculationOperand(
+                        type="constant",
+                        value=value,
+                    )
+                )
+
+        return operands
+
+    def get_operation_value(self):
+
+        operation = self.operation
+
+        if operation in {
+            "round",
+            "round_to",
+        }:
+            return self.decimal_places.value()
+
+        if operation == "astype":
+            return self.type_combo.currentData()
+
+        if operation in {
+            "power",
+            "modulus",
+            "add_value",
+            "subtract_value",
+            "multiply_value",
+            "divide_value",
+        }:
+            try:
+                return float(
+                    self.value_edit.text()
+                )
+            except ValueError:
+                raise ValueError(
+                    "Enter a valid numeric value."
+                )
+
+        if operation == "clip":
+            minimum = self.clip_min.value()
+            maximum = self.clip_max.value()
+
+            if minimum > maximum:
+                raise ValueError(
+                    "Clip minimum cannot be greater than maximum."
+                )
+
+            return minimum, maximum
+
+        if operation in {
+            "find_and_replace",
+            "replace_substring",
+            "regex_replace",
+            "regex_replace_all",
+        }:
+            return (
+                self.find_edit.text(),
+                self.replace_edit.text(),
+            )
+
+        if operation in {
+            "contains",
+            "startswith",
+            "endswith",
+            "count_occurrences",
+            "find_index",
+        }:
+            return self.value_edit.text()
+
+        if operation in {
+            "regex_extract",
+            "regex_match",
+            "regex_search",
+            "regex_findall",
+            "regex_extract_all",
+        }:
+            return self.pattern_edit.text()
+
+        if operation in {
+            "substring",
+            "extract_substring",
+        }:
+            return (
+                self.substring_start.value(),
+                self.substring_end.value(),
+            )
+
+        if operation == "pad":
+            return self.pad_width.value()
+
+        if operation == "concatenate":
+            return self.separator_edit.text()
+
+        return None
+
+    # =============================================================
+    # PREVIEW
+    # =============================================================
 
     def update_preview(self):
-
         full = self.show_all_rows.isChecked()
 
         self.preview.display_dataframe(
             self.operation_dataframe,
             full=full
         )
-        if self.operation is None:
 
+        if self.operation is None:
             self.result_preview.clearContents()
             self.result_preview.setRowCount(0)
-
             self.apply_button.setEnabled(False)
-
             return
-        
-        try:
 
+        try:
             config = self.get_transform()
 
-            operation_result = self.processor.transform(
+            result = self.processor.apply_transform(
                 self.operation_dataframe,
                 config
             )
@@ -369,104 +1614,64 @@ class TransformDialog(QDialog):
                 self.use_selection.isChecked()
                 and self.preserve_unselected.isChecked()
             ):
-
                 result = self.merge_selection_result(
-                self.dataframe,
-                operation_result
+                    self.dataframe,
+                    result
+                )
+
+            self.result_preview.display_dataframe(
+                result,
+                full=full
             )
 
-            else:
-
-                result = operation_result
+            self.result = result
+            self.apply_button.setEnabled(True)
 
         except (
             KeyError,
             TypeError,
-            ValueError
+            ValueError,
+            ZeroDivisionError,
         ):
-
             self.result_preview.clearContents()
             self.result_preview.setRowCount(0)
             self.apply_button.setEnabled(False)
 
-            return
-
-        self.result_preview.display_dataframe(
-            result,
-            full=full
-        )
-
-        self.result = result
-        self.apply_button.setEnabled(True)
-
-
-    def update_selection_options(self, checked):
-
-        self.preserve_unselected.setEnabled(
-            checked
-        )
-
-        self.change_target()
-
-    def merge_selection_result(
-        self,
-        original,
-        result
-    ):
-
-        merged = original.copy()
-
-        for column in result.columns:
-
-            if column not in merged.columns:
-                merged[column] = pd.NA
-
-            common = result.index.intersection(
-                merged.index
-            )
-
-            merged.loc[
-                common,
-                column
-            ] = result.loc[
-                common,
-                column
-            ]
-
-        return merged
+    # =============================================================
+    # APPLY
+    # =============================================================
 
     def apply(self):
-
         try:
-
             config = self.get_transform()
 
-            operation_result = self.processor.apply_transform(
-                self.operation_dataframe,
-                config
+            operation_result = (
+                self.processor.apply_transform(
+                    self.operation_dataframe,
+                    config
+                )
             )
 
             if (
                 self.use_selection.isChecked()
                 and self.preserve_unselected.isChecked()
             ):
-
                 result = self.merge_selection_result(
                     self.dataframe,
                     operation_result
                 )
-
             else:
-
                 result = operation_result
 
             self.result = result
+
             self.accept()
 
         except (
             KeyError,
             TypeError,
-            ValueError
+            ValueError,
+            ZeroDivisionError,
         ) as error:
 
             QMessageBox.warning(
@@ -475,45 +1680,47 @@ class TransformDialog(QDialog):
                 str(error)
             )
 
-    def get_result(self):
-        return self.result
-
-
-
-    def update_destination_controls(self):
-
-        is_new = self.create_col_button.isChecked()
-
-        self.new_col_name.setVisible(is_new)
-
-        if is_new:
-
-            self.new_col_name.setText(
-                self.default_new_column_name()
-            )
-
-        self.update_preview()
+    # =============================================================
+    # DESTINATION HELPERS
+    # =============================================================
 
     def default_new_column_name(self):
-
-        column = self.column_combo.currentData()
+        columns = self.get_selected_columns()
         operation = self.operation
 
-        if column is None or operation is None:
+        if not columns or operation is None:
             return ""
+
+        if operation == "__calculate__":
+            return "calculated"
+
+        if len(columns) > 1:
+            return (
+                "_".join(map(str, columns))
+                + "_"
+                + operation
+            )
+
+        column = columns[0]
 
         suffixes = {
             "normalize": "normalized",
             "absolute": "absolute",
             "round": "rounded",
+            "round_to": "rounded",
             "standardize": "standardized",
             "rank": "rank",
             "log": "log",
-            "log10": "log10",
             "exp": "exp",
             "sqrt": "sqrt",
-            "ceil": "ceil",
+            "cbrt": "cbrt",
+            "reciprocal": "reciprocal",
+            "square": "square",
+            "cube": "cube",
+            "power": "power",
+            "modulus": "modulus",
             "floor": "floor",
+            "ceil": "ceil",
             "clip": "clip",
             "cumulative_sum": "cumsum",
             "uppercase": "uppercase",
@@ -537,128 +1744,122 @@ class TransformDialog(QDialog):
             "extract_second": "second",
             "extract_millisecond": "millisecond",
             "extract_nanosecond": "nanosecond",
-            "one_hot_encoding": "encode",
-            "astype": self.type_combo.currentData(),
+            "astype": "converted",
         }
 
-        suffix = suffixes.get(operation, operation)
+        suffix = suffixes.get(
+            operation,
+            operation
+        )
 
         return f"{column}_{suffix}"
 
+    # =============================================================
+    # SELECTION MERGE
+    # =============================================================
 
-    def build_operation_menu(self, numeric=False, text=False, datetime=False, category=False):
+    def merge_selection_result(
+        self,
+        original,
+        result,
+    ):
+        merged = original.copy()
 
-        self.operation_menu.clear()
-        self.operation_actions = {}
+        for column in result.columns:
 
-        if numeric:
-            menu = self.operation_menu.addMenu("Numeric")
+            if column not in merged.columns:
+                merged[column] = pd.NA
 
-            self.add_operation(menu, "Round", "round")
-            self.add_operation(menu, "Absolute value", "absolute")
-            self.add_operation(menu, "Normalize", "normalize")
-            self.add_operation(menu, "Standardize", "standardize")
-            self.add_operation(menu, "Rank", "rank")
-            self.add_operation(menu, "log", "log")
-            self.add_operation(menu, "log10", "log10")
-            self.add_operation(menu, "exp", "exp")
-            self.add_operation(menu, "sqrt", "sqrt")
-            self.add_operation(menu, "cbrt", "cbrt")
-            self.add_operation(menu, "Ceil", "ceil")
-            self.add_operation(menu, "Floor", "floor")
-            self.add_operation(menu, "clip", "clip")
-            self.add_operation(menu, "Cumulative sum", "cumulative_sum")
-            self.add_operation(menu, "Extract Difference between columns", "difference_between_columns")
-            self.add_operation(menu, "Round To", "round_to")
-            self.add_operation(menu, "Modulus", "modulus")
-            self.add_operation(menu, "Power", "power")
-            self.add_operation(menu, "exponent", "exp")
-            self.add_operation(menu, "z_score", "z_score")
-            self.add_operation(menu, "iqr", "iqr")
-        elif text:
-            menu = self.operation_menu.addMenu("Text")
+            common = result.index.intersection(
+                merged.index
+            )
 
-            self.add_operation(menu, "Uppercase", "uppercase")
-            self.add_operation(menu, "Lowercase", "lowercase")
-            self.add_operation(menu, "Title case", "title_case")
-            self.add_operation(menu, "Trim", "trim")
-            self.add_operation(menu, "Remove whitespace", "remove_whitespace")
-            self.add_operation(menu, "Capitalize first", "capitalize_first")
-            self.add_operation(menu, "Length", "length")
-            self.add_operation(menu, "find and replace", "find_and_replace")
-            self.add_operation(menu, "Extract substring", "extract_substring")
-            self.add_operation(menu, "Pad", "pad")
-            self.add_operation(menu, "Remove substring", "remove_substring")
-            self.add_operation(menu, "Split", "split")
-            self.add_operation(menu, "Join", "join")
-            self.add_operation(menu, "Regex replace", "regex_replace")
-            self.add_operation(menu, "Regex extract", "regex_extract")
-        elif datetime:
-            menu = self.operation_menu.addMenu("Date / Time")
+            merged.loc[
+                common,
+                column
+            ] = result.loc[
+                common,
+                column
+            ]
 
-            self.add_operation(menu, "Extract year", "extract_year")
-            self.add_operation(menu, "Extract month", "extract_month")
-            self.add_operation(menu, "Extract weekday", "extract_weekday")
-            self.add_operation(menu, "Extract hour", "extract_hour")
-            self.add_operation(menu, "Extract minute", "extract_minute")
-            self.add_operation(menu, "Extract second", "extract_second")
-            self.add_operation(menu, "Extract millisecond", "extract_millisecond")
-            self.add_operation(menu, "Extract nanosecond", "extract_nanosecond")
-            self.add_operation(menu, "Extract day", "extract_day")
-            self.add_operation(menu, "Extract weekend", "extract_weekend")
-            self.add_operation(menu, "Extract quarter", "extract_quarter")
-            self.add_operation(menu, "Extract month name", "extract_month_name")
-            self.add_operation(menu, "Extract day name", "extract_day_name")
-            self.add_operation(menu, "Extract time", "extract_time")
-            #self.add_operation(menu, "Extract date", "extract_date")
-            #self.add_operation(menu, "Extract timestamp", "extract_timestamp")
-            #self.add_operation(menu, "Extract ISO week", "extract_iso_week")
-            #self.add_operation(menu, "Extract ISO year", "extract_iso_year")
-            #self.add_operation(menu, "Extract ISO weekday", "extract_iso_weekday")
-            #self.add_operation(menu, "Extract ISO quarter", "extract_iso_quarter")
-            #self.add_operation(menu, "Extract ISO month", "extract_iso_month")
-            #self.add_operation(menu, "Extract Week Number", "extract_week_number" )
-            #self.add_operation(menu, "Extract ISO day", "extract_iso_day")
-            #self.add_operation(menu, "Extract Age", "extract_age")
-            self.add_operation(menu, "Extract days between columns", "days_between") 
-            self.add_operation(menu, "Extract weeks between columns", "weeks_between")
-            self.add_operation(menu, "Extract months between columns", "months_between")
-            self.add_operation(menu, "Extract years between columns", "years_between")
-            self.add_operation(menu, "Extract Seconds between columns", "seconds_between")
-            self.add_operation(menu, "Extract difference between columns", "difference")
-              
-        elif category:
-            self.add_operation(menu, "One Hot Encoding", "one_hot_encoding")
+        return merged
 
+    # =============================================================
+    # RESULT
+    # =============================================================
 
-        # Always available
-        type_menu = self.operation_menu.addMenu("Type")
-        self.add_operation(type_menu, "Change type", "astype")
+    def get_result(self):
+        return self.result
 
-    def add_operation(self, menu, label, value):
-        """Add an operation action to a menu."""
-
-        action = menu.addAction(label)
-
-        action.setData(value)
-
-        action.triggered.connect(
-            lambda checked=False, action=action:
-            self.select_operation(action)
+    def update_operator_rows(self):
+        is_calculation = (
+            self.operation == "__calculate__"
         )
 
-        self.operation_actions[value] = action
+        count = len(self.column_rows)
 
-    def select_operation(self, action):
-        """Set the currently selected operation."""
+        for index, (
+            _,
+            combo,
+            constant_edit,
+            operator_combo,
+            _,
+        ) in enumerate(self.column_rows):
 
-        value = action.data()
+            data = combo.currentData()
 
-        self.operation = value
+            is_constant = (
+                data is not None
+                and data[0] == "constant"
+            )
 
-        self.operation_button.setText(
-            action.text()
+            constant_edit.setVisible(
+                is_calculation
+                and is_constant
+            )
+
+            operator_combo.setVisible(
+                is_calculation
+                and index < count - 1
+            )
+            
+    def update_column_rows_for_operation(self):
+        is_calculation = (
+            self.operation == "__calculate__"
         )
 
-        self.update_value_controls()
-        self.update_preview()
+        if is_calculation:
+            self.source_label.setText(
+                "Calculation operands"
+            )
+        else:
+            self.source_label.setText(
+                "Source columns"
+            )
+
+        for (
+            _,
+            combo,
+            constant_edit,
+            operator_combo,
+            _,
+        ) in self.column_rows:
+
+            data = combo.currentData()
+
+            is_constant = (
+                data is not None
+                and data[0] == "constant"
+            )
+
+            # Constants are only valid for calculations
+            if not is_calculation and is_constant:
+                combo.setCurrentIndex(0)
+                constant_edit.clear()
+
+            constant_edit.setVisible(
+                is_calculation
+                and is_constant
+            )
+
+        self.update_operator_rows()
