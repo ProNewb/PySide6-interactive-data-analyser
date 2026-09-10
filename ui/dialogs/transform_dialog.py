@@ -977,140 +977,133 @@ class TransformDialog(QDialog):
     def update_value_controls(self):
         operation = self.operation
 
-        widgets = [
-            self.decimal_places,
-            self.type_combo,
-            self.value_edit,
-            self.find_edit,
-            self.replace_edit,
-            self.pattern_edit,
-            self.clip_min,
-            self.clip_max,
-            self.substring_start,
-            self.substring_end,
-            self.pad_width,
-            self.separator_edit,
-        ]
+        # Hide everything first
+        self.decimal_places.setVisible(False)
+        self.type_combo.setVisible(False)
 
-        for widget in widgets:
-            widget.setVisible(False)
+        self.value_edit.setVisible(False)
+
+        self.find_edit.setVisible(False)
+        self.replace_edit.setVisible(False)
+
+        self.pattern_edit.setVisible(False)
+
+        self.clip_min.setVisible(False)
+        self.clip_max.setVisible(False)
+
+        self.substring_start.setVisible(False)
+        self.substring_end.setVisible(False)
+
+        self.pad_width.setVisible(False)
+        self.separator_edit.setVisible(False)
 
         if operation is None:
-            self.value_widget.setVisible(False)
             return
 
-        if operation == "__calculate__":
-            self.value_widget.setVisible(False)
-            return
-
-        self.value_widget.setVisible(True)
-
-        if operation in {
-            "round",
-            "round_to",
-        }:
-            self.value_label.setText(
-                "Decimal places"
-            )
-
-            self.decimal_places.setVisible(True)
-
-        elif operation == "astype":
-            self.value_label.setText(
-                "Target type"
-            )
-
+        # -------------------------
+        # Type conversion
+        # -------------------------
+        if operation == "astype":
             self.type_combo.setVisible(True)
+            return
 
-        elif operation in {
+        # -------------------------
+        # Numeric value
+        # -------------------------
+        if operation in {
             "power",
             "modulus",
-            "add_value",
-            "subtract_value",
-            "multiply_value",
-            "divide_value",
-        }:
-            self.value_label.setText(
-                "Value"
-            )
-
-            self.value_edit.setVisible(True)
-
-        elif operation == "clip":
-            self.value_label.setText(
-                "Minimum / maximum"
-            )
-
-            self.clip_min.setVisible(True)
-            self.clip_max.setVisible(True)
-
-        elif operation in {
-            "find_and_replace",
-            "replace_substring",
-            "regex_replace",
-            "regex_replace_all",
-        }:
-            self.value_label.setText(
-                "Find / pattern"
-            )
-
-            self.find_edit.setVisible(True)
-            self.replace_edit.setVisible(True)
-
-        elif operation in {
             "contains",
             "startswith",
             "endswith",
             "count_occurrences",
-            "find_index",
+            
         }:
-            self.value_label.setText(
-                "Text"
-            )
-
             self.value_edit.setVisible(True)
+            return
 
-        elif operation in {
+        # -------------------------
+        # Clip
+        # -------------------------
+        if operation == "clip":
+            self.clip_min.setVisible(True)
+            self.clip_max.setVisible(True)
+            return
+
+
+        # -------------------------
+        # Find / replace
+        # -------------------------
+        if operation in {
+            "find_and_replace",
+            "replace",
+        }:
+            self.find_edit.setVisible(True)
+            self.replace_edit.setVisible(True)
+            return
+
+        # -------------------------
+        # Replace entire cell
+        # -------------------------
+        if operation == "replace_all":
+            self.replace_edit.setVisible(True)
+            return
+
+        # -------------------------
+        # Regex replacement
+        # -------------------------
+        if operation in {
+            "regex_replace",
+            "regex_replace_all",
+        }:
+            self.pattern_edit.setVisible(True)
+            self.replace_edit.setVisible(True)
+            return
+
+        # -------------------------
+        # Regex matching/extraction
+        # -------------------------
+        if operation in {
             "regex_extract",
             "regex_match",
-            "regex_search",
             "regex_findall",
-            "regex_extract_all",
         }:
-            self.value_label.setText(
-                "Pattern"
-            )
-
             self.pattern_edit.setVisible(True)
+            return
 
-        elif operation in {
+        # -------------------------
+        # Substring
+        # -------------------------
+        if operation in {
             "substring",
             "extract_substring",
         }:
-            self.value_label.setText(
-                "Start / end"
-            )
-
             self.substring_start.setVisible(True)
             self.substring_end.setVisible(True)
+            return
 
-        elif operation == "pad":
-            self.value_label.setText(
-                "Width"
-            )
-
+        # -------------------------
+        # Padding
+        # -------------------------
+        if operation == "pad":
             self.pad_width.setVisible(True)
+            return
 
-        elif operation == "concatenate":
-            self.value_label.setText(
-                "Separator"
-            )
-
+        # -------------------------
+        # Concatenation
+        # -------------------------
+        if operation == "concatenate":
             self.separator_edit.setVisible(True)
+            return
 
-        else:
-            self.value_label.clear()
-            self.value_widget.setVisible(False)
+        # -------------------------
+        # Decimal places
+        # -------------------------
+        if operation in {
+            "round",
+            "round_to",
+        }:
+            self.decimal_places.setVisible(True)
 
     # =============================================================
     # DESTINATION
@@ -1207,125 +1200,9 @@ class TransformDialog(QDialog):
 
         return columns
 
-    def update_calculation_visibility(self):
-        visible = (
-            self.operation == "__calculate__"
-        )
 
-        self.calculation_widget.setVisible(
-            visible
-        )
 
-    def add_calculation_operand(self):
-        row = QWidget()
-        row_layout = QHBoxLayout(row)
 
-        row_layout.setContentsMargins(
-            0,
-            0,
-            0,
-            0
-        )
-
-        type_combo = QComboBox()
-
-        type_combo.addItem(
-            "Column",
-            "column"
-        )
-
-        type_combo.addItem(
-            "Constant",
-            "constant"
-        )
-
-        value_combo = QComboBox()
-
-        for column in self.operation_dataframe.columns:
-            value_combo.addItem(
-                str(column),
-                column
-            )
-
-        operator_combo = QComboBox()
-
-        for operator in DataType.OPERATORS:
-            operator_combo.addItem(
-                operator,
-                operator
-            )
-
-        remove_button = QPushButton("×")
-        remove_button.setFixedWidth(30)
-
-        row_layout.addWidget(
-            type_combo
-        )
-
-        row_layout.addWidget(
-            value_combo
-        )
-
-        row_layout.addWidget(
-            operator_combo
-        )
-
-        row_layout.addWidget(
-            remove_button
-        )
-
-        self.calculation_rows_layout.addWidget(
-            row
-        )
-
-        def update_operand_type():
-            value_combo.clear()
-
-            if type_combo.currentData() == "column":
-                for column in self.operation_dataframe.columns:
-                    value_combo.addItem(
-                        str(column),
-                        column
-                    )
-            else:
-                value_combo.setEditable(
-                    True
-                )
-                value_combo.addItem(
-                    "0",
-                    0
-                )
-
-            self.update_preview()
-
-        type_combo.currentIndexChanged.connect(
-            update_operand_type
-        )
-
-        value_combo.currentIndexChanged.connect(
-            self.update_preview
-        )
-
-        operator_combo.currentIndexChanged.connect(
-            self.update_preview
-        )
-
-        remove_button.clicked.connect(
-            lambda: self.remove_calculation_operand(
-                row
-            )
-        )
-
-        self.update_preview()
-
-    def remove_calculation_operand(self, widget):
-        self.calculation_rows_layout.removeWidget(
-            widget
-        )
-
-        widget.deleteLater()
-
-        self.update_preview()
 
     def get_calculation(self):
         name = self.new_col_name.text().strip()
@@ -1455,8 +1332,7 @@ class TransformDialog(QDialog):
                     columns=columns,
                     operation=operation,
                     value=value,
-                    min_columns=1,
-                    max_columns=1,
+                    
                 )
 
             new_column = (
@@ -1468,13 +1344,6 @@ class TransformDialog(QDialog):
                 operation=operation,
                 value=value,
                 new_column=new_column,
-                min_columns=spec.get(
-                    "min_columns",
-                    2
-                ),
-                max_columns=spec.get(
-                    "max_columns"
-                ),
             )
 
         # ---------------------------------------------------------
@@ -1547,87 +1416,115 @@ class TransformDialog(QDialog):
         return operands
 
     def get_operation_value(self):
-
         operation = self.operation
 
-        if operation in {
-            "round",
-            "round_to",
-        }:
-            return self.decimal_places.value()
+        if operation is None:
+            return None
 
+        # -------------------------
+        # Type conversion
+        # -------------------------
         if operation == "astype":
             return self.type_combo.currentData()
 
+        # -------------------------
+        # Numeric value
+        # -------------------------
         if operation in {
             "power",
             "modulus",
-            "add_value",
-            "subtract_value",
-            "multiply_value",
-            "divide_value",
         }:
-            try:
-                return float(
-                    self.value_edit.text()
-                )
-            except ValueError:
-                raise ValueError(
-                    "Enter a valid numeric value."
-                )
+            return float(self.value_edit.text())
 
+        # -------------------------
+        # Clip
+        # -------------------------
         if operation == "clip":
             minimum = self.clip_min.value()
             maximum = self.clip_max.value()
 
-            if minimum > maximum:
-                raise ValueError(
-                    "Clip minimum cannot be greater than maximum."
-                )
+            return {
+                "min": minimum,
+                "max": maximum,
+            }
 
-            return minimum, maximum
+        # -------------------------
+        # Find / replace
+        # -------------------------
+        if operation == "find_and_replace":
+            return {
+                "find": self.find_edit.text(),
+                "replace": self.replace_edit.text(),
+            }
+        # -------------------------
+        # Replace entire cell
+        # -------------------------
+        if operation == "replace_all":
+            return self.replace_edit.text()
+        
+        if operation == "replace":
+            return {
+                "old_value": self.find_edit.text(),
+                "new_value": self.replace_edit.text(),
+            }
 
+
+
+        # -------------------------
+        # Regex replacement
+        # -------------------------
         if operation in {
-            "find_and_replace",
-            "replace_substring",
             "regex_replace",
             "regex_replace_all",
         }:
-            return (
-                self.find_edit.text(),
-                self.replace_edit.text(),
-            )
+            return {
+                "pattern": self.pattern_edit.text(),
+                "replacement": self.replace_edit.text(),
+            }
 
+        # -------------------------
+        # String tests/searches
+        # -------------------------
         if operation in {
             "contains",
             "startswith",
             "endswith",
             "count_occurrences",
-            "find_index",
+            
         }:
             return self.value_edit.text()
 
+        # -------------------------
+        # Regex operations
+        # -------------------------
         if operation in {
             "regex_extract",
             "regex_match",
-            "regex_search",
             "regex_findall",
-            "regex_extract_all",
         }:
             return self.pattern_edit.text()
 
+        # -------------------------
+        # Substring
+        # -------------------------
         if operation in {
             "substring",
             "extract_substring",
         }:
-            return (
-                self.substring_start.value(),
-                self.substring_end.value(),
-            )
+            return {
+                "start": self.substring_start.value(),
+                "end": self.substring_end.value(),
+            }
 
+        # -------------------------
+        # Padding
+        # -------------------------
         if operation == "pad":
             return self.pad_width.value()
 
+        # -------------------------
+        # Concatenation
+        # -------------------------
         if operation == "concatenate":
             return self.separator_edit.text()
 

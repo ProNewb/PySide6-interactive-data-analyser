@@ -37,11 +37,13 @@ class DataType:
     "%": operator.mod,
     "**": operator.pow,
 }
+
+
     TRANSFORM_OPERATIONS = {
 
-        # -------------------------
-        # Numeric single-column
-        # -------------------------
+        # =========================================================
+        # Numeric - single column
+        # =========================================================
 
         "round": {
             "label": "Round",
@@ -79,6 +81,15 @@ class DataType:
             "allowed_dtypes": {"numeric"},
         },
 
+        "z_score": {
+            "label": "Z-score",
+            "group": "Numeric",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"numeric"},
+        },
+
         "power": {
             "label": "Power",
             "group": "Numeric",
@@ -97,10 +108,12 @@ class DataType:
             "allowed_dtypes": {"numeric"},
         },
 
-        # -------------------------
-        # Text single-column
-        # -------------------------
 
+        # =========================================================
+        # Text - single column
+        # =========================================================
+
+        # Formatting
         "uppercase": {
             "label": "Uppercase",
             "group": "Text",
@@ -119,6 +132,53 @@ class DataType:
             "allowed_dtypes": {"text"},
         },
 
+        "title_case": {
+            "label": "Title case",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "trim": {
+            "label": "Trim whitespace",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "remove_whitespace": {
+            "label": "Remove whitespace",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "capitalize_first": {
+            "label": "Capitalize first",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        # Information
+        "length": {
+            "label": "Text length",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        # Find / replace
         "find_and_replace": {
             "label": "Find and replace",
             "group": "Text",
@@ -127,10 +187,161 @@ class DataType:
             "max_columns": 1,
             "allowed_dtypes": {"text"},
         },
+        "replace_all": {
+            "label": "replace cell text",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+        "replace": {
+            "label": "Replace",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
 
-        # -------------------------
-        # Datetime single-column
-        # -------------------------
+
+
+        # Searching
+        "contains": {
+            "label": "Contains",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "startswith": {
+            "label": "Starts with",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "endswith": {
+            "label": "Ends with",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "count_occurrences": {
+            "label": "Count occurrences",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+
+        # Character tests
+        "is_numeric": {
+            "label": "Is numeric",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "is_alpha": {
+            "label": "Is alphabetic",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "is_alphanumeric": {
+            "label": "Is alphanumeric",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "is_lower": {
+            "label": "Is lowercase",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "is_upper": {
+            "label": "Is uppercase",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        # Padding
+        "pad": {
+            "label": "Pad text",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        # Regular expressions
+        "regex_replace": {
+            "label": "Regex replace",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "regex_extract": {
+            "label": "Regex extract",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+        "regex_match": {
+            "label": "Regex match",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+
+        "regex_findall": {
+            "label": "Regex find all",
+            "group": "Text",
+            "mode": "single",
+            "min_columns": 1,
+            "max_columns": 1,
+            "allowed_dtypes": {"text"},
+        },
+
+
+        # =========================================================
+        # Date / Time - single column
+        # =========================================================
 
         "extract_year": {
             "label": "Extract year",
@@ -150,9 +361,10 @@ class DataType:
             "allowed_dtypes": {"datetime"},
         },
 
-        # -------------------------
-        # Multi numeric
-        # -------------------------
+
+        # =========================================================
+        # Numeric - multi column
+        # =========================================================
 
         "add": {
             "label": "Add columns",
@@ -161,7 +373,6 @@ class DataType:
             "min_columns": 2,
             "max_columns": 2,
             "allowed_dtypes": {"numeric"},
-            "destination": "new",
         },
 
         "subtract": {
@@ -171,7 +382,6 @@ class DataType:
             "min_columns": 2,
             "max_columns": 2,
             "allowed_dtypes": {"numeric"},
-            "destination": "new",
         },
 
         "multiply": {
@@ -181,7 +391,6 @@ class DataType:
             "min_columns": 2,
             "max_columns": 2,
             "allowed_dtypes": {"numeric"},
-            "destination": "new",
         },
 
         "divide": {
@@ -191,8 +400,8 @@ class DataType:
             "min_columns": 2,
             "max_columns": 2,
             "allowed_dtypes": {"numeric"},
-            "destination": "new",
         },
+
         "compare_difference": {
             "label": "Difference between columns",
             "group": "Numeric",
@@ -200,19 +409,12 @@ class DataType:
             "min_columns": 2,
             "max_columns": 2,
             "allowed_dtypes": {"numeric"},
-            "destination": "new",
         },
-            "z_score": {
-                "label": "Z-score",
-                "group": "Numeric",
-                "mode": "single",
-                "min_columns": 1,
-                "max_columns": 1,
-                "allowed_dtypes": {"numeric"},
-            },
-        # -------------------------
-        # Multi datetime
-        # -------------------------
+
+
+        # =========================================================
+        # Date / Time - multi column
+        # =========================================================
 
         "difference": {
             "label": "Difference",
@@ -244,9 +446,10 @@ class DataType:
             "destination": "new",
         },
 
-        # -------------------------
-        # Multi text
-        # -------------------------
+
+        # =========================================================
+        # Text - multi column
+        # =========================================================
 
         "concatenate": {
             "label": "Concatenate",
@@ -258,9 +461,10 @@ class DataType:
             "destination": "new",
         },
 
-        # -------------------------
+
+        # =========================================================
         # Encoding
-        # -------------------------
+        # =========================================================
 
         "one_hot_encoding": {
             "label": "One-hot encoding",
@@ -274,9 +478,10 @@ class DataType:
             },
         },
 
-        # -------------------------
-        # Type
-        # -------------------------
+
+        # =========================================================
+        # Type conversion
+        # =========================================================
 
         "astype": {
             "label": "Change type",
@@ -292,9 +497,8 @@ class DataType:
                 "boolean",
             },
         },
-
-
     }
+
     
     @classmethod
     def convert_value(cls, value, dtype):
@@ -971,7 +1175,10 @@ class DataProcessor:
         df = dataframe.copy()
         series = df[config.column]
 
-        if (
+        if config.operation == "astype":
+            transformed = self._transform_type(series, config)
+
+        elif (
             pd.api.types.is_numeric_dtype(series)
             and not pd.api.types.is_bool_dtype(series)
         ):
@@ -997,532 +1204,170 @@ class DataProcessor:
         return df
 
     def _transform_text(self, series, config):
-        if config.operation == "uppercase":
+        operation = config.operation
+        value = config.value
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Uppercase requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        if operation == "uppercase":
             transformed = series.str.upper()
 
-        elif config.operation == "lowercase":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Lowercase requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "lowercase":
             transformed = series.str.lower()
 
-        elif config.operation == "title_case":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Title case requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "title_case":
             transformed = series.str.title()
 
-        elif config.operation == "trim":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Trim requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation in ("trim", "strip"):
             transformed = series.str.strip()
 
-        elif config.operation == "remove_whitespace":
+        elif operation == "remove_whitespace":
+            transformed = series.str.replace(r"\s+", "", regex=True)
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Remove whitespace requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.str.replace(
-                r"\s+",
-                "",
-                regex=True
-            )
-
-        elif config.operation == "capitalize_first":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Capitalizing requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            text = series.str.strip()
-
+        elif operation == "capitalize_first":
             transformed = (
-                text.str[:1].str.upper()
-                + text.str[1:].str.lower()
+                series.str.strip()
+                .str[:1]
+                .str.upper()
+                + series.str.strip().str[1:].str.lower()
             )
-        elif config.operation == "length":
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Length requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "length":
             transformed = series.str.len()
 
-        elif config.operation == "regex_replace":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex replace requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            pattern = config.value.get("pattern")
-            replacement = config.value.get("replacement")
-
-            if pattern is None or replacement is None:
-                raise ValueError(
-                    "Both 'pattern' and 'replacement' must be provided "
-                    "for regex replace."
-                )
-
+        elif operation == "find_and_replace":
             transformed = series.str.replace(
-                pattern,
-                replacement,
-                regex=True
+                value["find"],
+                value["replace"],
+                regex=False,
             )
 
-        elif config.operation == "substring":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Substring requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            start = config.value.get("start")
-            end = config.value.get("end")
-
-            if start is None or end is None:
-                raise ValueError(
-                    "Both 'start' and 'end' must be provided "
-                    "for substring."
-                )
-
-            transformed = series.str.slice(start, end)
-
-        elif config.operation == "replace":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Replace requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            old_value = config.value.get("old_value")
-            new_value = config.value.get("new_value")
-
-            if old_value is None or new_value is None:
-                raise ValueError(
-                    "Both 'old_value' and 'new_value' must be provided "
-                    "for replace."
-                )
-
+        elif operation == "replace":
             transformed = series.str.replace(
-                old_value,
-                new_value,
-                regex=False
+                value["old_value"],
+                value["new_value"],
+                regex=False,
             )
 
-        elif config.operation == "contains":
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Contains requires a text column: "
-                    f"'{config.column}'."
-                )
 
-            substring = config.value
+        elif operation == "regex_replace":
+            transformed = series.str.replace(
+                value["pattern"],
+                value["replacement"],
+                regex=True,
+            )
 
-            if substring is None:
-                raise ValueError(
-                    "'substring' must be provided for contains."
-                )
+        elif operation == "replace_all":
+            transformed = pd.Series(
+                value,
+                index=series.index,
+                dtype="string",
+            )
 
+        elif operation == "regex_replace_all":
+            transformed = series.str.replace(
+                value["pattern"],
+                value["replacement"],
+                regex=True,
+            )
+
+        elif operation == "contains":
             transformed = series.str.contains(
-                substring,
-                regex=False
+                value,
+                na=False,
             )
 
-        elif config.operation == "startswith":  
-            
+        elif operation == "startswith":
+            transformed = series.str.startswith(
+                value,
+                na=False,
+            )
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Startswith requires a text column: "
-                    f"'{config.column}'."
-                )
+        elif operation == "endswith":
+            transformed = series.str.endswith(
+                value,
+                na=False,
+            )
 
-            prefix = config.value
+        elif operation == "count_occurrences":
+            transformed = series.str.count(
+                value
+            )
 
-            if prefix is None:
-                raise ValueError(
-                    "'prefix' must be provided for startswith."
-                )
 
-            transformed = series.str.startswith(prefix)
 
-        elif config.operation == "endswith":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Endswith requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            suffix = config.value
-
-            if suffix is None:
-                raise ValueError(
-                    "'suffix' must be provided for endswith."
-                )
-
-            transformed = series.str.endswith(suffix)
-
-        elif config.operation == "count_occurrences":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Count occurrences requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            substring = config.value
-
-            if substring is None:
-                raise ValueError(
-                    "'substring' must be provided for count_occurrences."
-                )
-
-            transformed = series.str.count(substring)
-
-        elif config.operation == "find_index":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Find index requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            substring = config.value
-
-            if substring is None:
-                raise ValueError(
-                    "'substring' must be provided for find_index."
-                )
-
-            transformed = series.str.find(substring)
-
-        elif config.operation == "is_numeric":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Is numeric requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "is_numeric":
             transformed = series.str.isnumeric()
 
-        elif config.operation == "is_alpha":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Is alpha requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "is_alpha":
             transformed = series.str.isalpha()
 
-        elif config.operation == "is_alphanumeric":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Is alphanumeric requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "is_alphanumeric":
             transformed = series.str.isalnum()
 
-        elif config.operation == "is_lower":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Is lower requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "is_lower":
             transformed = series.str.islower()
 
-        elif config.operation == "is_upper":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Is upper requires a text column: "
-                    f"'{config.column}'."
-                )
-
+        elif operation == "is_upper":
             transformed = series.str.isupper()
 
-        elif config.operation == "length":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Length requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.str.len()
-
-        elif config.operation == "strip":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Strip requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            transformed = series.str.strip()
-
-        elif config.operation == "pad":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Pad requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            width = config.value.get("width")
-            side = config.value.get("side", "left")
-
-            if width is None:
-                raise ValueError(
-                    "'width' must be provided for pad."
-                )
-
-            if side not in {"left", "right", "both"}:
-                raise ValueError(
-                    "'side' must be 'left', 'right', or 'both'."
-                )
-
+        elif operation == "pad":
             transformed = series.str.pad(
-                width=width,
-                side=side
+                width=int(value),
             )
 
-        elif config.operation == "find_and_replace":
+        elif operation in ("substring", "extract_substring"):
+            start = value["start"]
+            end = value["end"]
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Find and replace requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            find_value = config.value.get("find")
-            replace_value = config.value.get("replace")
-
-            if find_value is None or replace_value is None:
-                raise ValueError(
-                    "Both 'find' and 'replace' must be provided "
-                    "for find_and_replace."
-                )
-
-            transformed = series.str.replace(
-                find_value,
-                replace_value,
-                regex=False
+            transformed = series.str.slice(
+                start=start,
+                stop=end,
             )
 
-        elif config.operation == "regex_extract":
+        elif operation in (
+            "regex_extract",
+            "regex_match",
+            "regex_findall",
+            "regex_extract_all",
+        ):
+            pattern = value
 
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex extract requires a text column: "
-                    f"'{config.column}'."
+            if operation == "regex_extract":
+                transformed = series.str.extract(
+                    pattern,
+                    expand=False,
                 )
 
-            pattern = config.value
-
-            if pattern is None:
-                raise ValueError(
-                    "'pattern' must be provided for regex_extract."
+            elif operation == "regex_match":
+                transformed = series.str.match(
+                    pattern,
+                    na=False,
                 )
 
-            transformed = series.str.extract(pattern)
 
-        elif config.operation == "regex_match":
-            
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex match requires a text column: "
-                    f"'{config.column}'."
+
+            elif operation == "regex_findall":
+                transformed = series.str.findall(
+                    pattern,
                 )
 
-            pattern = config.value
-
-            if pattern is None:
-                raise ValueError(
-                    "'pattern' must be provided for regex_match."
+            else:
+                transformed = series.str.findall(
+                    pattern,
                 )
 
-            transformed = series.str.match(pattern)
-
-        elif config.operation == "regex_search":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex search requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            pattern = config.value
-
-            if pattern is None:
-                raise ValueError(
-                    "'pattern' must be provided for regex_search."
-                )
-
-            transformed = series.str.contains(pattern, regex=True)
-
-        elif config.operation == "regex_findall":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex findall requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            pattern = config.value
-
-            if pattern is None:
-                raise ValueError(
-                    "'pattern' must be provided for regex_findall."
-                )
-
-            transformed = series.str.findall(pattern)
-
-        elif config.operation == "regex_replace_all":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex replace all requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            pattern = config.value.get("pattern")
-            replacement = config.value.get("replacement")
-
-            if pattern is None or replacement is None:
-                raise ValueError(
-                    "Both 'pattern' and 'replacement' must be provided "
-                    "for regex_replace_all."
-                )
-
-            transformed = series.str.replace(
-                pattern,
-                replacement,
-                regex=True
+        elif operation == "concatenate":
+            # This is normally handled by the multi-column transform.
+            raise ValueError(
+                "Concatenate must be handled as a multi-column operation."
             )
 
-        elif config.operation == "regex_extract_all":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex extract all requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            pattern = config.value
-
-            if pattern is None:
-                raise ValueError(
-                    "'pattern' must be provided for regex_extract_all."
-                )
-
-            transformed = series.str.extractall(pattern)
-
-        elif config.operation == "regex_replace":
-            
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Regex replace requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            pattern = config.value.get("pattern")
-            replacement = config.value.get("replacement")
-
-            if pattern is None or replacement is None:
-                raise ValueError(
-                    "Both 'pattern' and 'replacement' must be provided "
-                    "for regex_replace."
-                )
-
-            transformed = series.str.replace(
-                pattern,
-                replacement,
-                regex=True
+        else:
+            raise ValueError(
+                f"Unknown text operation: {operation}"
             )
 
-
-            #
-        elif config.operation == "extract_substring":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Extract substring requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            start = config.value.get("start")
-            end = config.value.get("end")
-
-            if start is None or end is None:
-                raise ValueError(
-                    "Both 'start' and 'end' must be provided "
-                    "for extract_substring."
-                )
-
-            transformed = series.str.slice(start, end)  
-
-        elif config.operation == "replace_substring":
-
-            if not pd.api.types.is_string_dtype(series):
-                raise ValueError(
-                    f"Replace substring requires a text column: "
-                    f"'{config.column}'."
-                )
-
-            old_substring = config.value.get("old_substring")
-            new_substring = config.value.get("new_substring")
-
-            if old_substring is None or new_substring is None:
-                raise ValueError(
-                    "Both 'old_substring' and 'new_substring' must be provided "
-                    "for replace_substring."
-                )
-
-            transformed = series.str.replace(
-                old_substring,
-                new_substring,
-                regex=False
-            )
-            return transformed
+        return transformed
 
     def _transform_type(self, series, config):
 
@@ -1728,7 +1573,8 @@ class DataProcessor:
 
         elif operation == "clip":
 
-            minimum, maximum = config.value
+            minimum = config.value["min"]
+            maximum = config.value["max"]
 
             return series.clip(
                 lower=minimum,
@@ -1788,18 +1634,150 @@ class DataProcessor:
 
     def transform_multiple(self, dataframe, config):
 
-        if config.operation == "concatenate":
+        operation = config.operation
+
+        if operation in {
+            "add",
+            "subtract",
+            "multiply",
+            "divide",
+        }:
+            return self._binary_numeric(dataframe, config)
+
+        if operation == "compare_difference":
+            return self._compare_difference(dataframe, config)
+
+        if operation == "concatenate":
             return self._concatenate(dataframe, config)
 
-        if config.operation == "days_between":
-            return self._days_between(dataframe, config)
-
-        if config.operation == "one_hot_encoding":
+        if operation == "one_hot_encoding":
             return self._one_hot(dataframe, config)
 
-        if config.operation == "compare_difference":
-            return self._compare_difference(dataframe, config)
-            
+        if operation == "difference":
+            return self._datetime_difference(dataframe, config)
+
+        if operation == "days_between":
+            return self._days_between(dataframe, config)
+
+        if operation == "hours_between":
+            return self._hours_between(dataframe, config)
+
+        raise ValueError(f"Unknown multi-column operation: {operation}")
+
+    def _datetime_difference(self, dataframe, config):
+
+        self._require_columns(dataframe, config.columns)
+        self._require_column_count(config.columns, 2, "Difference")
+
+        self._require_datetime(
+            dataframe,
+            config.columns,
+            "Difference"
+        )
+
+        result = dataframe.copy()
+
+        result[config.new_column] = (
+            result[config.columns[1]]
+            - result[config.columns[0]]
+        )
+
+        return result
+
+
+    def _days_between(self, dataframe, config):
+
+        result = self._datetime_difference(dataframe, config)
+
+        result[config.new_column] = (
+            result[config.new_column]
+            .dt.days
+        )
+
+        return result
+
+
+    def _hours_between(self, dataframe, config):
+
+        result = self._datetime_difference(dataframe, config)
+
+        result[config.new_column] = (
+            result[config.new_column]
+            .dt.total_seconds() / 3600
+        )
+
+        return result
+
+    def _one_hot(self, dataframe, config):
+        self._require_columns(dataframe, config.columns)
+        self._require_column_count(config.columns, 1, "One-hot encoding")
+
+        column = config.columns[0]
+
+        result = dataframe.copy()
+
+        encoded = pd.get_dummies(
+            result[column],
+            prefix=column,
+            dtype="Int64"
+        )
+
+        result = pd.concat(
+            [result, encoded],
+            axis=1
+        )
+
+        return result
+
+
+    def _concatenate(self, dataframe, config):
+        self._require_columns(dataframe, config.columns)
+        self._validate_new_column(dataframe, config.new_column)
+
+        result = dataframe.copy()
+
+        separator = config.value or ""
+
+        result[config.new_column] = (
+            result[config.columns]
+            .astype("string")
+            .agg(separator.join, axis=1)
+        )
+
+        return result
+
+               
+    def _binary_numeric(self, dataframe, config):
+
+        self._require_columns(dataframe, config.columns)
+        self._require_column_count(config.columns, 2, config.operation)
+
+        left = dataframe[config.columns[0]]
+        right = dataframe[config.columns[1]]
+
+        self._require_numeric_series(left, config.columns[0])
+        self._require_numeric_series(right, config.columns[1])
+
+        result = dataframe.copy()
+
+        if config.operation == "add":
+            values = left + right
+
+        elif config.operation == "subtract":
+            values = left - right
+
+        elif config.operation == "multiply":
+            values = left * right
+
+        elif config.operation == "divide":
+
+            if (right == 0).any():
+                raise ValueError("Cannot divide by zero.")
+
+            values = left / right
+
+        result[config.new_column] = values
+        return result
 
     def delete_column(self, dataframe, config):
 
